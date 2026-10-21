@@ -1,0 +1,30 @@
+version: 2
+
+unit_tests:
+  - name: int_lap_green_flags_applies_all_four_exclusions
+    description: >
+      Lap 1, the pit lap, the lap after a pit stop, and laps over 130% of the race's fastest lap
+      are not green. A lap exactly at 130% is still green.
+    model: int_lap_green_flags
+    given:
+      - input: ref('stg_f1__lap_times')
+        rows:
+          - {race_id: 10, driver_id: 1, lap_number: 1, lap_time_ms: 100000}
+          - {race_id: 10, driver_id: 1, lap_number: 2, lap_time_ms: 90000}
+          - {race_id: 10, driver_id: 1, lap_number: 3, lap_time_ms: 95000}
+          - {race_id: 10, driver_id: 1, lap_number: 4, lap_time_ms: 93000}
+          - {race_id: 10, driver_id: 1, lap_number: 5, lap_time_ms: 90200}
+          - {race_id: 10, driver_id: 2, lap_number: 2, lap_time_ms: 200000}
+          - {race_id: 10, driver_id: 3, lap_number: 2, lap_time_ms: 117000}
+      - input: ref('stg_f1__pit_stops')
+        rows:
+          - {race_id: 10, driver_id: 1, lap_number: 3, stop_duration_ms: 22000}
+    expect:
+      rows:
+        - {race_id: 10, driver_id: 1, lap_number: 1, is_green_flag: false}
+        - {race_id: 10, driver_id: 1, lap_number: 2, is_green_flag: true}
+        - {race_id: 10, driver_id: 1, lap_number: 3, is_green_flag: false}
+        - {race_id: 10, driver_id: 1, lap_number: 4, is_green_flag: false}
+        - {race_id: 10, driver_id: 1, lap_number: 5, is_green_flag: true}
+        - {race_id: 10, driver_id: 2, lap_number: 2, is_green_flag: false}
+        - {race_id: 10, driver_id: 3, lap_number: 2, is_green_flag: true}

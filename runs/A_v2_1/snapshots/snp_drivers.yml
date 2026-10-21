@@ -1,0 +1,20 @@
+version: 2
+
+snapshots:
+  - name: snp_drivers
+    description: >
+      Type 2 history of the drivers table. Raw DRIVERS only holds current values
+      (car number, code, names, nationality), so this snapshot records every
+      change. One row per driver per version; the current version has
+      dbt_valid_to null. History starts from the first snapshot run.
+    relation: ref('stg_ergast__drivers')
+    config:
+      schema: snapshots
+      unique_key: driver_id
+      strategy: check
+      check_cols: all
+    columns:
+      - name: driver_id
+        data_tests: [not_null]
+      - name: dbt_scd_id
+        data_tests: [unique, not_null]

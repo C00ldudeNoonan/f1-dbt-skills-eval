@@ -1,0 +1,20 @@
+unit_tests:
+  - name: teammate_gap_uses_latest_common_session
+    description: >
+      Race 1: both drivers reached Q3, so Q3 times are compared (not each
+      driver's overall best). Race 2: driver 2 was out in Q1, so Q1 is
+      compared; the 4% gap is kept but flagged non-representative.
+    model: int_teammate_qualifying_gaps
+    given:
+      - input: ref('fct_qualifying')
+        rows:
+          - {race_id: 1, season: 2020, constructor_id: 9, driver_id: 1, q1_ms: 90000, q2_ms: 89000, q3_ms: 88800}
+          - {race_id: 1, season: 2020, constructor_id: 9, driver_id: 2, q1_ms: 89500, q2_ms: 89200, q3_ms: 88000}
+          - {race_id: 2, season: 2020, constructor_id: 9, driver_id: 1, q1_ms: 90000, q2_ms: 89500, q3_ms: null}
+          - {race_id: 2, season: 2020, constructor_id: 9, driver_id: 2, q1_ms: 93600, q2_ms: null, q3_ms: null}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, teammate_id: 2, session_compared: Q3, driver_time_ms: 88800, teammate_time_ms: 88000, is_representative: true}
+        - {race_id: 1, driver_id: 2, teammate_id: 1, session_compared: Q3, driver_time_ms: 88000, teammate_time_ms: 88800, is_representative: true}
+        - {race_id: 2, driver_id: 1, teammate_id: 2, session_compared: Q1, driver_time_ms: 90000, teammate_time_ms: 93600, is_representative: false}
+        - {race_id: 2, driver_id: 2, teammate_id: 1, session_compared: Q1, driver_time_ms: 93600, teammate_time_ms: 90000, is_representative: false}

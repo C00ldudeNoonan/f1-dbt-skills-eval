@@ -1,0 +1,19 @@
+version: 2
+
+unit_tests:
+  - name: championship_counts_only_complete_seasons
+    description: >
+      A title only counts when its season is complete. A position-1 finish in an in-progress
+      season does not add one. Titles in complete seasons are counted per driver.
+    model: int_f1__driver_championships
+    given:
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2020, latest_completed_round: 17, is_season_complete: true, driver_id: 1, championship_position: 1, points: 300, wins: 8}
+          - {season: 2021, latest_completed_round: 22, is_season_complete: true, driver_id: 1, championship_position: 1, points: 395, wins: 10}
+          - {season: 2024, latest_completed_round: 23, is_season_complete: false, driver_id: 2, championship_position: 1, points: 400, wins: 9}
+          - {season: 2021, latest_completed_round: 22, is_season_complete: true, driver_id: 2, championship_position: 2, points: 380, wins: 9}
+          - {season: 2019, latest_completed_round: 21, is_season_complete: true, driver_id: 3, championship_position: 3, points: 200, wins: 1}
+    expect:
+      rows:
+        - {driver_id: 1, world_championships: 2}

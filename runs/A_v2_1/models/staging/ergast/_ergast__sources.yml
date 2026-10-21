@@ -1,0 +1,574 @@
+version: 2
+
+# Every raw table carries three kinds of guard, so a vendor change fails loudly
+# at the source instead of silently changing numbers downstream:
+#   * raw_schema_matches_contract (missing)    error: a column we rely on is gone
+#   * raw_schema_matches_contract (unexpected) warn:  the vendor added/renamed a column
+#   * values_parse                             error: a present value no longer parses
+#   * raw_duplicate_keys (conflicting)         error: a natural key has disagreeing copies
+#   * raw_duplicate_keys (exact)               warn:  the feed sent identical copies (staging collapses them)
+# A failing source test skips the staging models built on that table.
+
+sources:
+  - name: ergast
+    description: >
+      Raw Ergast / Kaggle Formula 1 extract, 1950 to the current season. Every
+      column is TEXT. Missing values are the literal string \N (or an empty
+      string in places). This schema is read-only: only staging models read it.
+      Expected layout: seeds/raw_schema_contract.csv.
+    database: ANALYTICS_DEV
+    schema: "{{ var('raw_schema', 'F1_RAW_A_v2_1') }}"
+    quoting:
+      database: false
+      schema: false
+      identifier: false
+    tables:
+      - name: circuits
+        description: >
+          One row per circuit.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_circuits__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_circuits__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_circuits__no_conflicting_duplicates
+              arguments:
+                key_columns: [circuitid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_circuits__no_duplicate_rows
+              arguments:
+                key_columns: [circuitid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_circuits__values_parse
+              arguments:
+                columns:
+                  circuitid: int
+                  lat: decimal
+                  lng: decimal
+                  alt: int
+        columns:
+          - name: circuitid
+            data_tests: [not_null]
+      - name: constructors
+        description: >
+          One row per constructor (team entry name).
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_constructors__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_constructors__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_constructors__no_conflicting_duplicates
+              arguments:
+                key_columns: [constructorid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_constructors__no_duplicate_rows
+              arguments:
+                key_columns: [constructorid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_constructors__values_parse
+              arguments:
+                columns:
+                  constructorid: int
+        columns:
+          - name: constructorid
+            data_tests: [not_null]
+      - name: constructor_results
+        description: >
+          Constructor points per race.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_constructor_results__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_constructor_results__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_constructor_results__no_conflicting_duplicates
+              arguments:
+                key_columns: [raceid, constructorid]
+                ignore_columns: [constructorresultsid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_constructor_results__no_duplicate_rows
+              arguments:
+                key_columns: [raceid, constructorid]
+                ignore_columns: [constructorresultsid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_constructor_results__values_parse
+              arguments:
+                columns:
+                  constructorresultsid: int
+                  raceid: int
+                  constructorid: int
+                  points: decimal
+        columns:
+          - name: constructorresultsid
+            data_tests: [not_null]
+      - name: constructor_standings
+        description: >
+          Constructor championship standings after each race.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_constructor_standings__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_constructor_standings__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_constructor_standings__no_conflicting_duplicates
+              arguments:
+                key_columns: [raceid, constructorid]
+                ignore_columns: [constructorstandingsid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_constructor_standings__no_duplicate_rows
+              arguments:
+                key_columns: [raceid, constructorid]
+                ignore_columns: [constructorstandingsid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_constructor_standings__values_parse
+              arguments:
+                columns:
+                  constructorstandingsid: int
+                  raceid: int
+                  constructorid: int
+                  points: decimal
+                  position: int
+                  wins: int
+        columns:
+          - name: constructorstandingsid
+            data_tests: [not_null]
+      - name: drivers
+        description: >
+          One row per driver.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_drivers__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_drivers__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_drivers__no_conflicting_duplicates
+              arguments:
+                key_columns: [driverid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_drivers__no_duplicate_rows
+              arguments:
+                key_columns: [driverid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_drivers__values_parse
+              arguments:
+                columns:
+                  driverid: int
+                  number: int
+                  dob: date
+        columns:
+          - name: driverid
+            data_tests: [not_null]
+          - name: driverref
+            data_tests: [not_null]
+      - name: driver_standings
+        description: >
+          Driver championship standings after each race. Already reflects the official scoring rules of each era (dropped scores, shared drives, half points, sprint points from 2021, exclusions).
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_driver_standings__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_driver_standings__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_driver_standings__no_conflicting_duplicates
+              arguments:
+                key_columns: [raceid, driverid]
+                ignore_columns: [driverstandingsid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_driver_standings__no_duplicate_rows
+              arguments:
+                key_columns: [raceid, driverid]
+                ignore_columns: [driverstandingsid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_driver_standings__values_parse
+              arguments:
+                columns:
+                  driverstandingsid: int
+                  raceid: int
+                  driverid: int
+                  points: decimal
+                  position: int
+                  wins: int
+        columns:
+          - name: driverstandingsid
+            data_tests: [not_null]
+      - name: lap_times
+        identifier: LAP_TIMING
+        description: >
+          One row per driver per lap, from 1996 onwards. Renamed LAP_TIMES -> LAP_TIMING by the vendor in October 2026.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_lap_times__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_lap_times__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_lap_times__no_conflicting_duplicates
+              arguments:
+                key_columns: [raceid, driverid, lap]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_lap_times__no_duplicate_rows
+              arguments:
+                key_columns: [raceid, driverid, lap]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_lap_times__values_parse
+              arguments:
+                columns:
+                  raceid: int
+                  driverid: int
+                  lap: int
+                  position: int
+                  milliseconds: int
+      - name: pit_stops
+        description: >
+          One row per pit stop, from 2011 onwards. The text DURATION column was dropped by the vendor in October 2026; MILLISECONDS is the duration.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_pit_stops__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_pit_stops__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_pit_stops__no_conflicting_duplicates
+              arguments:
+                key_columns: [raceid, driverid, stop]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_pit_stops__no_duplicate_rows
+              arguments:
+                key_columns: [raceid, driverid, stop]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_pit_stops__values_parse
+              arguments:
+                columns:
+                  raceid: int
+                  driverid: int
+                  stop: int
+                  lap: int
+                  milliseconds: int
+      - name: qualifying
+        description: >
+          One row per qualifying entry, from 1994 onwards. Missing times are empty strings (\N before October 2026).
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_qualifying__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_qualifying__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_qualifying__no_conflicting_duplicates
+              arguments:
+                key_columns: [raceid, driverid]
+                ignore_columns: [qualifyid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_qualifying__no_duplicate_rows
+              arguments:
+                key_columns: [raceid, driverid]
+                ignore_columns: [qualifyid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_qualifying__values_parse
+              arguments:
+                columns:
+                  qualifyid: int
+                  raceid: int
+                  driverid: int
+                  constructorid: int
+                  number: int
+                  position: int
+                  q1: duration
+                  q2: duration
+                  q3: duration
+        columns:
+          - name: qualifyid
+            data_tests: [not_null]
+      - name: races
+        description: >
+          One row per Grand Prix on the calendar, including races not yet run. DATE is DD/MM/YYYY since October 2026 (YYYY-MM-DD before).
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_races__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_races__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_races__no_conflicting_duplicates
+              arguments:
+                key_columns: [raceid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_races__no_duplicate_rows
+              arguments:
+                key_columns: [raceid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_races__values_parse
+              arguments:
+                columns:
+                  raceid: int
+                  year: int
+                  round: int
+                  circuitid: int
+                  date: date
+                  time: time
+                  sprint_date: date
+        columns:
+          - name: raceid
+            data_tests: [not_null]
+      - name: results
+        description: >
+          One row per Grand Prix result entry (sprints are in sprint_results). Before 1979 a driver can appear twice in one race (shared or second cars). POSITIONORDER was renamed POSITION_ORDER in October 2026.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_results__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_results__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_results__no_conflicting_duplicates
+              arguments:
+                key_columns: [resultid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_results__no_duplicate_rows
+              arguments:
+                key_columns: [resultid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_results__values_parse
+              arguments:
+                columns:
+                  resultid: int
+                  raceid: int
+                  driverid: int
+                  constructorid: int
+                  number: int
+                  grid: int
+                  position_order: int
+                  points: decimal
+                  laps: int
+                  milliseconds: int
+                  fastestlap: int
+                  rank: int
+                  fastestlaptime: duration
+                  fastestlapspeed: decimal
+                  statusid: int
+        columns:
+          - name: resultid
+            data_tests: [not_null]
+      - name: seasons
+        description: >
+          One row per championship season.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_seasons__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_seasons__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_seasons__no_conflicting_duplicates
+              arguments:
+                key_columns: [year]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_seasons__no_duplicate_rows
+              arguments:
+                key_columns: [year]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_seasons__values_parse
+              arguments:
+                columns:
+                  year: int
+        columns:
+          - name: year
+            data_tests: [not_null]
+      - name: sprint_results
+        description: >
+          One row per sprint race result entry, from 2021 onwards. POSITIONORDER was renamed POSITION_ORDER in October 2026.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_sprint_results__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_sprint_results__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_sprint_results__no_conflicting_duplicates
+              arguments:
+                key_columns: [raceid, driverid]
+                ignore_columns: [resultid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_sprint_results__no_duplicate_rows
+              arguments:
+                key_columns: [raceid, driverid]
+                ignore_columns: [resultid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_sprint_results__values_parse
+              arguments:
+                columns:
+                  resultid: int
+                  raceid: int
+                  driverid: int
+                  constructorid: int
+                  number: int
+                  grid: int
+                  position_order: int
+                  points: decimal
+                  laps: int
+                  milliseconds: int
+                  fastestlap: int
+                  fastestlaptime: duration
+                  statusid: int
+        columns:
+          - name: resultid
+            data_tests: [not_null]
+      - name: status
+        description: >
+          Lookup of finishing status codes.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_status__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_status__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_status__no_conflicting_duplicates
+              arguments:
+                key_columns: [statusid]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_status__no_duplicate_rows
+              arguments:
+                key_columns: [statusid]
+                check: exact
+              config:
+                severity: warn
+          - values_parse:
+              name: raw_status__values_parse
+              arguments:
+                columns:
+                  statusid: int
+        columns:
+          - name: statusid
+            data_tests: [not_null]

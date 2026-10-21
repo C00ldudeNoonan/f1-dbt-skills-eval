@@ -1,0 +1,136 @@
+version: 2
+
+models:
+  - name: fct_lap_times
+    description: >
+      One row per driver per lap per race. Incremental: new races are appended and the two
+      most recent loaded races are reloaded on every run so corrected lap times flow through.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__races'), field: race_id}}
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: lap
+        data_tests: [not_null]
+      - name: position
+        description: Running position at the end of the lap.
+      - name: lap_time_ms
+        data_tests: [not_null]
+
+  - name: fct_stints
+    description: >
+      One row per driver per stint for races with pit stop data. A stop on lap L ends the
+      stint on L; the next starts on L+1; the last stint ends on the driver's last lap.
+      Stints with no laps are dropped. Incremental by race, like fct_lap_times.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stint_number]
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: stint_number
+        data_tests: [not_null]
+      - name: start_lap
+        data_tests: [not_null]
+      - name: end_lap
+        data_tests: [not_null]
+      - name: stint_laps
+        data_tests: [not_null]
+      - name: avg_lap_time_ms
+        description: Mean of every lap time in the stint (no green-flag filtering).
+        data_tests: [not_null]
+
+  - name: fct_telemetry
+    description: >
+      One row per telemetry sample (race, driver, lap, sample_index). Incremental on the load time, so
+      late-arriving samples are picked up automatically; re-deliveries replace the older copy.
+      Row-level tests only look at recently ingested rows (`ingested_at`) so a routine build does not
+      rescan ~20M rows; the merge key itself guarantees uniqueness, and
+      assert_telemetry_row_counts_match_raw reconciles the whole table cheaply.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap, sample_index]
+          config:
+            where: "ingested_at >= dateadd(day, -3, current_timestamp())"
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null:
+              config: {where: "ingested_at >= dateadd(day, -3, current_timestamp())"}
+          - relationships:
+              arguments: {to: ref('stg_ergast__races'), field: race_id}
+              config: {where: "ingested_at >= dateadd(day, -3, current_timestamp())"}
+      - name: driver_id
+        data_tests:
+          - not_null:
+              config: {where: "ingested_at >= dateadd(day, -3, current_timestamp())"}
+          - relationships:
+              arguments: {to: ref('dim_drivers'), field: driver_id}
+              config: {where: "ingested_at >= dateadd(day, -3, current_timestamp())"}
+      - name: lap
+        data_tests:
+          - not_null:
+              config: {where: "ingested_at >= dateadd(day, -3, current_timestamp())"}
+      - name: sample_index
+        data_tests:
+          - not_null:
+              config: {where: "ingested_at >= dateadd(day, -3, current_timestamp())"}
+      - name: recorded_at
+        data_tests:
+          - not_null:
+              config: {where: "ingested_at >= dateadd(day, -3, current_timestamp())"}
+      - name: speed_kph
+      - name: throttle_pct
+      - name: brake
+      - name: gear
+      - name: drs
+      - name: loaded_at
+        description: When the sample landed in the warehouse (incremental watermark for this model).
+      - name: ingested_at
+        description: When dbt wrote the row (watermark for downstream incrementals).
+
+  - name: mart_lap_telemetry_summary
+    description: >
+      One row per driver per lap. Incremental by lap: laps touched by newly loaded samples are recomputed
+      from fct_telemetry, all others are untouched.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: lap
+        data_tests: [not_null]
+      - name: samples
+        data_tests: [not_null]
+      - name: max_speed_kph
+      - name: avg_throttle_pct
+      - name: full_throttle_pct
+        description: Share of samples with throttle at 99 or above, as a percentage.
+      - name: brake_samples
+        description: Samples with the brake applied.
+      - name: max_ingested_at
+        description: Newest fct_telemetry ingested_at among the lap's samples (watermark for the next run).

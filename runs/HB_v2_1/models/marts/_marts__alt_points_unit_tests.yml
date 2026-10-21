@@ -1,0 +1,66 @@
+unit_tests:
+  - name: mart_alt_points_standings_countback_then_lowest_driver_id
+    description: >
+      Driver 10 wins and leads on the countback with 25 points. Drivers 3, 4 and 9 tie on
+      25 points with the same finishes, so the lowest driver_id ranks first. Driver 11 has no
+      classified finish and scores zero but still appears. Only classified finishes score.
+    model: mart_alt_points_standings
+    given:
+      - input: ref('fct_results')
+        rows:
+          - {season: 2000, driver_id: 10, race_id: 1, position_order: 1, finish_position: 1}
+          - {season: 2000, driver_id: 3, race_id: 1, position_order: 3, finish_position: 3}
+          - {season: 2000, driver_id: 3, race_id: 2, position_order: 5, finish_position: 5}
+          - {season: 2000, driver_id: 4, race_id: 3, position_order: 3, finish_position: 3}
+          - {season: 2000, driver_id: 4, race_id: 4, position_order: 5, finish_position: 5}
+          - {season: 2000, driver_id: 9, race_id: 5, position_order: 3, finish_position: 3}
+          - {season: 2000, driver_id: 9, race_id: 6, position_order: 5, finish_position: 5}
+          - {season: 2000, driver_id: 11, race_id: 7, position_order: 12, finish_position: null}
+      - input: ref('points_systems')
+        rows:
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 1, points: 25}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 2, points: 18}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 3, points: 15}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 4, points: 12}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 5, points: 10}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 6, points: 8}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 7, points: 6}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 8, points: 4}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 9, points: 2}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 10, points: 1}
+    expect:
+      rows:
+        - {points_system: current, season: 2000, driver_id: 10, alt_points: 25, wins: 1, alt_position: 1}
+        - {points_system: current, season: 2000, driver_id: 3, alt_points: 25, wins: 0, alt_position: 2}
+        - {points_system: current, season: 2000, driver_id: 4, alt_points: 25, wins: 0, alt_position: 3}
+        - {points_system: current, season: 2000, driver_id: 9, alt_points: 25, wins: 0, alt_position: 4}
+        - {points_system: current, season: 2000, driver_id: 11, alt_points: 0, wins: 0, alt_position: 5}
+
+  - name: mart_alt_points_standings_countback_falls_through_to_second_places
+    description: >
+      Drivers 5 and 6 both finish 20 points with no wins. Driver 5 has a second place, which
+      breaks the tie on the second countback level, so driver 5 ranks ahead.
+    model: mart_alt_points_standings
+    given:
+      - input: ref('fct_results')
+        rows:
+          - {season: 2001, driver_id: 5, race_id: 1, position_order: 2, finish_position: 2}
+          - {season: 2001, driver_id: 5, race_id: 2, position_order: 9, finish_position: 9}
+          - {season: 2001, driver_id: 6, race_id: 3, position_order: 4, finish_position: 4}
+          - {season: 2001, driver_id: 6, race_id: 4, position_order: 6, finish_position: 6}
+      - input: ref('points_systems')
+        rows:
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 1, points: 25}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 2, points: 18}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 3, points: 15}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 4, points: 12}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 5, points: 10}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 6, points: 8}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 7, points: 6}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 8, points: 4}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 9, points: 2}
+          - {points_system: current, first_season: 1950, last_season: 2100, position_order: 10, points: 1}
+    expect:
+      rows:
+        - {points_system: current, season: 2001, driver_id: 5, alt_points: 20, wins: 0, alt_position: 1}
+        - {points_system: current, season: 2001, driver_id: 6, alt_points: 20, wins: 0, alt_position: 2}

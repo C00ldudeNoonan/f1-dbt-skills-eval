@@ -1,0 +1,222 @@
+version: 2
+
+models:
+  - name: stg_f1__races
+    description: >
+      One row per Grand Prix on the calendar. Includes rounds that have no results loaded yet.
+      Use int_season_completeness to decide whether a season is complete.
+    columns:
+      - name: race_date
+        description: >
+          Race date. The vendor sent ISO dates until 2026-10-21 and DD/MM/YYYY after, so both are parsed.
+          NULL here means an unknown format, which fails the build.
+        data_tests:
+          - not_null
+      - name: race_id
+        description: Primary key from the source RACEID.
+        data_tests:
+          - unique
+          - not_null
+      - name: season
+        description: Championship year (source YEAR).
+        data_tests:
+          - not_null
+      - name: round
+        description: Round number within the season.
+        data_tests:
+          - not_null
+
+  - name: stg_f1__results
+    description: >
+      One row per Grand Prix result entry, with text columns cast and \N turned into NULL.
+      85 race-driver pairs repeat, all before 1979 (a driver entered twice in one event), so
+      result_id is the grain, not race_id plus driver_id.
+    columns:
+      - name: result_id
+        description: Primary key from the source RESULTID.
+        data_tests:
+          - unique
+          - not_null
+      - name: race_id
+        description: Grand Prix the result belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: driver_id
+        description: >
+          Driver on this result. A result can arrive before its driver record (late-arriving drivers), so the
+          relationship to stg_f1__drivers is a warning here, not an error. int_orphan_drivers lists those IDs,
+          and dim_drivers carries a placeholder row for each.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__drivers')
+                field: driver_id
+              config:
+                severity: warn
+      - name: constructor_id
+        description: Constructor (team) for this result.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__constructors')
+                field: constructor_id
+      - name: position
+        description: >
+          Official finishing position from the source POSITION column. Null for retirements, and
+          also null for two 2005 lapped finishers whose real place is only in position_text.
+      - name: position_text
+        description: >
+          Finishing place as text. Letters mark non-finishers: R (retired), D (disqualified),
+          W (withdrew), F (failed to qualify), N (not classified), E (excluded).
+      - name: position_order
+        description: Finishing order including non-finishers. Always populated, so it is used for head-to-head comparisons.
+        data_tests:
+          - not_null
+      - name: fastest_lap_time_ms
+        description: Driver's fastest lap in milliseconds, parsed from m:ss.mmm. Only populated from 2004 onwards.
+
+  - name: stg_f1__drivers
+    description: One row per driver. Names and nationality are kept as the source has them.
+    columns:
+      - name: driver_id
+        description: Primary key from the source DRIVERID.
+        data_tests:
+          - unique
+          - not_null
+      - name: driver_ref
+        description: Stable text reference (for example hamilton, michael_schumacher), used in the reference seeds.
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_f1__constructors
+    description: One row per constructor (team) across all seasons.
+    columns:
+      - name: constructor_id
+        description: Primary key from the source CONSTRUCTORID.
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_f1__status
+    description: Lookup of finishing and retirement status text (for example Finished, +1 Lap, Engine).
+    columns:
+      - name: status_id
+        description: Primary key from the source STATUSID.
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_f1__qualifying
+    description: >
+      One row per qualifying entry. Q1, Q2 and Q3 are parsed to milliseconds. A null means the
+      driver did not set a time in that session, which is normal for drivers eliminated in Q1 or Q2.
+    columns:
+      - name: qualify_id
+        description: Primary key from the source QUALIFYID.
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_f1__lap_times
+    description: One row per driver per lap. Race-time lap values come from MILLISECONDS, not the text TIME column, which uses h:mm:ss for some laps.
+    columns:
+      - name: lap_time_ms
+        description: Lap duration in milliseconds.
+        data_tests:
+          - not_null
+
+  - name: stg_f1__pit_stops
+    description: >
+      One row per pit stop, from 2011 onwards. stop_duration_ms is the pit stop duration from the
+      source MILLISECONDS column. Stops over 60 seconds are red-flag stoppages and
+      are removed in the marts, not here.
+    columns:
+      - name: stop_duration_ms
+        description: Pit stop duration in milliseconds. The text DURATION column is not used because it has mixed formats.
+
+  - name: stg_f1__driver_standings
+    description: Driver championship standings snapshot after each race, as the official data publishes them.
+    columns:
+      - name: driver_standings_id
+        description: Primary key from the source DRIVERSTANDINGSID.
+        data_tests:
+          - unique
+          - not_null
+      - name: position
+        description: Championship position after this race. Ties share a position.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - race_id
+              - driver_id
+
+  - name: stg_f1__sprint_results
+    description: >
+      One row per sprint result entry, from 2021. Cleaned the same way as stg_f1__results. Sprint result IDs
+      are separate from Grand Prix result IDs, so the pair (session type, result_id) is the key downstream.
+    columns:
+      - name: result_id
+        description: Source RESULTID within the sprint table. Not unique across sessions.
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_f1__vb_drivers
+    description: Vendor B drivers, with the name split into surname and given name.
+    columns:
+      - name: driver_key
+        description: Vendor B DRIVER_KEY.
+        data_tests:
+          - unique
+          - not_null
+      - name: surname
+        data_tests:
+          - not_null
+      - name: given_name
+        data_tests:
+          - not_null
+
+  - name: stg_f1__vb_sessions
+    description: Vendor B sessions, Race and Sprint.
+    columns:
+      - name: session_key
+        data_tests:
+          - unique
+          - not_null
+      - name: session_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: session_date
+        description: Session date from the UTC date_start.
+        data_tests:
+          - not_null
+
+  - name: stg_f1__vb_results
+    description: Vendor B result entries.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - session_key
+              - driver_key
+    columns:
+      - name: session_key
+        data_tests:
+          - not_null
+      - name: driver_key
+        data_tests:
+          - not_null
+      - name: points
+        data_tests:
+          - not_null
+

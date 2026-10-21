@@ -1,0 +1,91 @@
+models:
+  - name: int_seasons
+    description: One row per season with calendar completeness. Drives "as of latest completed round" and "completed season" logic everywhere.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: calendar_rounds
+        description: Races on the season's calendar, including ones not yet run.
+      - name: completed_rounds
+        description: Calendar races that have at least one Grand Prix result.
+      - name: latest_completed_round
+        description: Highest round number that has results.
+      - name: latest_completed_race_id
+        data_tests: [not_null]
+      - name: is_complete
+        description: True when every race on the calendar has results. Championships only count for complete seasons.
+        data_tests: [not_null]
+
+  - name: int_race_driver_constructors
+    description: One row per race, driver and constructor with a Grand Prix result, with the driver's best position_order for that car.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, constructor_id]
+
+  - name: int_lap_times__green_flag
+    description: Every lap from lap_times, flagged with the reasons it is or isn't a green-flag lap.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: is_green_flag_lap
+        description: Not lap 1, not a pit in-lap or out-lap, and no slower than 130% of the race's fastest lap.
+        data_tests: [not_null]
+
+  - name: int_driver_ids
+    description: >
+      Every driver_id in `drivers` or referenced by any driver-keyed feed
+      (results, sprints, qualifying, standings, laps, pit stops). The spine for
+      dim_drivers, so late-arriving drivers get a placeholder row.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: has_driver_record
+        description: False when the driver is referenced by a feed but not yet in `drivers`.
+        data_tests: [not_null]
+
+  - name: int_teammate_qualifying_gaps
+    description: >
+      One row per race, constructor, driver and teammate (both orderings) where
+      both set a time in a common qualifying session. Gap is measured in the
+      latest session both took part in (Q3 > Q2 > Q1), as a % of the teammate's
+      time. Gaps beyond +/-3% are flagged non-representative (crashes, failures,
+      changing weather) and excluded from pace estimates.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, constructor_id, driver_id, teammate_id]
+    columns:
+      - name: session_compared
+        data_tests:
+          - accepted_values:
+              arguments: {values: ['Q1', 'Q2', 'Q3']}
+      - name: gap_pct
+        description: 100 * (driver time - teammate time) / teammate time. Negative = driver faster.
+        data_tests: [not_null]
+
+  - name: int_teammate_race_comparisons
+    description: >
+      One row per Grand Prix, constructor, driver and teammate where both were
+      classified finishers. Retirements are excluded (mostly mechanical; the
+      data can't reliably separate driver-caused ones).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, constructor_id, driver_id, teammate_id]
+
+  - name: int_pit_stops_enriched
+    description: >
+      One row per pit stop with season, circuit, constructor and the stop's
+      difference from its circuit's all-season median service stop
+      (delta_vs_circuit_ms). Durations are pit-lane time, not stationary time.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: is_service_stop
+        description: Stop of 60 s or less (excludes red flags, repairs and penalties served in the pit lane).
+        data_tests: [not_null]

@@ -1,0 +1,19 @@
+version: 2
+
+unit_tests:
+  - name: fastest_lap_time_parses_to_milliseconds
+    description: Fastest lap text (m:ss.sss) becomes integer milliseconds. The \N marker becomes null.
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', constructorid: '1', statusid: '1', fastestlaptime: '1:32.456'}
+          - {resultid: '2', raceid: '1', driverid: '2', constructorid: '1', statusid: '1', fastestlaptime: '0:55.404'}
+          - {resultid: '3', raceid: '1', driverid: '3', constructorid: '1', statusid: '1', fastestlaptime: '1:02.5'}
+          - {resultid: '4', raceid: '1', driverid: '4', constructorid: '1', statusid: '1', fastestlaptime: '\N'}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 92456}
+        - {result_id: 2, fastest_lap_time_ms: 55404}
+        - {result_id: 3, fastest_lap_time_ms: 62500}
+        - {result_id: 4, fastest_lap_time_ms: null}

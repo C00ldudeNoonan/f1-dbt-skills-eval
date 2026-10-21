@@ -1,0 +1,117 @@
+version: 2
+
+seeds:
+  - name: known_world_champions
+    description: >
+      Independent reference list of official Drivers' World Champions and their
+      official points totals, maintained by hand from FIA records. Used only to
+      reconcile mart_driver_season_standings and dim_drivers. Add a row when a
+      season finishes.
+    config:
+      column_types:
+        season: integer
+        driver_ref: varchar
+        points: number(8, 2)
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [not_null]
+
+  - name: points_systems
+    description: >
+      Points tables for mart_alt_points_standings, one row per system and
+      finishing position. Add a system by adding rows (positions without a row
+      score 0), for example 1991–2002: 10, 6, 4, 3, 2, 1 for positions 1–6.
+    config:
+      column_types:
+        points_system: varchar
+        position: integer
+        points: number(8, 2)
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, position]
+    columns:
+      - name: points_system
+        data_tests: [not_null]
+      - name: position
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null]
+
+  - name: raw_schema_contract
+    description: >
+      Expected layout of every raw table: one row per table and column, as last
+      agreed with the vendor (regenerated after the October 2026 pipeline
+      migration). Checked against information_schema by the
+      raw_schema_matches_contract source tests and listed in
+      audit_raw_schema_drift. Update it deliberately, together with staging,
+      when the vendor changes the layout.
+    config:
+      column_types:
+        table_name: varchar
+        column_name: varchar
+        ordinal_position: integer
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [table_name, column_name]
+
+  - name: constructor_points_exceptions
+    description: >
+      Constructor seasons (1979 onwards) whose summed race and sprint points
+      legitimately differ from the published constructor standings, with the
+      reason. Used by assert_constructor_totals_match_official_standings. Add a
+      row only for a documented FIA decision, never to silence a feed problem.
+    config:
+      column_types:
+        season: integer
+        constructor_ref: varchar
+        reason: varchar
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, constructor_ref]
+
+  - name: vendor_b_driver_overrides
+    description: >
+      Manual Vendor B driver matches, only for genuinely ambiguous cases the
+      automatic matcher can't resolve (dim_driver_crosswalk fails the build and
+      names them). One row per Vendor B driver_key with our driver_ref and the
+      reason. Takes precedence over automatic matching. Empty by default.
+    config:
+      column_types:
+        driver_key: varchar
+        driver_ref: varchar
+        reason: varchar
+    columns:
+      - name: driver_key
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__drivers')
+                field: driver_ref
+
+  - name: vendor_b_session_overrides
+    description: >
+      Manual Vendor B session matches for ambiguous cases only (for example a
+      venue renamed and moved date in the same season). Takes precedence over
+      automatic matching. Empty by default.
+    config:
+      column_types:
+        session_key: integer
+        race_id: integer
+        session_type: varchar
+        reason: varchar
+    columns:
+      - name: session_key
+        data_tests: [unique, not_null]
+      - name: session_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']

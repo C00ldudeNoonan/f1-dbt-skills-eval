@@ -1,0 +1,129 @@
+version: 2
+
+unit_tests:
+  - name: test_race_pace_green_lap_rules
+    description: >
+      Lap 1, pit lap, lap after pit and laps slower than 130% of the race's fastest lap
+      (set by any driver) are excluded; a driver with no green laps gets no row.
+    model: fct_driver_race_pace
+    given:
+      - input: ref('stg_ergast__lap_times')
+        rows:
+          # driver 1: lap1 excluded, lap2 ok, lap3 pit, lap4 after pit, lap5 ok, lap6 too slow
+          - {race_id: 1, driver_id: 1, lap: 1, lap_time_ms: 100000}
+          - {race_id: 1, driver_id: 1, lap: 2, lap_time_ms: 90000}
+          - {race_id: 1, driver_id: 1, lap: 3, lap_time_ms: 110000}
+          - {race_id: 1, driver_id: 1, lap: 4, lap_time_ms: 95000}
+          - {race_id: 1, driver_id: 1, lap: 5, lap_time_ms: 92000}
+          - {race_id: 1, driver_id: 1, lap: 6, lap_time_ms: 118000}
+          # driver 2 sets the race's fastest lap (80000 on lap 1, which itself is not green)
+          - {race_id: 1, driver_id: 2, lap: 1, lap_time_ms: 80000}
+          - {race_id: 1, driver_id: 2, lap: 2, lap_time_ms: 104000}
+          - {race_id: 1, driver_id: 2, lap: 3, lap_time_ms: 104001}
+          # driver 3 only has lap 1
+          - {race_id: 1, driver_id: 3, lap: 1, lap_time_ms: 99000}
+      - input: ref('stg_ergast__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 1, stop_number: 1, lap: 3, duration_ms: 22000}
+    expect:
+      rows:
+        # threshold = 1.3 * 80000 = 104000 -> driver 1 lap 6 (118000) out, driver 2 lap 3 (104001) out
+        - {race_id: 1, driver_id: 1, green_laps: 2, median_green_lap_ms: 91000}
+        - {race_id: 1, driver_id: 2, green_laps: 1, median_green_lap_ms: 104000}
+
+  - name: test_pit_stops_exclude_red_flags
+    model: mart_constructor_season_pit_stops
+    given:
+      - input: ref('fct_results')
+        rows:
+          - {race_id: 1, driver_id: 1, constructor_id: 10}
+          - {race_id: 1, driver_id: 2, constructor_id: 10}
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 1, season: 2020}
+      - input: ref('stg_ergast__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 1, stop_number: 1, lap: 10, duration_ms: 22000}
+          - {race_id: 1, driver_id: 2, stop_number: 1, lap: 12, duration_ms: 24000}
+          - {race_id: 1, driver_id: 2, stop_number: 2, lap: 30, duration_ms: 60000}
+          - {race_id: 1, driver_id: 2, stop_number: 3, lap: 31, duration_ms: 60001}
+    expect:
+      rows:
+        - {season: 2020, constructor_id: 10, pit_stop_count: 3, median_pit_stop_seconds: 24.0}
+
+  - name: test_qualifying_best_time_ignores_missing_sessions
+    model: fct_qualifying
+    given:
+      - input: ref('stg_ergast__qualifying')
+        rows:
+          - {qualify_id: 1, race_id: 1, driver_id: 1, constructor_id: 1, qualifying_position: 1, q1_ms: 90000, q2_ms: 89000, q3_ms: 88000}
+          - {qualify_id: 2, race_id: 1, driver_id: 2, constructor_id: 2, qualifying_position: 2, q1_ms: 89500, q2_ms: 88500, q3_ms: null}
+          - {qualify_id: 3, race_id: 1, driver_id: 3, constructor_id: 3, qualifying_position: 3, q1_ms: null, q2_ms: null, q3_ms: null}
+    expect:
+      rows:
+        - {qualify_id: 1, best_time_ms: 88000, gap_to_pole_ms: 0, gap_to_pole_pct: 0}
+        - {qualify_id: 2, best_time_ms: 88500, gap_to_pole_ms: 500, gap_to_pole_pct: 0.5681818}
+        - {qualify_id: 3, best_time_ms: null, gap_to_pole_ms: null, gap_to_pole_pct: null}
+
+  - name: test_alt_points_scoring_and_countback
+    description: >
+      Classified finishers only; position_order lookup; two systems from the seed; ties broken by
+      countback (more wins, then more 2nds ...) and finally lowest driver_id; zero-point drivers still ranked.
+    model: mart_alt_points_standings_all_systems
+    given:
+      - input: ref('points_systems')
+        rows:
+          - {points_system: a, position_order: 1, points: 10}
+          - {points_system: a, position_order: 2, points: 6}
+          - {points_system: a, position_order: 3, points: 4}
+          - {points_system: b, position_order: 1, points: 1}
+      - input: ref('fct_results')
+        rows:
+          # driver 1: 1st + 3rd = 14 in system a; driver 2: 2nd + 2nd = 12 ... ; driver 3: 3rd x1 + 2nd = 10
+          - {season: 2000, driver_id: 1, position_order: 1, finish_position: 1}
+          - {season: 2000, driver_id: 1, position_order: 3, finish_position: 3}
+          - {season: 2000, driver_id: 2, position_order: 2, finish_position: 2}
+          - {season: 2000, driver_id: 2, position_order: 2, finish_position: 2}
+          # drivers 3 and 4 tie on 10 pts: 3 has 1st? no -> 3: 2nd+... see expectations
+          - {season: 2000, driver_id: 4, position_order: 1, finish_position: 1}
+          - {season: 2000, driver_id: 3, position_order: 2, finish_position: 2}
+          - {season: 2000, driver_id: 3, position_order: 3, finish_position: 3}
+          # driver 5 and 6: unclassified (position_order 1 but no finish_position) and a retirement -> 0 points, tie -> lowest id first
+          - {season: 2000, driver_id: 6, position_order: 1, finish_position: null}
+          - {season: 2000, driver_id: 5, position_order: 20, finish_position: null}
+    expect:
+      rows:
+        - {points_system: a, season: 2000, driver_id: 1, alt_points: 14, alt_position: 1}
+        - {points_system: a, season: 2000, driver_id: 2, alt_points: 12, alt_position: 2}
+        - {points_system: a, season: 2000, driver_id: 4, alt_points: 10, alt_position: 3}
+        - {points_system: a, season: 2000, driver_id: 3, alt_points: 10, alt_position: 4}
+        - {points_system: a, season: 2000, driver_id: 5, alt_points: 0, alt_position: 5}
+        - {points_system: a, season: 2000, driver_id: 6, alt_points: 0, alt_position: 6}
+        - {points_system: b, season: 2000, driver_id: 1, alt_points: 1, alt_position: 1}
+        - {points_system: b, season: 2000, driver_id: 4, alt_points: 1, alt_position: 2}
+        - {points_system: b, season: 2000, driver_id: 2, alt_points: 0, alt_position: 3}
+        - {points_system: b, season: 2000, driver_id: 3, alt_points: 0, alt_position: 4}
+        - {points_system: b, season: 2000, driver_id: 5, alt_points: 0, alt_position: 5}
+        - {points_system: b, season: 2000, driver_id: 6, alt_points: 0, alt_position: 6}
+
+  - name: test_alt_points_second_place_countback
+    description: >
+      Equal points and no wins: the driver with more 2nd places ranks ahead even though the other
+      driver has the lower driver_id (which would only be the final tiebreak).
+    model: mart_alt_points_standings_all_systems
+    given:
+      - input: ref('points_systems')
+        rows:
+          - {points_system: c, position_order: 1, points: 5}
+          - {points_system: c, position_order: 2, points: 3}
+          - {points_system: c, position_order: 3, points: 3}
+      - input: ref('fct_results')
+        rows:
+          - {season: 2000, driver_id: 1, position_order: 3, finish_position: 3}
+          - {season: 2000, driver_id: 1, position_order: 3, finish_position: 3}
+          - {season: 2000, driver_id: 2, position_order: 2, finish_position: 2}
+          - {season: 2000, driver_id: 2, position_order: 3, finish_position: 3}
+    expect:
+      rows:
+        - {points_system: c, season: 2000, driver_id: 2, alt_points: 6, alt_position: 1}
+        - {points_system: c, season: 2000, driver_id: 1, alt_points: 6, alt_position: 2}

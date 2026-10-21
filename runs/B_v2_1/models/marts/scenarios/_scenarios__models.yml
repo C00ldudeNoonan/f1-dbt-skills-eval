@@ -1,0 +1,78 @@
+models:
+  - name: mart_alt_points_standings
+    description: >
+      What-if drivers' championship under one points system (var
+      `alt_points_system`, default fia_2010, the current 25-18-15-12-10-8-6-4-2-1).
+      One row per driver per season for every driver with at least one Grand
+      Prix result that season. Grand Prix only (no sprints or fastest-lap
+      points); only classified finishers score, by position_order; every entry
+      scores separately; no drop scores. Ties broken by countback (more wins,
+      then more 2nds, ... through 10th), then lowest driver_id.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, alt_position]
+    columns:
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_drivers'), field: driver_id}
+      - name: alt_points
+        data_type: number(10, 2)
+        data_tests: [not_null, not_negative]
+      - name: alt_position
+        data_type: integer
+        description: Position under the alternative system; 1 is the what-if champion. Always unique within a season.
+        data_tests: [not_null]
+      - name: alt_wins
+        data_type: integer
+        description: Classified Grand Prix wins (the first countback tie-breaker).
+      - name: points_system
+        data_type: varchar
+        description: The points system used (from seeds/points_systems.csv).
+
+  - name: mart_alt_points_standings_by_system
+    description: >
+      Every season re-scored under every system in seeds/points_systems.csv,
+      same rules as mart_alt_points_standings. One row per points_system,
+      season and driver. Adding a row set to the seed adds a system here.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, season, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, season, alt_position]
+    columns:
+      - name: points_system
+        data_type: varchar
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('points_systems'), field: points_system}
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: alt_points
+        data_type: number(10, 2)
+        data_tests: [not_null]
+      - name: alt_position
+        data_type: integer
+        data_tests: [not_null]
+      - name: alt_wins
+        data_type: integer

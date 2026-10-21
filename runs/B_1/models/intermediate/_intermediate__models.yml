@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: int_season_calendar_progress
+    description: >
+      One row per season: how many rounds are scheduled, how many have
+      results, and the latest completed round. A season is complete only when
+      every race on its calendar has results.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: is_season_complete
+        data_tests: [not_null]
+      - name: latest_completed_race_id
+        data_tests: [not_null]
+
+  - name: int_pit_stops_enriched
+    description: Pit stops with season, constructor, and a red-flag stoppage flag.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: constructor_id
+        data_tests: [not_null]
+
+unit_tests:
+  - name: test_season_complete_only_when_every_race_has_results
+    description: >
+      A season with an unrun race on its calendar is incomplete, and its
+      latest completed round is the last round that has results.
+    model: int_season_calendar_progress
+    given:
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 1, season: 2023, round: 1}
+          - {race_id: 2, season: 2023, round: 2}
+          - {race_id: 3, season: 2024, round: 1}
+          - {race_id: 4, season: 2024, round: 2}
+          - {race_id: 5, season: 2024, round: 3}
+      - input: ref('stg_ergast__results')
+        rows:
+          - {race_id: 1}
+          - {race_id: 2}
+          - {race_id: 2}
+          - {race_id: 3}
+          - {race_id: 4}
+    expect:
+      rows:
+        - {season: 2023, scheduled_rounds: 2, completed_rounds: 2, is_season_complete: true, latest_completed_round: 2, latest_completed_race_id: 2}
+        - {season: 2024, scheduled_rounds: 3, completed_rounds: 2, is_season_complete: false, latest_completed_round: 2, latest_completed_race_id: 4}

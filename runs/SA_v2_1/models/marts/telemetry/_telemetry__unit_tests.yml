@@ -1,0 +1,118 @@
+version: 2
+
+unit_tests:
+  - name: test_stint_boundaries
+    description: >
+      A stop on lap L ends the stint on L and the next starts on L+1; stint 1 starts on lap 1; the last
+      stint ends on the driver's last lap; a stop on the final lap leaves an empty stint that is dropped;
+      a driver with no stops gets one full-race stint; races without pit stop data produce no stints.
+    model: fct_stints
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ergast__pit_stops')
+        rows:
+          # driver 1: stops on lap 1 and lap 3 (laps 1..5); driver 2: stop on its last lap (5)
+          - {race_id: 1, driver_id: 1, stop_number: 1, lap: 1, duration_ms: 22000}
+          - {race_id: 1, driver_id: 1, stop_number: 2, lap: 3, duration_ms: 23000}
+          - {race_id: 1, driver_id: 2, stop_number: 1, lap: 5, duration_ms: 24000}
+      - input: ref('fct_lap_times')
+        rows:
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 1, lap: 1, lap_time_ms: 100}
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 1, lap: 2, lap_time_ms: 90}
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 1, lap: 3, lap_time_ms: 110}
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 1, lap: 4, lap_time_ms: 80}
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 1, lap: 5, lap_time_ms: 82}
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 2, lap: 1, lap_time_ms: 70}
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 2, lap: 2, lap_time_ms: 72}
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 2, lap: 3, lap_time_ms: 74}
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 2, lap: 4, lap_time_ms: 76}
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 2, lap: 5, lap_time_ms: 78}
+          # driver 3 never stops but the race has pit stop data -> one stint over all laps
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 3, lap: 1, lap_time_ms: 60}
+          - {race_id: 1, season: 2000, round: 1, race_date: '2000-03-01', driver_id: 3, lap: 2, lap_time_ms: 62}
+          # race 2 has no pit stop data -> excluded
+          - {race_id: 2, season: 2000, round: 2, race_date: '2000-03-15', driver_id: 1, lap: 1, lap_time_ms: 100}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, stint_number: 1, start_lap: 1, end_lap: 1, stint_laps: 1, avg_lap_time_ms: 100}
+        - {race_id: 1, driver_id: 1, stint_number: 2, start_lap: 2, end_lap: 3, stint_laps: 2, avg_lap_time_ms: 100}
+        - {race_id: 1, driver_id: 1, stint_number: 3, start_lap: 4, end_lap: 5, stint_laps: 2, avg_lap_time_ms: 81}
+        - {race_id: 1, driver_id: 2, stint_number: 1, start_lap: 1, end_lap: 5, stint_laps: 5, avg_lap_time_ms: 74}
+        - {race_id: 1, driver_id: 3, stint_number: 1, start_lap: 1, end_lap: 2, stint_laps: 2, avg_lap_time_ms: 61}
+
+  - name: test_telemetry_incremental_picks_up_late_and_redelivered_samples
+    config:
+      tags: [needs_built_model]  # Fusion types incremental unit tests from the existing relation; see README (CI)
+    description: >
+      Incremental run. The table already holds samples loaded up to 2024-03-02 12:00 (watermark minus the
+      2h lookback = 10:00). In the batch: an unchanged re-read (skipped), a late sample for the old race 1 that
+      landed after the watermark (kept), a re-delivered sample with a newer loaded_at inside one batch
+      (latest copy wins), and a sample loaded before the lookback (ignored).
+    model: fct_telemetry
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        telemetry_lookback_hours: 2
+    given:
+      - input: ref('stg_telemetry__car_telemetry')
+        rows:
+          - {race_id: 2, driver_id: 1, lap: 3, sample_index: 1, recorded_at: '2024-03-02 11:00:00', speed_kph: 200, throttle_pct: 100, brake: false, gear: 6, drs: 0, loaded_at: '2024-03-02 11:00:05'}
+          - {race_id: 2, driver_id: 1, lap: 3, sample_index: 2, recorded_at: '2024-03-02 12:00:00', speed_kph: 210, throttle_pct: 100, brake: false, gear: 6, drs: 0, loaded_at: '2024-03-02 12:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 7, sample_index: 5, recorded_at: '2024-02-20 14:00:00', speed_kph: 150, throttle_pct: 50, brake: true, gear: 3, drs: 0, loaded_at: '2024-03-10 09:00:00'}
+          - {race_id: 2, driver_id: 1, lap: 3, sample_index: 3, recorded_at: '2024-03-02 12:00:01', speed_kph: 111, throttle_pct: 10, brake: true, gear: 2, drs: 0, loaded_at: '2024-03-10 09:00:00'}
+          - {race_id: 2, driver_id: 1, lap: 3, sample_index: 3, recorded_at: '2024-03-02 12:00:01', speed_kph: 222, throttle_pct: 20, brake: false, gear: 3, drs: 0, loaded_at: '2024-03-11 09:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 1, sample_index: 1, recorded_at: '2024-02-20 13:00:00', speed_kph: 100, throttle_pct: 0, brake: false, gear: 1, drs: 0, loaded_at: '2024-02-20 13:00:01'}
+      - input: this
+        rows:
+          - {race_id: 2, driver_id: 1, lap: 3, sample_index: 1, loaded_at: '2024-03-02 11:00:05'}
+          - {race_id: 2, driver_id: 1, lap: 3, sample_index: 2, loaded_at: '2024-03-02 12:00:00'}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, lap: 7, sample_index: 5, speed_kph: 150, loaded_at: '2024-03-10 09:00:00'}
+        - {race_id: 2, driver_id: 1, lap: 3, sample_index: 3, speed_kph: 222, throttle_pct: 20, brake: false, loaded_at: '2024-03-11 09:00:00'}
+
+  - name: test_lap_telemetry_summary_metrics
+    description: Per-lap aggregates; full throttle counts throttle at 99 or above (99 and 100, not 98).
+    model: mart_lap_telemetry_summary
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fct_telemetry')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, sample_index: 1, speed_kph: 100, throttle_pct: 100, brake: false, ingested_at: '2024-03-01 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 1, sample_index: 2, speed_kph: 300, throttle_pct: 99, brake: false, ingested_at: '2024-03-01 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 1, sample_index: 3, speed_kph: 200, throttle_pct: 98, brake: true, ingested_at: '2024-03-02 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 1, sample_index: 4, speed_kph: 50, throttle_pct: 0, brake: true, ingested_at: '2024-03-01 00:00:00'}
+          - {race_id: 1, driver_id: 2, lap: 1, sample_index: 1, speed_kph: 120, throttle_pct: 40, brake: false, ingested_at: '2024-03-01 00:00:00'}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, lap: 1, samples: 4, max_speed_kph: 300, avg_throttle_pct: 74.25, full_throttle_pct: 50, brake_samples: 2}
+        - {race_id: 1, driver_id: 2, lap: 1, samples: 1, max_speed_kph: 120, avg_throttle_pct: 40, full_throttle_pct: 0, brake_samples: 0}
+
+  - name: test_lap_telemetry_summary_recomputes_only_affected_laps
+    config:
+      tags: [needs_built_model]  # Fusion types incremental unit tests from the existing relation; see README (CI)
+    description: >
+      Incremental run. Only laps with samples ingested after the table's watermark are rebuilt (from all of
+      their samples, old ones included); other laps are not emitted.
+    model: mart_lap_telemetry_summary
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: ref('fct_telemetry')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, sample_index: 1, speed_kph: 100, throttle_pct: 100, brake: false, ingested_at: '2024-03-01 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 1, sample_index: 2, speed_kph: 250, throttle_pct: 50, brake: false, ingested_at: '2024-03-05 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 2, sample_index: 1, speed_kph: 110, throttle_pct: 100, brake: false, ingested_at: '2024-03-01 00:00:00'}
+      - input: this
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, max_ingested_at: '2024-03-01 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 2, max_ingested_at: '2024-03-01 00:00:00'}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, lap: 1, samples: 2, max_speed_kph: 250, avg_throttle_pct: 75, full_throttle_pct: 50, brake_samples: 0}

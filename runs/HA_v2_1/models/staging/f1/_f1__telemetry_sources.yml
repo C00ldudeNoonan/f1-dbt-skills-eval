@@ -1,0 +1,22 @@
+version: 2
+
+sources:
+  - name: f1_telemetry
+    description: >
+      Car telemetry (about 4 samples per second per car, from 2022). Large table: never scanned in
+      full by routine runs. _LOADED_AT (load time) is the watermark, so late samples are picked up.
+    database: ANALYTICS_DEV
+    schema: "{{ var('telemetry_schema') }}"
+    tables:
+      - name: CAR_TELEMETRY
+        columns:
+          - name: RACEID
+            tests: [not_null]
+          - name: DRIVERID
+            tests: [not_null]
+          - name: LAP
+            tests: [not_null]
+          - name: SAMPLE_INDEX
+            tests: [not_null]
+          - name: _LOADED_AT
+            tests: [not_null]

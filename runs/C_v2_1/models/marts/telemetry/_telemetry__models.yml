@@ -1,0 +1,103 @@
+version: 2
+
+# Row-level tests on fct_telemetry are scoped to rows written by the current
+# invocation (processed_at after run start minus 5 minutes for clock skew, inlined as a
+# constant so Snowflake prunes on it). Each run rebuilds whole races, so that
+# covers every race the run touched and leaves the rest of the 20M rows alone. The
+# completeness tests compare total row counts, which Snowflake answers from
+# metadata.
+
+models:
+  - name: fct_telemetry
+    description: >
+      One row per car telemetry sample (2022 onwards). Incremental by whole
+      race. A routine run finds races with samples loaded since the
+      previous run, from the `_LOADED_AT` high-water mark minus a lookback
+      window (var `telemetry_lookback_minutes`, default 120). It deletes and
+      re-inserts only those races, reading only their raw micro-partitions.
+      Late samples are picked up whenever they arrive. Duplicate deliveries
+      of a sample keep the most recently loaded copy.
+    config:
+      group: f1_analytics
+      access: protected
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap, sample_index]
+          config:
+            where: "processed_at >= dateadd(minute, -5, '{{ run_started_at.strftime('%Y-%m-%d %H:%M:%S') }}'::timestamp_ntz)"
+    columns:
+      - name: race_id
+        description: "{{ doc('col_race_id') }}"
+        data_tests:
+          - not_null:
+              config:
+                where: "processed_at >= dateadd(minute, -5, '{{ run_started_at.strftime('%Y-%m-%d %H:%M:%S') }}'::timestamp_ntz)"
+      - name: driver_id
+        description: "{{ doc('col_driver_id') }}"
+        data_tests:
+          - not_null:
+              config:
+                where: "processed_at >= dateadd(minute, -5, '{{ run_started_at.strftime('%Y-%m-%d %H:%M:%S') }}'::timestamp_ntz)"
+      - name: lap
+        description: Lap number the sample belongs to.
+      - name: sample_index
+        description: Position of the sample within the driver's lap, starting at 0.
+      - name: recorded_at
+        description: When the car recorded the sample (UTC).
+      - name: speed_kph
+        description: Speed in km/h.
+      - name: throttle_pct
+        description: Throttle opening, 0 to 100.
+      - name: brake
+        description: True while the brake is applied.
+      - name: gear
+        description: Gear engaged.
+      - name: drs
+        description: 1 when DRS is open, otherwise 0.
+      - name: source_loaded_at
+        description: The sample's `_LOADED_AT`, when it landed in the warehouse. It drives incremental processing.
+      - name: processed_at
+        description: When dbt last (re)built this sample's race. Used to scope tests to recent work.
+
+  - name: mart_lap_telemetry_summary
+    description: >
+      One row per driver per lap with telemetry aggregates. Incremental by
+      whole race: rebuilds races whose `fct_telemetry` samples were loaded
+      after this table's high-water mark (`telemetry_loaded_at`). A late
+      sample re-aggregates its race, so laps stay exact without full refreshes.
+    config:
+      group: f1_analytics
+      access: protected
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        description: "{{ doc('col_race_id') }}"
+        data_tests: [not_null]
+      - name: driver_id
+        description: "{{ doc('col_driver_id') }}"
+        data_tests: [not_null]
+      - name: lap
+        description: Lap number.
+        data_tests: [not_null]
+      - name: samples
+        description: Telemetry samples on the lap.
+      - name: max_speed_kph
+        description: Highest speed on the lap, km/h.
+      - name: avg_throttle_pct
+        description: Mean throttle opening over the lap's samples.
+      - name: full_throttle_pct
+        description: Share of the lap's samples with throttle at 99 or above, as a percentage (0 to 100).
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "full_throttle_pct between 0 and 100"
+      - name: brake_samples
+        description: Samples on the lap with the brake applied.
+      - name: telemetry_loaded_at
+        description: Latest `_LOADED_AT` among the lap's samples. Its maximum is the table's high-water mark.
+      - name: processed_at
+        description: When dbt last rebuilt this lap's race.

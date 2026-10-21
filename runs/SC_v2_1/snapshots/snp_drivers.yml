@@ -1,0 +1,16 @@
+snapshots:
+  - name: snp_drivers
+    description: >
+      Type 2 history of the raw `drivers` table. Raw only holds each driver's current
+      car number, code and name, so this captures every change from the first run on.
+      Current rows have `dbt_valid_to is null`. Values are raw text (`\N` = none).
+    relation: source('f1_raw', 'drivers')
+    config:
+      schema: snapshots
+      unique_key: driverid
+      strategy: check
+      check_cols: [number, code, forename, surname, nationality, dob]
+    columns:
+      - name: driverid
+        description: Driver id from the raw `drivers` table.
+        data_tests: [not_null]

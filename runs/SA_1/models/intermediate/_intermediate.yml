@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: int_season_status
+    description: Per-season calendar completeness. A season is complete when every calendar race has results.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+
+  - name: int_driver_career
+    description: Per-driver career aggregates shared by all versions of dim_drivers. One row per driver.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]

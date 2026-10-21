@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Run a harness script with its Snowflake deps: harness/py harness/selftest.py
+export PYTHONWARNINGS=ignore
+exec uv run --quiet --with 'snowflake-connector-python[pandas,secure-local-storage]' python "$@"

@@ -1,0 +1,102 @@
+models:
+  - name: mart_driver_season_standings
+    description: >
+      One row per driver per season: the official drivers' championship as of
+      the latest completed round. Taken from the published cumulative
+      standings, so drop scores (pre-1991), shared drives and sprint points
+      (2021+) match the official tables. Drivers who were never classified in
+      a season don't appear, matching the official tables. Derived from
+      mart_driver_standings_by_round at the latest completed round. Verified: the
+      champion matches history for every season 1950-2023; an incomplete season is as of its latest round with results.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, championship_position]
+          config:
+            where: championship_position is not null
+    columns:
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_drivers'), field: driver_id}
+      - name: championship_position
+        data_type: integer
+        description: Official championship position. Null for a driver excluded from the championship (Michael Schumacher, 1997).
+      - name: points
+        data_type: number(10, 2)
+        description: Official championship points (after drop scores, including sprints).
+        data_tests: [not_null]
+      - name: wins
+        data_type: integer
+        data_tests: [not_null]
+      - name: is_excluded
+        data_type: boolean
+      - name: as_of_round
+        data_type: integer
+        description: Latest round of the season with results; the standings are as of this round.
+      - name: as_of_race_id
+        data_type: integer
+      - name: is_season_complete
+        data_type: boolean
+        description: False while some calendar races still have no results (e.g. 2024 in the current load).
+
+  - name: mart_driver_standings_by_round
+    description: >
+      Official drivers' championship after every round: one row per driver per
+      round they appear in the published cumulative standings. Same rules as
+      mart_driver_season_standings (which is this model at the latest completed
+      round): drop scores and sprint points as published, excluded drivers have
+      a null position.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, championship_position]
+          config:
+            where: championship_position is not null
+    columns:
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: round
+        data_type: integer
+        data_tests: [not_null]
+      - name: race_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_races'), field: race_id}
+      - name: driver_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_drivers'), field: driver_id}
+      - name: championship_position
+        data_type: integer
+        description: Official position after this round. Null for an excluded driver.
+      - name: points
+        data_type: number(10, 2)
+        description: Cumulative official points after this round.
+        data_tests: [not_null]
+      - name: wins
+        data_type: integer
+        description: Cumulative wins after this round.
+        data_tests: [not_null]
+      - name: is_excluded
+        data_type: boolean

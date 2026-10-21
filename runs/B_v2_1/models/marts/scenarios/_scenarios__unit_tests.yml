@@ -1,0 +1,80 @@
+unit_tests:
+  - name: alt_points_score_classified_entries_and_break_ties_by_countback
+    description: >
+      Drivers 1 and 2 tie on 25 points; driver 2 has a win so wins countback.
+      Driver 3 has two entries in one race (both score) and an unclassified
+      entry with position_order 1 that scores nothing. Driver 4 never scores
+      and ties driver 5 on everything, so the lower driver_id ranks higher.
+    model: mart_alt_points_standings_by_system
+    given:
+      - input: ref('points_systems')
+        rows:
+          - {points_system: test, finish_position_order: 1, points: 25}
+          - {points_system: test, finish_position_order: 2, points: 18}
+          - {points_system: test, finish_position_order: 3, points: 15}
+          - {points_system: test, finish_position_order: 4, points: 12}
+          - {points_system: test, finish_position_order: 5, points: 10}
+          - {points_system: test, finish_position_order: 6, points: 8}
+          - {points_system: test, finish_position_order: 7, points: 6}
+      - input: ref('fct_results')
+        rows:
+          - {season: 2020, driver_id: 1, position_order: 3, finish_position: 3}
+          - {season: 2020, driver_id: 1, position_order: 5, finish_position: 5}
+          - {season: 2020, driver_id: 1, position_order: 15, finish_position: null}
+          - {season: 2020, driver_id: 2, position_order: 1, finish_position: 1}
+          - {season: 2020, driver_id: 3, position_order: 3, finish_position: 3}
+          - {season: 2020, driver_id: 3, position_order: 7, finish_position: 7}
+          - {season: 2020, driver_id: 3, position_order: 1, finish_position: null}
+          - {season: 2020, driver_id: 4, position_order: 20, finish_position: null}
+          - {season: 2020, driver_id: 5, position_order: 21, finish_position: null}
+    expect:
+      rows:
+        - {points_system: test, season: 2020, driver_id: 2, alt_points: 25, alt_position: 1, alt_wins: 1}
+        - {points_system: test, season: 2020, driver_id: 1, alt_points: 25, alt_position: 2, alt_wins: 0}
+        - {points_system: test, season: 2020, driver_id: 3, alt_points: 21, alt_position: 3, alt_wins: 0}
+        - {points_system: test, season: 2020, driver_id: 4, alt_points: 0, alt_position: 4, alt_wins: 0}
+        - {points_system: test, season: 2020, driver_id: 5, alt_points: 0, alt_position: 5, alt_wins: 0}
+
+  - name: alt_points_countback_goes_past_wins
+    description: >
+      All four drivers score 43 points. Driver 4 has no win, so ranks last
+      despite two 2nd places (wins are compared first). Drivers 1-3 have one
+      win each; driver 3 also has a 2nd place, so ranks first. Drivers 1 and 2
+      have no 2nds or 3rds; driver 2 has a 4th place and ranks ahead of driver 1
+      even though driver 1 has the lower driver_id.
+    model: mart_alt_points_standings_by_system
+    given:
+      - input: ref('points_systems')
+        rows:
+          - {points_system: test, finish_position_order: 1, points: 25}
+          - {points_system: test, finish_position_order: 2, points: 18}
+          - {points_system: test, finish_position_order: 3, points: 15}
+          - {points_system: test, finish_position_order: 4, points: 12}
+          - {points_system: test, finish_position_order: 5, points: 10}
+          - {points_system: test, finish_position_order: 6, points: 8}
+          - {points_system: test, finish_position_order: 7, points: 6}
+          - {points_system: test, finish_position_order: 8, points: 4}
+          - {points_system: test, finish_position_order: 9, points: 2}
+          - {points_system: test, finish_position_order: 10, points: 1}
+      - input: ref('fct_results')
+        rows:
+          - {season: 2020, driver_id: 1, position_order: 1, finish_position: 1}
+          - {season: 2020, driver_id: 1, position_order: 5, finish_position: 5}
+          - {season: 2020, driver_id: 1, position_order: 6, finish_position: 6}
+          - {season: 2020, driver_id: 2, position_order: 1, finish_position: 1}
+          - {season: 2020, driver_id: 2, position_order: 4, finish_position: 4}
+          - {season: 2020, driver_id: 2, position_order: 9, finish_position: 9}
+          - {season: 2020, driver_id: 2, position_order: 9, finish_position: 9}
+          - {season: 2020, driver_id: 2, position_order: 9, finish_position: 9}
+          - {season: 2020, driver_id: 3, position_order: 1, finish_position: 1}
+          - {season: 2020, driver_id: 3, position_order: 2, finish_position: 2}
+          - {season: 2020, driver_id: 4, position_order: 2, finish_position: 2}
+          - {season: 2020, driver_id: 4, position_order: 2, finish_position: 2}
+          - {season: 2020, driver_id: 4, position_order: 7, finish_position: 7}
+          - {season: 2020, driver_id: 4, position_order: 10, finish_position: 10}
+    expect:
+      rows:
+        - {points_system: test, season: 2020, driver_id: 3, alt_points: 43, alt_position: 1, alt_wins: 1}
+        - {points_system: test, season: 2020, driver_id: 2, alt_points: 43, alt_position: 2, alt_wins: 1}
+        - {points_system: test, season: 2020, driver_id: 1, alt_points: 43, alt_position: 3, alt_wins: 1}
+        - {points_system: test, season: 2020, driver_id: 4, alt_points: 43, alt_position: 4, alt_wins: 0}

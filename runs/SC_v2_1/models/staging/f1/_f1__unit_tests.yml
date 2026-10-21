@@ -1,0 +1,47 @@
+version: 2
+
+unit_tests:
+  - name: stg_f1__qualifying_parses_times_and_blanks
+    model: stg_f1__qualifying
+    given:
+      - input: source('f1_raw', 'qualifying')
+        rows:
+          - {qualifyid: '1', raceid: '10', driverid: '1', constructorid: '2', position: '1', q1: '1:23.456', q2: '1:22.100', q3: '1:21.999'}
+          - {qualifyid: '2', raceid: '10', driverid: '2', constructorid: '2', position: '2', q1: '1:24.000', q2: '', q3: '\N'}
+    expect:
+      rows:
+        - {qualify_id: 1, race_id: 10, driver_id: 1, constructor_id: 2, qualifying_position: 1, q1_ms: 83456, q2_ms: 82100, q3_ms: 81999}
+        - {qualify_id: 2, race_id: 10, driver_id: 2, constructor_id: 2, qualifying_position: 2, q1_ms: 84000, q2_ms: null, q3_ms: null}
+
+  - name: stg_f1__results_fills_lapped_finisher_position
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', constructorid: '1', statusid: '11', grid: '8', position: '\N', positiontext: '11', position_order: '11', points: '0', laps: '56', fastestlaptime: '1:30.500'}
+          - {resultid: '2', raceid: '1', driverid: '2', constructorid: '1', statusid: '4', grid: '3', position: '\N', positiontext: 'R', position_order: '12', points: '0', laps: '10', fastestlaptime: '\N'}
+    expect:
+      rows:
+        - {result_id: 1, finish_position: 11, fastest_lap_time_ms: 90500}
+        - {result_id: 2, finish_position: null, fastest_lap_time_ms: null}
+
+  - name: stg_f1__results_parses_fastest_lap_time_formats
+    description: Fastest lap text `m:ss.mmm` becomes integer ms; missing markers and malformed text become null.
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', constructorid: '1', statusid: '1', grid: '1', position: '1', positiontext: '1', position_order: '1', points: '25', laps: '50', fastestlaptime: '1:27.452'}
+          - {resultid: '2', raceid: '1', driverid: '2', constructorid: '1', statusid: '1', grid: '2', position: '2', positiontext: '2', position_order: '2', points: '18', laps: '50', fastestlaptime: '0:59.999'}
+          - {resultid: '3', raceid: '1', driverid: '3', constructorid: '1', statusid: '1', grid: '3', position: '3', positiontext: '3', position_order: '3', points: '15', laps: '50', fastestlaptime: '10:05.001'}
+          - {resultid: '4', raceid: '1', driverid: '4', constructorid: '1', statusid: '1', grid: '4', position: '4', positiontext: '4', position_order: '4', points: '12', laps: '50', fastestlaptime: '\N'}
+          - {resultid: '5', raceid: '1', driverid: '5', constructorid: '1', statusid: '1', grid: '5', position: '5', positiontext: '5', position_order: '5', points: '10', laps: '50', fastestlaptime: ''}
+          - {resultid: '6', raceid: '1', driverid: '6', constructorid: '1', statusid: '1', grid: '6', position: '6', positiontext: '6', position_order: '6', points: '8', laps: '50', fastestlaptime: '1:27'}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 87452}
+        - {result_id: 2, fastest_lap_time_ms: 59999}
+        - {result_id: 3, fastest_lap_time_ms: 605001}
+        - {result_id: 4, fastest_lap_time_ms: null}
+        - {result_id: 5, fastest_lap_time_ms: null}
+        - {result_id: 6, fastest_lap_time_ms: null}

@@ -1,0 +1,47 @@
+version: 2
+
+unit_tests:
+  - name: test_championship_counts_only_once_season_is_complete
+    description: >
+      A championship only counts once its season is complete. Leading the
+      in-progress season awards nothing, and a driver excluded from a
+      championship (null position) is never champion.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: 'alpha', forename: 'Ann', surname: 'Alpha'}
+          - {driver_id: 2, driver_ref: 'bravo', forename: 'Ben', surname: 'Bravo'}
+          - {driver_id: 3, driver_ref: 'charlie', forename: 'Cat', surname: 'Charlie'}
+          - {driver_id: 4, driver_ref: 'delta', forename: 'Dan', surname: 'Delta'}
+      - input: ref('mart_driver_season_standings')
+        rows:
+          # 2022 complete: Charlie champion
+          - {season: 2022, driver_id: 3, championship_position: 1, is_season_complete: true}
+          - {season: 2022, driver_id: 1, championship_position: 2, is_season_complete: true}
+          # 2023 complete: Alpha champion; Delta excluded from the championship
+          - {season: 2023, driver_id: 1, championship_position: 1, is_season_complete: true}
+          - {season: 2023, driver_id: 2, championship_position: 2, is_season_complete: true}
+          - {season: 2023, driver_id: 4, championship_position: null, is_season_complete: true}
+          # 2024 in progress: Bravo leads, but it must not count yet
+          - {season: 2024, driver_id: 2, championship_position: 1, is_season_complete: false}
+          - {season: 2024, driver_id: 1, championship_position: 2, is_season_complete: false}
+      - input: ref('fct_results')
+        format: sql
+        rows: |
+          select null::integer as driver_id, null::integer as race_id, null::boolean as is_win,
+                 null::boolean as is_podium, null::number(10,2) as points, null::date as race_date
+          where false
+      - input: ref('fct_session_results')
+        format: sql
+        rows: |
+          select null::integer as driver_id, null::varchar as session_type, null::boolean as is_win
+          where false
+    expect:
+      rows:
+        - {driver_id: 1, first_name: 'Ann', last_name: 'Alpha', world_championships: 1}
+        - {driver_id: 2, first_name: 'Ben', last_name: 'Bravo', world_championships: 0}
+        - {driver_id: 3, first_name: 'Cat', last_name: 'Charlie', world_championships: 1}
+        - {driver_id: 4, first_name: 'Dan', last_name: 'Delta', world_championships: 0}

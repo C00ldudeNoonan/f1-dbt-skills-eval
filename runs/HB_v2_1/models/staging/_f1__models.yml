@@ -1,0 +1,102 @@
+version: 2
+
+models:
+  - name: stg_f1__races
+    description: One row per Grand Prix race weekend (raceid). Typed and null-cleaned.
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+
+  - name: stg_f1__seasons
+    description: One row per Formula 1 season.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__circuits
+    description: One row per circuit.
+    columns:
+      - name: circuit_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__constructors
+    description: One row per constructor (team).
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__drivers
+    description: One row per driver.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        description: Stable text identifier from the Ergast data, for example hamilton.
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__status
+    description: Finishing status lookup (Finished, Retired, +1 Lap...).
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__results
+    description: >
+      Grand Prix results as loaded. POSITION is null for entries that are not
+      classified, and position_text holds the classification code. Use fct_results
+      for analysis.
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+
+  - name: stg_f1__qualifying
+    description: Qualifying entries with Q1, Q2 and Q3 converted to milliseconds. Null when the driver did not set a time in that session.
+    columns:
+      - name: qualify_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+
+  - name: stg_f1__pit_stops
+    description: One row per pit stop (2011 onwards). Duration in milliseconds.
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: pit_stop_ms
+        data_tests: [not_null]
+
+  - name: stg_f1__lap_times
+    description: One row per driver per lap. lap_ms is the lap duration.
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: lap_number
+        data_tests: [not_null]
+
+  - name: stg_f1__driver_standings
+    description: Driver championship standings snapshot after each race.
+    columns:
+      - name: driver_standings_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]

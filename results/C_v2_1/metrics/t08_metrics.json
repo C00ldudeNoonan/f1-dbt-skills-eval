@@ -1,0 +1,15 @@
+{
+  "input_tokens": 5873908,
+  "output_tokens": 11318,
+  "tool_calls": 13,
+  "tool_errors": 1,
+  "dbt_invocations": 3,
+  "skills_used": [
+    "read:building-dbt-semantic-layer",
+    "read:building-dbt-semantic-layer"
+  ],
+  "assistant_turns": 14,
+  "wallclock_s": 271,
+  "nudges": 0,
+  "session_file": "~/.claude/projects/-Users-alexnoonan-f1-eval-workspaces-C-v2-1-project/e37b5e95-fc3e-4dc0-ace1-c489456f2a87.jsonl"
+}

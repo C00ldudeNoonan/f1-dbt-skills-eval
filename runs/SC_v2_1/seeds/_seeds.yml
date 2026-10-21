@@ -1,0 +1,73 @@
+version: 2
+
+seeds:
+  - name: ref_world_champions
+    description: >
+      Hand-keyed historical drivers' champions (1950-2023) used only to test that
+      `dim_drivers` and the standings mart agree with real-world history.
+    config:
+      column_types: {season: integer}
+    columns:
+      - name: season
+        description: Championship year.
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        description: Ergast driver slug of the champion.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_ref
+
+  - name: ref_points_systems
+    description: >
+      Points systems for `mart_alt_points_standings`, one row per system and position.
+      Add a system by adding rows; select it with the `alt_points_system` var.
+    config:
+      column_types: {position_order: integer, points: "number(8,2)"}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            columns: [points_system, position_order]
+    columns:
+      - name: points_system
+        description: Name of the system, e.g. `current_2010`.
+        data_tests: [not_null]
+      - name: position_order
+        description: Finishing position (matches `fct_results.position_order`).
+        data_tests: [not_null]
+      - name: points
+        description: Points awarded for that position.
+        data_tests: [not_null]
+
+  - name: ref_vendor_b_session_overrides
+    description: >
+      Manual overrides for Vendor B sessions that automatic matching cannot resolve (ambiguous or
+      unmatched). Normally empty. An override always wins over automatic matching.
+    config:
+      column_types: {session_key: varchar, race_id: integer, session_type: varchar}
+    columns:
+      - name: session_key
+        description: Vendor B session key.
+        data_tests: [unique, not_null]
+      - name: race_id
+        description: Our race id.
+        data_tests: [not_null]
+      - name: session_type
+        description: "`race` or `sprint`."
+        data_tests: [not_null]
+
+  - name: ref_vendor_b_driver_overrides
+    description: >
+      Manual overrides for Vendor B drivers that automatic matching cannot resolve. Normally empty.
+      An override always wins over automatic matching.
+    config:
+      column_types: {driver_key: varchar, driver_id: integer}
+    columns:
+      - name: driver_key
+        description: Vendor B driver key.
+        data_tests: [unique, not_null]
+      - name: driver_id
+        description: Our driver id.
+        data_tests: [not_null]

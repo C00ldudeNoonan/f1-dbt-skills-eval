@@ -1,0 +1,91 @@
+version: 2
+
+unit_tests:
+  - name: dim_driver_crosswalk_matches_accents_prefixes_and_ties
+    description: >
+      Accents fold (Hülkenberg matches HULKENBERG). A given-name prefix matches (ALEX matches Alexander). The given name
+      decides between two drivers with the same surname (Mick and Michael Schumacher). Two equally good candidates stay
+      unmatched (candidate_count 2), so the build fails until someone decides. A manual override wins.
+    model: dim_driver_crosswalk
+    given:
+      - input: ref('stg_f1__vb_drivers')
+        rows:
+          - {driver_key: 'DRV1', full_name: 'HULKENBERG Nico', surname: 'HULKENBERG', given_name: 'Nico', abbreviation: 'HUL', racing_number: 27}
+          - {driver_key: 'DRV2', full_name: 'ALBON Alex', surname: 'ALBON', given_name: 'Alex', abbreviation: 'ALB', racing_number: 23}
+          - {driver_key: 'DRV3', full_name: 'SCHUMACHER Mick', surname: 'SCHUMACHER', given_name: 'Mick', abbreviation: 'MSC', racing_number: 47}
+          - {driver_key: 'DRV4', full_name: 'SMITH John', surname: 'SMITH', given_name: 'John', abbreviation: 'SMI', racing_number: 1}
+          - {driver_key: 'DRV5', full_name: 'DE VRIES Nyck', surname: 'DE VRIES', given_name: 'Nyck', abbreviation: 'DEV', racing_number: 21}
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: 'hulkenberg', driver_code: 'HUL', forename: 'Nico', surname: 'Hülkenberg'}
+          - {driver_id: 2, driver_ref: 'albon', driver_code: 'ALB', forename: 'Alexander', surname: 'Albon'}
+          - {driver_id: 3, driver_ref: 'michael_schumacher', driver_code: 'MSC', forename: 'Michael', surname: 'Schumacher'}
+          - {driver_id: 4, driver_ref: 'mick_schumacher', driver_code: 'MSC', forename: 'Mick', surname: 'Schumacher'}
+          - {driver_id: 5, driver_ref: 'john_smith_a', driver_code: null, forename: 'John', surname: 'Smith'}
+          - {driver_id: 6, driver_ref: 'john_smith_b', driver_code: null, forename: 'John', surname: 'Smith'}
+          - {driver_id: 7, driver_ref: 'de_vries', driver_code: 'DEV', forename: 'Nyck', surname: 'de Vries'}
+      - input: ref('vendor_b_driver_overrides')
+        rows: []
+    expect:
+      rows:
+        - {driver_key: 'DRV1', driver_id: 1, match_method: 'surname, given name and code', candidate_count: 1}
+        - {driver_key: 'DRV2', driver_id: 2, match_method: 'surname, given name prefix and code', candidate_count: 1}
+        - {driver_key: 'DRV3', driver_id: 4, match_method: 'surname, given name and code', candidate_count: 1}
+        - {driver_key: 'DRV4', driver_id: null, match_method: 'unmatched', candidate_count: 2}
+        - {driver_key: 'DRV5', driver_id: 7, match_method: 'surname, given name and code', candidate_count: 1}
+
+  - name: dim_driver_crosswalk_manual_override_wins
+    description: >
+      A manual override decides a driver the automatic rules cannot (two equally good candidates).
+    model: dim_driver_crosswalk
+    given:
+      - input: ref('stg_f1__vb_drivers')
+        rows:
+          - {driver_key: 'DRV4', full_name: 'SMITH John', surname: 'SMITH', given_name: 'John', abbreviation: 'SMI', racing_number: 1}
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 5, driver_ref: 'john_smith_a', driver_code: null, forename: 'John', surname: 'Smith'}
+          - {driver_id: 6, driver_ref: 'john_smith_b', driver_code: null, forename: 'John', surname: 'Smith'}
+      - input: ref('vendor_b_driver_overrides')
+        rows:
+          - {vendor_b_driver_key: 'DRV4', driver_id: 6, reason: 'Team sheet names John Smith B for this entry'}
+    expect:
+      rows:
+        - {driver_key: 'DRV4', driver_id: 6, match_method: 'manual override'}
+
+  - name: mart_vendor_result_discrepancies_classifies_each_kind
+    description: >
+      Points and position differences, missing entries on each side, and the rule that an entry unclassified in both feeds
+      (DNF in Vendor B, retired in ours) is not a position discrepancy.
+    model: mart_vendor_result_discrepancies
+    given:
+      - input: ref('fct_session_results')
+        rows:
+          - {race_id: 10, season: 2019, session_type: 'race', driver_id: 1, finish_position: 3, points: 15}
+          - {race_id: 10, season: 2019, session_type: 'race', driver_id: 2, finish_position: 5, points: 10}
+          - {race_id: 10, season: 2019, session_type: 'race', driver_id: 3, finish_position: 7, points: 6}
+          - {race_id: 10, season: 2019, session_type: 'race', driver_id: 4, finish_position: null, points: 0}
+          - {race_id: 10, season: 2019, session_type: 'race', driver_id: 5, finish_position: 9, points: 4}
+      - input: ref('stg_f1__vb_results')
+        rows:
+          - {session_key: 'S1', driver_key: 'DRV1', team_name: 'A', grid_position: 1, position_text: '3', position: 3, points: 15}
+          - {session_key: 'S1', driver_key: 'DRV2', team_name: 'B', grid_position: 2, position_text: '5', position: 5, points: 9}
+          - {session_key: 'S1', driver_key: 'DRV3', team_name: 'C', grid_position: 3, position_text: '8', position: 8, points: 6}
+          - {session_key: 'S1', driver_key: 'DRV4', team_name: 'D', grid_position: 4, position_text: 'DNF', position: null, points: 0}
+          - {session_key: 'S1', driver_key: 'DRV6', team_name: 'F', grid_position: 6, position_text: '1', position: 1, points: 25}
+      - input: ref('dim_session_crosswalk')
+        rows:
+          - {session_key: 'S1', race_id: 10, session_type: 'race'}
+      - input: ref('dim_driver_crosswalk')
+        rows:
+          - {driver_key: 'DRV1', driver_id: 1}
+          - {driver_key: 'DRV2', driver_id: 2}
+          - {driver_key: 'DRV3', driver_id: 3}
+          - {driver_key: 'DRV4', driver_id: 4}
+          - {driver_key: 'DRV6', driver_id: 6}
+    expect:
+      rows:
+        - {race_id: 10, session_type: 'race', driver_id: 2, discrepancy_type: 'points', vendor_a_value: 10, vendor_b_value: 9}
+        - {race_id: 10, session_type: 'race', driver_id: 3, discrepancy_type: 'position', vendor_a_value: 7, vendor_b_value: 8}
+        - {race_id: 10, session_type: 'race', driver_id: 5, discrepancy_type: 'missing_in_vendor_b', vendor_a_value: 4, vendor_b_value: null}
+        - {race_id: 10, session_type: 'race', driver_id: 6, discrepancy_type: 'missing_in_vendor_a', vendor_a_value: null, vendor_b_value: 25}

@@ -1,0 +1,90 @@
+version: 2
+
+models:
+  - name: mart_driver_vs_car
+    description: >
+      "Which drivers overperform their car?" One row per driver with same-car
+      (teammate) comparisons since 1994. Ratings are % of lap time versus the
+      average driver in the same car (negative = faster), adjusted for teammate
+      strength across the whole teammate network. is_trusted_overperformer
+      requires enough comparisons and a 95% interval faster than average on BOTH
+      qualifying and green-flag race pace. See README "Analyses" for method,
+      assumptions and limitations.
+    config:
+      tags: [analysis]
+    data_tests:
+      - expression_is_true:
+          name: driver_vs_car_trusted_flag_is_consistent
+          arguments:
+            expression: >
+              not is_trusted_overperformer
+              or (quali_rating_ci_high < 0 and race_rating_ci_high < 0 and in_main_network
+                  and quali_comparisons >= {{ var('trusted_min_qualifying_comparisons') }}
+                  and race_comparisons >= {{ var('trusted_min_race_comparisons') }})
+      - expression_is_true:
+          name: driver_vs_car_interval_brackets_rating
+          arguments:
+            expression: >
+              quali_rating_pct is null
+              or (quali_rating_ci_low <= quali_rating_pct and quali_rating_pct <= quali_rating_ci_high)
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: quali_comparisons
+        description: Representative qualifying sessions compared with a teammate.
+      - name: quali_raw_gap_pct
+        description: Mean qualifying gap to teammates (% of lap time; not adjusted for teammate strength).
+      - name: quali_share_ahead
+        description: Share of those sessions where the driver out-qualified the teammate.
+      - name: quali_rating_pct
+        description: Network-adjusted qualifying rating vs the average driver in the same car.
+      - name: quali_rating_ci_low
+        description: Lower 95% bound (standard error from the network least-squares fit).
+      - name: quali_rating_ci_high
+        description: Rating plus 1.96 standard errors.
+      - name: race_comparisons
+        description: Races where both teammates logged enough green-flag laps (1996+).
+      - name: race_rating_pct
+        description: Network-adjusted green-flag race pace rating.
+      - name: is_trusted_overperformer
+        description: Faster than the average driver in the same car, with 95% confidence, in both qualifying and race pace.
+        data_tests: [not_null]
+      - name: in_main_network
+        description: In the largest connected teammate network on both signals (ratings comparable).
+      - name: trusted_rank
+        description: Rank among trusted overperformers by combined qualifying + race rating.
+
+  - name: mart_pit_stop_trend
+    description: >
+      "Are pit stops getting faster?" One row per season (2011+). The data
+      holds pit-LANE time, not stationary time. circuit_adjusted_delta_seconds
+      compares each season's stops with the same circuits' long-run norm
+      (equal weight per circuit) and is the measure to read;
+      raw_median_seconds is shown only to illustrate why the naive chart
+      misleads. See README "Analyses".
+    config:
+      tags: [analysis]
+    data_tests:
+      - expression_is_true:
+          name: pit_trend_interval_brackets_estimate
+          arguments:
+            expression: "circuit_adjusted_ci_low <= circuit_adjusted_delta_seconds and circuit_adjusted_delta_seconds <= circuit_adjusted_ci_high"
+      - expression_is_true:
+          name: pit_trend_values_plausible
+          arguments:
+            expression: "raw_median_seconds between 10 and 60 and abs(circuit_adjusted_delta_seconds) < 10"
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: raw_median_seconds
+        description: Median pit-lane time across all stops (confounded by the calendar).
+      - name: circuit_adjusted_delta_seconds
+        description: Median over circuits of (season median - circuit's all-season median). Negative = faster than normal.
+      - name: circuit_adjusted_ci_low
+        description: Lower 95% bound from the spread across circuits.
+      - name: circuit_adjusted_ci_high
+        description: Upper 95% bound.
+      - name: fastest_decile_delta_seconds
+        description: 10th percentile of stop-level deltas vs circuit norm (the quick end of the distribution).
+      - name: fastest_stop_seconds
+        description: Fastest single pit-lane time of the season.

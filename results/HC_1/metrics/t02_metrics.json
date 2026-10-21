@@ -1,0 +1,14 @@
+{
+  "input_tokens": 2519097,
+  "output_tokens": 14985,
+  "tool_calls": 10,
+  "tool_errors": 0,
+  "dbt_invocations": 8,
+  "skills_used": [
+    "read:maintaining-dbt-documentation"
+  ],
+  "assistant_turns": 11,
+  "wallclock_s": 180,
+  "nudges": 0,
+  "session_file": "~/.claude/projects/-Users-alexnoonan-f1-eval-workspaces-HC-1-project/8d8cf94c-1a6a-457e-bb65-b1f392ad3d3f.jsonl"
+}

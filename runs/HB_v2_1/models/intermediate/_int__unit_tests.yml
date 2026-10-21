@@ -1,0 +1,45 @@
+unit_tests:
+  - name: int_season_completion_season_counts_only_when_every_round_has_results
+    description: >
+      2023 has every round with results, so it is complete. 2024 has no results for round 2, so
+      it is incomplete. Its latest completed round is 1, not the later round 3.
+    model: int_season_completion
+    given:
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 1, season: 2023, round: 1}
+          - {race_id: 2, season: 2023, round: 2}
+          - {race_id: 3, season: 2024, round: 1}
+          - {race_id: 4, season: 2024, round: 2}
+          - {race_id: 5, season: 2024, round: 3}
+      - input: ref('stg_f1__results')
+        rows:
+          - {result_id: 1, race_id: 1, driver_id: 1}
+          - {result_id: 2, race_id: 2, driver_id: 1}
+          - {result_id: 3, race_id: 3, driver_id: 1}
+          - {result_id: 4, race_id: 5, driver_id: 1}
+    expect:
+      rows:
+        - {season: 2023, calendar_races: 2, races_with_results: 2, first_missing_round: null, is_season_complete: true, latest_completed_round: 2, latest_completed_race_id: 2}
+        - {season: 2024, calendar_races: 3, races_with_results: 2, first_missing_round: 2, is_season_complete: false, latest_completed_round: 1, latest_completed_race_id: 3}
+
+  - name: dim_drivers_base_world_championships_count_only_complete_seasons
+    description: A title in an incomplete season does not count. A title in a complete season does.
+    model: dim_drivers_base
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: hamilton, forename: Lewis, surname: Hamilton, nationality: British}
+      - input: ref('int_orphan_driver_ids')
+        rows: []
+      - input: ref('fct_results')
+        rows: []
+      - input: ref('fct_session_results')
+        rows: []
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2023, driver_id: 1, championship_position: 1, points: 300, wins: 5, round: 2, as_of_race_id: 2, is_season_complete: true, is_champion: true}
+          - {season: 2024, driver_id: 1, championship_position: 1, points: 150, wins: 3, round: 1, as_of_race_id: 3, is_season_complete: false, is_champion: true}
+    expect:
+      rows:
+        - {driver_id: 1, world_championships: 1}

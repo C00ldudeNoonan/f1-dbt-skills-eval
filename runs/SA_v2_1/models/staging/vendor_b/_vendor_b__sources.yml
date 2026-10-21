@@ -1,0 +1,59 @@
+version: 2
+
+sources:
+  - name: vendor_b
+    description: >
+      Vendor B, a second licensed feed (2018 onwards) used only to cross-check the primary Ergast feed. It shares
+      no ids with the primary feed; the crosswalk models map it by name, code, dates and results.
+      Typed columns (numbers), names are 'SURNAME Firstname', session times are UTC ISO timestamps
+      whose time part can be the `\N` marker.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_SA_v2_1
+    tables:
+      - name: vb_drivers
+        data_tests:
+          - unique_combination_of_columns:
+              arguments:
+                combination_of_columns: [driver_key]
+              config:
+                severity: warn
+        columns:
+          - name: driver_key
+          - name: full_name
+          - name: abbreviation
+          - name: racing_number
+      - name: vb_sessions
+        data_tests:
+          - unique_combination_of_columns:
+              arguments:
+                combination_of_columns: [session_key]
+              config:
+                severity: warn
+        columns:
+          - name: session_key
+          - name: session_type
+          - name: meeting_name
+          - name: year
+          - name: date_start
+            data_tests:
+              - source_value_format:
+                  arguments:
+                    pattern: '[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z'
+      - name: vb_results
+        data_tests:
+          - unique_combination_of_columns:
+              arguments:
+                combination_of_columns: [session_key, driver_key]
+              config:
+                severity: warn
+        columns:
+          - name: session_key
+          - name: driver_key
+          - name: team_name
+          - name: grid_position
+          - name: position
+            data_tests:
+              - source_value_format:
+                  arguments:
+                    pattern: '[0-9]+|DNF|DSQ'
+          - name: points

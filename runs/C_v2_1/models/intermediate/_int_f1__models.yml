@@ -1,0 +1,100 @@
+version: 2
+
+models:
+  - name: int_f1__race_calendar
+    description: >
+      One row per Grand Prix on the calendar with completion flags. The single
+      place where "completed round" (the race has at least one result) and
+      "completed season" (every race on the calendar has results) are defined.
+    config:
+      group: f1_analytics
+      access: protected
+    columns:
+      - name: race_id
+        description: "{{ doc('col_race_id') }}"
+        data_tests: [unique, not_null]
+      - name: is_completed
+        description: True when the race has at least one Grand Prix result.
+      - name: is_season_complete
+        description: "{{ doc('col_is_season_complete') }}"
+      - name: is_latest_completed_round
+        description: True for the highest completed round of each season. Standings are reported as of this round.
+
+  - name: int_f1__session_results
+    description: >
+      Grand Prix and sprint results in one shape, joined to the race calendar,
+      constructors and status once. `fct_results` (session_type 'race') and
+      `fct_session_results` (both) are built from it, so they share one
+      definition of finish_position, is_win and is_podium.
+    config:
+      group: f1_analytics
+      access: protected
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [session_type, source_result_id]
+
+  - name: int_f1__driver_profiles
+    description: >
+      One row per driver plus a placeholder per late-arriving driver_id
+      (from `mon_late_arriving_drivers`), with career totals and every name
+      column (full_name, first_name, last_name). All versions of
+      `dim_drivers` select from it, so the versions differ only in the
+      columns they expose.
+    config:
+      group: f1_analytics
+      access: protected
+    columns:
+      - name: driver_id
+        description: "{{ doc('col_driver_id') }}"
+        data_tests: [unique, not_null]
+    data_tests:
+      - expression_is_true:
+          arguments:
+            expression: "first_name || ' ' || last_name = full_name"
+
+  - name: int_f1__qualifying_entries
+    description: >
+      fct_qualifying with each entry attributed to the constructor the driver
+      raced for in that Grand Prix (falls back to the qualifying constructor).
+      Shared by the teammate head-to-head and teammate pace models.
+    config:
+      group: f1_analytics
+      access: protected
+    columns:
+      - name: qualify_id
+        description: Ergast qualifying entry id.
+        data_tests: [unique, not_null]
+      - name: constructor_id
+        description: Constructor the driver raced for (or qualified with, if no result).
+        data_tests: [not_null]
+
+  - name: int_f1__teammate_qualifying_comparisons
+    description: >
+      One row per race, constructor, driver and teammate (both orderings),
+      from 2006, comparing the two cars' times in the last qualifying session
+      both drivers set a time in. Before 2010 Q3 is skipped because it was run
+      on race fuel. Only two-car teams count. pace_advantage_pct is positive
+      when the driver was faster. Gaps over 2% are flagged `is_outlier`.
+    config:
+      group: f1_analytics
+      access: protected
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, teammate_id]
+      - expression_is_true:
+          arguments:
+            expression: "not (season < 2010 and compared_session = 'Q3')"
+    columns:
+      - name: compared_session
+        description: Session the two times come from (Q1, Q2 or Q3).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Q1', 'Q2', 'Q3']
+      - name: pace_advantage_pct
+        description: (teammate time - driver time) / teammate time * 100. Positive means the driver was faster.
+        data_tests: [not_null]
+      - name: is_outlier
+        description: True when the gap exceeds 2%. Usually a crash, mechanical problem or changing weather, not driver pace.

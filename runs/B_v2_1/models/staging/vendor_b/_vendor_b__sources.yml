@@ -1,0 +1,88 @@
+# Vendor B: second licensed feed (2018 onward) used to cross-check the Ergast
+# feed. Shares no ids with Ergast; see dim_driver_crosswalk / dim_session_crosswalk.
+sources:
+  - name: vendor_b
+    description: Vendor B cross-check feed. Read-only. Typed columns (numbers are NUMBER, positions and dates are text).
+    database: ANALYTICS_DEV
+    schema: F1_RAW_B_v2_1
+    quoting:
+      schema: false
+      identifier: false
+    tables:
+      - name: vb_drivers
+        description: One row per Vendor B driver. FULL_NAME is 'SURNAME Forename' with the surname upper-cased.
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments: {key_columns: [driver_key], compare_columns: [full_name, abbreviation, racing_number]}
+        columns:
+          - name: driver_key
+            data_type: text
+            data_tests: [unique, not_null]
+          - name: full_name
+            data_type: text
+            data_tests: [not_null]
+          - name: abbreviation
+            data_type: text
+          - name: racing_number
+            data_type: number
+      - name: vb_sessions
+        description: One row per Vendor B session (Grand Prix 'Race' or 'Sprint'). MEETING_NAME is the circuit location.
+        columns:
+          - name: session_key
+            data_type: number
+            data_tests: [unique, not_null]
+          - name: session_type
+            data_type: text
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments: {values: ['Race', 'Sprint']}
+          - name: meeting_name
+            data_type: text
+          - name: year
+            data_type: number
+            data_tests: [not_null]
+          - name: date_start
+            data_type: text
+            description: "UTC start, 'YYYY-MM-DDTHH:MI:SSZ'. The time part is sometimes missing ('YYYY-MM-DDT\\NZ'); only the date is used."
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T([0-9]{2}:[0-9]{2}:[0-9]{2}|.N)Z$'}}
+      - name: vb_results
+        description: One row per driver per session.
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments: {key_columns: [session_key, driver_key], compare_columns: [team_name, grid_position, position, points]}
+          - no_redelivered_rows:
+              arguments: {key_columns: [session_key, driver_key]}
+              config: {severity: warn}
+        columns:
+          - name: session_key
+            data_type: number
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('vendor_b', 'vb_sessions')
+                    field: session_key
+          - name: driver_key
+            data_type: text
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('vendor_b', 'vb_drivers')
+                    field: driver_key
+          - name: team_name
+            data_type: text
+          - name: grid_position
+            data_type: number
+          - name: position
+            data_type: text
+            description: Classified finishing position, or DNF / DSQ when not classified.
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^([0-9]+|DNF|DSQ)$'}}
+          - name: points
+            data_type: number
+            data_tests: [not_null]

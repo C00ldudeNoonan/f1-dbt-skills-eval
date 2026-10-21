@@ -1,0 +1,244 @@
+title: "dbt skills eval: F1 project"
+source: eval
+
+variables:
+  suite:
+    input: select
+    label: "Task suite"
+    notes: "v1 = 7 tasks; v2 = 12 harder tasks (vendor feed, telemetry, CI, vague asks)"
+    options:
+      static: [v1, v2]
+    default: v1
+
+queries:
+  headline:
+    sql: |
+      SELECT count(DISTINCT run_id) AS runs,
+             count(*) AS tasks_graded,
+             avg(score) AS mean_score,
+             avg(CASE WHEN score = 1 AND build_ok = 1 THEN 1.0 ELSE 0 END) AS clean_rate,
+             (SELECT coalesce(sum(nudges), 0) FROM metrics WHERE {{ filter('suite', suite) }}) AS nudges
+      FROM grades
+      WHERE phase = 'rebuild' AND {{ filter('suite', suite) }}
+
+  run_task_grid:
+    sql: |
+      SELECT run_label, model_order * 10 + skills_order AS run_order,
+             'T' || lpad(task::varchar, 2, '0') AS task,
+             score, passed || '/' || total AS checks_passed
+      FROM grades
+      WHERE phase = 'rebuild' AND {{ filter('suite', suite) }}
+      ORDER BY run_order, task
+
+  score_by_arm:
+    sql: |
+      SELECT model, model_order, skills, skills_order, avg(score) AS mean_score,
+             avg(CASE WHEN score = 1 AND build_ok = 1 THEN 1.0 ELSE 0 END) AS clean_rate
+      FROM grades
+      WHERE phase = 'rebuild' AND {{ filter('suite', suite) }}
+      GROUP BY 1, 2, 3, 4
+      ORDER BY model_order, skills_order
+
+  cost_by_arm:
+    sql: |
+      SELECT model, model_order, skills, skills_order,
+             avg(output_tokens) AS output_tokens_per_task,
+             avg(dbt_invocations) AS dbt_calls_per_task,
+             avg(wallclock_s) / 60 AS minutes_per_task
+      FROM metrics
+      WHERE {{ filter('suite', suite) }}
+      GROUP BY 1, 2, 3, 4
+      ORDER BY model_order, skills_order
+
+  score_by_task:
+    sql: |
+      SELECT 'T' || lpad(task::varchar, 2, '0') AS task, skills, avg(score) AS mean_score
+      FROM grades
+      WHERE phase = 'rebuild' AND {{ filter('suite', suite) }}
+      GROUP BY 1, 2
+      ORDER BY 1
+
+  skill_reads:
+    sql: |
+      SELECT run_label, model_order * 10 + skills_order AS run_order, sum(skill_reads) AS skill_reads
+      FROM metrics
+      WHERE skills <> 'none' AND {{ filter('suite', suite) }}
+      GROUP BY 1, 2
+      ORDER BY run_order
+
+  failed_checks:
+    sql: |
+      SELECT run_id, task, phase, "check" AS model_checked, detail
+      FROM checks
+      WHERE ok = 0 AND {{ filter('suite', suite) }}
+      ORDER BY run_id, task, phase
+
+  build_failures:
+    sql: |
+      SELECT run_id, task, passed || '/' || total AS data_checks
+      FROM grades
+      WHERE phase = 'rebuild' AND build_ok = 0 AND {{ filter('suite', suite) }}
+      ORDER BY run_id, task
+
+charts:
+  kpi_runs:
+    type: kpi
+    query: headline
+    value: runs
+    label: "Runs"
+  kpi_tasks:
+    type: kpi
+    query: headline
+    value: tasks_graded
+    label: "Tasks graded"
+  kpi_score:
+    type: kpi
+    query: headline
+    value: mean_score
+    label: "Mean data score"
+    style:
+      value:
+        format: percent
+  kpi_clean:
+    type: kpi
+    query: headline
+    value: clean_rate
+    label: "Clean tasks"
+    style:
+      value:
+        format: percent
+  kpi_nudges:
+    type: kpi
+    query: headline
+    value: nudges
+    label: "Nudges"
+
+  grid:
+    type: heatmap
+    query: run_task_grid
+    x: task
+    y: run_label
+    color: score
+    title: "Data score by run and task"
+    subtitle: "Share of answer-key checks passing after the harness injects new data and rebuilds. Later tasks re-check every earlier model, so regressions show up."
+    x_label: "Task"
+    y_label: "Run"
+    sort:
+      by: run_order
+      order: asc
+
+  arm_score:
+    type: bar
+    query: score_by_arm
+    x: model
+    y: mean_score
+    color: skills
+    title: "Does access to skills change correctness?"
+    subtitle: "Mean data score per task, by model and skills arm"
+    x_label: "Model"
+    y_label: "Mean data score"
+    sort:
+      by: model_order
+      order: asc
+    style:
+      orientation: vertical
+      number_format: percent
+
+  arm_tokens:
+    type: bar
+    query: cost_by_arm
+    x: model
+    y: output_tokens_per_task
+    color: skills
+    title: "What do skills cost?"
+    subtitle: "Average output tokens per task, by model and skills arm"
+    x_label: "Model"
+    y_label: "Output tokens per task"
+    sort:
+      by: model_order
+      order: asc
+    style:
+      orientation: vertical
+      number_format: integer
+
+  arm_dbt_calls:
+    type: bar
+    query: cost_by_arm
+    x: model
+    y: dbt_calls_per_task
+    color: skills
+    title: "dbt invocations per task"
+    subtitle: "More calls usually means more fix-and-retry loops"
+    x_label: "Model"
+    y_label: "dbt calls per task"
+    sort:
+      by: model_order
+      order: asc
+    style:
+      orientation: vertical
+
+  task_curve:
+    type: line
+    query: score_by_task
+    x: task
+    y: mean_score
+    color: skills
+    title: "Where it gets hard"
+    subtitle: "Mean data score at each task, all models combined"
+    x_label: "Task"
+    y_label: "Mean data score"
+    style:
+      number_format: percent
+
+  reads:
+    type: bar
+    query: skill_reads
+    x: run_label
+    y: skill_reads
+    title: "Do agents actually use the skills?"
+    subtitle: "Skill files read or invoked, summed over tasks (skills arms only)"
+    x_label: "Run"
+    y_label: "Skill reads"
+    sort:
+      by: run_order
+      order: asc
+    style:
+      orientation: horizontal
+
+  failures_table:
+    type: table
+    query: failed_checks
+    title: "Failed answer-key checks"
+    style:
+      columns:
+        run_id: { label: "Run" }
+        task: { label: "Task" }
+        phase: { label: "Phase" }
+        model_checked: { label: "Model checked" }
+        detail: { label: "What was wrong" }
+
+  build_table:
+    type: table
+    query: build_failures
+    title: "Harness rebuilds that failed"
+    subtitle: "The agent's project didn't survive `dbt build` after new data arrived"
+    style:
+      columns:
+        run_id: { label: "Run" }
+        task: { label: "Task" }
+        data_checks: { label: "Data checks passed" }
+
+rows:
+  - text: |
+      Each run is one agent session working through the suite's tasks in order. After each task the harness
+      injects new data (late races, lap corrections, vendor drift, planted bugs), rebuilds the agent's project
+      with `dbt build`, and compares every required model with an answer key. **Data score** = share of
+      answer-key checks passing. **Clean task** = every check passes *and* the rebuild succeeds.
+      Arms: **none** = no dbt skills, **available** = dbt-agent-skills installed, **forced** = skills plus a
+      CLAUDE.md telling the agent to use them.
+  - cols: [kpi_runs, kpi_tasks, kpi_score, kpi_clean, kpi_nudges]
+  - grid
+  - cols: [arm_score, arm_tokens]
+  - cols: [arm_dbt_calls, task_curve]
+  - reads
+  - cols: [failures_table, build_table]

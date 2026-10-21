@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: int_f1__season_status
+    description: >
+      One row per season with calendar completeness. `is_season_complete` is true only
+      when every scheduled race has results; `latest_completed_round` is the last round
+      with results and drives the "as of" round of the standings mart.
+    columns:
+      - name: season
+        description: Championship year.
+        data_tests: [unique, not_null]
+      - name: scheduled_races
+        description: Races on the season calendar.
+        data_tests: [not_null]
+      - name: races_with_results
+        description: Races with at least one result row.
+        data_tests: [not_null]
+      - name: latest_completed_round
+        description: Highest round number that has results.
+        data_tests: [not_null]
+      - name: is_season_complete
+        description: Whether all scheduled races have results.
+        data_tests: [not_null]
+
+  - name: int_f1__circuit_season_pit_stops
+    description: >
+      Median pit lane time (entry to exit, 60 s red-flag cut-off) per circuit per season, for circuit-seasons with at least 8 stops.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            columns: [circuit_id, season]
+    columns:
+      - name: median_seconds
+        description: Median pit lane time in seconds.
+        data_tests: [not_null, positive_when_present]
+
+  - name: int_f1__teammate_quali_deltas
+    description: >
+      Per race and ordered teammate pair, qualifying delta in percent (100 * ln of the time ratio) in the deepest session both drivers set a time in;
+      negative = `driver_id` faster. Pairs more than 5% apart are dropped.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            columns: [race_id, constructor_id, driver_id, teammate_id]
+    columns:
+      - name: delta_pct
+        description: Qualifying delta in percent, negative = driver faster.
+        data_tests:
+          - not_null
+          - values_between:
+              arguments: {min_value: -5, max_value: 5}
+
+  - name: int_f1__teammate_pace_deltas
+    description: >
+      Per race and ordered teammate pair, difference in median green-flag lap time in percent (100 * ln of the ratio); negative = `driver_id`
+      faster. Needs 15+ green laps each; pairs more than 3% apart are dropped.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            columns: [race_id, constructor_id, driver_id, teammate_id]
+    columns:
+      - name: delta_pct
+        description: Race pace delta in percent, negative = driver faster.
+        data_tests:
+          - not_null
+          - values_between:
+              arguments: {min_value: -3, max_value: 3}
+

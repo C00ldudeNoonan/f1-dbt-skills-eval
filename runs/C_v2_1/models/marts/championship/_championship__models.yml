@@ -1,0 +1,357 @@
+version: 2
+
+models:
+  - name: mart_driver_season_standings
+    description: >
+      Official drivers' championship standings, one row per driver per season,
+      as of the latest completed round (the highest round with results). It is
+      the latest-round slice of `mart_driver_standings_by_round`. Taken
+      from the published standings snapshot, not summed from results: official
+      totals include sprint points (2021+), dropped scores (most seasons before
+      1991) and shared-drive splits. P1 is reconciled against a reference list
+      of world champions (`world_drivers_champions` seed). A handful of
+      drivers with a Grand Prix entry but no official classification (many of them
+      1992-93 entries that never qualified) are not in the snapshot and have no row.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, championship_position]
+    columns:
+      - name: season
+        data_type: integer
+        description: "{{ doc('col_season') }}"
+        constraints:
+          - type: not_null
+      - name: driver_id
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: championship_position
+        data_type: integer
+        description: >
+          Official championship position. Null when the driver was excluded
+          from the championship (Michael Schumacher, 1997), so Frentzen is P2
+          that year as in the official table.
+      - name: position_text
+        data_type: varchar
+        description: Position as published. 'D' for an excluded driver.
+        constraints:
+          - type: not_null
+      - name: points
+        data_type: number(8, 2)
+        description: Official championship points after the as-of round, including sprint points and after dropped scores.
+        constraints:
+          - type: not_null
+      - name: wins
+        data_type: integer
+        description: Grand Prix wins in the season up to the as-of round.
+        constraints:
+          - type: not_null
+      - name: as_of_round
+        data_type: integer
+        description: Round the standings are taken after (the season's latest completed round).
+        constraints:
+          - type: not_null
+      - name: as_of_race_id
+        data_type: integer
+        description: Race id of `as_of_round`.
+        constraints:
+          - type: not_null
+      - name: is_season_complete
+        data_type: boolean
+        description: "{{ doc('col_is_season_complete') }} When false these are interim standings."
+        constraints:
+          - type: not_null
+
+  - name: mart_constructor_season_pit_stops
+    description: >
+      One row per constructor per season that has pit stop data (2011 onwards).
+      Stops over 60 seconds are excluded: they are red-flag stoppages where cars
+      waited in the pit lane, not pit work. The constructor is the one the
+      driver raced for in that Grand Prix.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, constructor_id]
+    columns:
+      - name: season
+        data_type: integer
+        description: "{{ doc('col_season') }}"
+        constraints:
+          - type: not_null
+      - name: constructor_id
+        data_type: integer
+        description: "{{ doc('col_constructor_id') }}"
+        constraints:
+          - type: not_null
+      - name: pit_stop_count
+        data_type: integer
+        description: Pit stops of 60 seconds or less made by the constructor's cars in the season.
+        constraints:
+          - type: not_null
+      - name: median_pit_stop_seconds
+        data_type: number(10, 4)
+        description: Median pit lane time in seconds over those stops (pit entry to exit, not stationary time).
+        constraints:
+          - type: not_null
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "median_pit_stop_seconds between 10 and 60"
+
+  - name: mart_teammate_head_to_head
+    description: >
+      One row per season, constructor, driver and teammate, in both orderings,
+      for drivers who raced for the same constructor in the same Grand Prix at
+      least once. Race comparisons use each driver's best `position_order` in
+      the race (which ranks retirements too), so every race together has a
+      winner unless positions tie. Qualifying is attributed to the constructor
+      the driver raced for, which repairs the 2015 Marussia/Manor Marussia id
+      mismatch in the source.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, constructor_id, driver_id, teammate_id]
+      - expression_is_true:
+          arguments:
+            expression: "races_ahead <= races_together and qualifying_ahead <= qualifying_together and driver_id <> teammate_id"
+    columns:
+      - name: season
+        data_type: integer
+        description: "{{ doc('col_season') }}"
+        constraints:
+          - type: not_null
+      - name: constructor_id
+        data_type: integer
+        description: "{{ doc('col_constructor_id') }}"
+        constraints:
+          - type: not_null
+      - name: driver_id
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+      - name: teammate_id
+        data_type: integer
+        description: Driver id of the teammate being compared against.
+        constraints:
+          - type: not_null
+      - name: races_together
+        data_type: integer
+        description: Distinct Grands Prix where both drivers had a result for this constructor.
+        constraints:
+          - type: not_null
+      - name: races_ahead
+        data_type: integer
+        description: Of races_together, races where the driver's best position_order beat the teammate's best.
+        constraints:
+          - type: not_null
+      - name: qualifying_together
+        data_type: integer
+        description: Distinct races where both drivers have a qualifying entry for this constructor. 0 before 1994 (no qualifying data).
+        constraints:
+          - type: not_null
+      - name: qualifying_ahead
+        data_type: integer
+        description: Of qualifying_together, races where the driver's qualifying position beat the teammate's.
+        constraints:
+          - type: not_null
+
+  - name: mart_driver_standings_by_round
+    description: >
+      Official drivers' championship standings after every completed round,
+      one row per driver per round they appear in the published standings.
+      Points are cumulative for the season, including sprint points (2021
+      onwards) and after dropped scores. `mart_driver_season_standings` is the
+      latest-round slice of this model.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, championship_position]
+    columns:
+      - name: season
+        data_type: integer
+        description: "{{ doc('col_season') }}"
+        constraints:
+          - type: not_null
+      - name: round
+        data_type: integer
+        description: Round the standings are taken after.
+        constraints:
+          - type: not_null
+      - name: race_id
+        data_type: integer
+        description: "{{ doc('col_race_id') }}"
+        constraints:
+          - type: not_null
+      - name: driver_id
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+      - name: championship_position
+        data_type: integer
+        description: Official championship position after this round. Null when the driver was excluded from the championship (Michael Schumacher, 1997).
+      - name: position_text
+        data_type: varchar
+        description: Position as published. 'D' for an excluded driver.
+        constraints:
+          - type: not_null
+      - name: points
+        data_type: number(8, 2)
+        description: Official cumulative championship points after this round.
+        constraints:
+          - type: not_null
+      - name: wins
+        data_type: integer
+        description: Grand Prix wins in the season up to and including this round.
+        constraints:
+          - type: not_null
+      - name: is_latest_completed_round
+        data_type: boolean
+        description: True for the season's latest completed round, the row `mart_driver_season_standings` reports.
+        constraints:
+          - type: not_null
+      - name: is_season_complete
+        data_type: boolean
+        description: "{{ doc('col_is_season_complete') }}"
+        constraints:
+          - type: not_null
+
+  - name: mart_alt_points_standings_by_system
+    description: >
+      What-if drivers' championship: every season re-scored under every points
+      system in the `points_systems` seed. One row per points system, season
+      and driver with at least one Grand Prix result that season, including
+      drivers who scored nothing. Adding a system is a seed change only.
+      Validated against the official points for 2010-2013 and 2015-2018, when
+      the official system matched `fia_2010` exactly.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, season, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, season, alt_position]
+    columns:
+      - name: points_system
+        data_type: varchar
+        description: Points system used, from the `points_systems` seed.
+        constraints:
+          - type: not_null
+      - name: season
+        data_type: integer
+        description: "{{ doc('col_season') }}"
+        constraints:
+          - type: not_null
+      - name: driver_id
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+      - name: alt_points
+        data_type: number(8, 2)
+        description: "Points re-scored under the system: each classified Grand Prix result entry scores the points for its position_order. No sprint or fastest-lap points, no dropped scores."
+        constraints:
+          - type: not_null
+      - name: alt_position
+        data_type: integer
+        description: "Rank under the system: alt_points descending, then countback (more 1st places, then 2nd places, and so on through 10th), then lowest driver_id. Always unique within a season."
+        constraints:
+          - type: not_null
+      - name: alt_wins
+        data_type: integer
+        description: Classified Grand Prix wins in the season (the first countback criterion). Shared-car wins count for each driver.
+        constraints:
+          - type: not_null
+
+  - name: mart_alt_points_standings
+    description: >
+      What-if drivers' championship under a single points system, one row per
+      driver per season (every driver with at least one Grand Prix result that
+      season). By default it uses the current system, `fia_2010`:
+      25-18-15-12-10-8-6-4-2-1 for position_order 1-10. Only classified
+      finishers score, each result entry scores on its own, and sprints and
+      fastest-lap points don't count. Pick another system with
+      `--vars '{alt_points_system: fia_1991}'`, or use
+      `mart_alt_points_standings_by_system` to compare systems side by side.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, alt_position]
+    columns:
+      - name: season
+        data_type: integer
+        description: "{{ doc('col_season') }}"
+        constraints:
+          - type: not_null
+      - name: driver_id
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+      - name: points_system
+        data_type: varchar
+        description: Points system used, from the `points_systems` seed.
+        constraints:
+          - type: not_null
+      - name: alt_points
+        data_type: number(8, 2)
+        description: "Points re-scored under the system: each classified Grand Prix result entry scores the points for its position_order. No sprint or fastest-lap points, no dropped scores."
+        constraints:
+          - type: not_null
+      - name: alt_position
+        data_type: integer
+        description: "Rank under the system: alt_points descending, then countback (more 1st places, then 2nd places, and so on through 10th), then lowest driver_id. Always unique within a season."
+        constraints:
+          - type: not_null
+      - name: alt_wins
+        data_type: integer
+        description: Classified Grand Prix wins in the season (the first countback criterion). Shared-car wins count for each driver.
+        constraints:
+          - type: not_null

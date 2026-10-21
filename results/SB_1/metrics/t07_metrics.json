@@ -1,0 +1,16 @@
+{
+  "input_tokens": 1990317,
+  "output_tokens": 10629,
+  "tool_calls": 10,
+  "tool_errors": 0,
+  "dbt_invocations": 5,
+  "skills_used": [
+    "read:working-with-dbt-mesh",
+    "read:working-with-dbt-mesh",
+    "read:adding-dbt-unit-test"
+  ],
+  "assistant_turns": 11,
+  "wallclock_s": 286,
+  "nudges": 0,
+  "session_file": "~/.claude/projects/-Users-alexnoonan-f1-eval-workspaces-SB-1-project/53a34701-87ba-44d6-ab0a-cb420d70ef58.jsonl"
+}

@@ -1,0 +1,347 @@
+version: 2
+
+sources:
+  - name: ergast
+    description: >
+      Raw Formula 1 data from the Ergast / Kaggle "Formula 1 World Championship
+      (1950 - present)" CSV export. Loaded verbatim: every column is TEXT and
+      missing values are the literal string `\N`. Read-only — never write here.
+
+      Every table carries a schema contract (source_columns_match): the
+      `breaking` check errors if an expected column disappears or changes
+      type, the `additive` check warns on new columns. When the vendor
+      changes shape, update the expected_columns list here together with
+      the staging model. Known vendor changes:
+        - 2026-10: results / sprint_results POSITIONORDER renamed to
+          POSITION_ORDER; pit_stops DURATION dropped (redundant with
+          MILLISECONDS).
+    database: ANALYTICS_DEV
+    schema: F1_RAW_A_1
+    tables:
+      - name: circuits
+        data_tests:
+          - source_columns_match:
+              name: ergast_circuits__schema_breaking
+              arguments:
+                expected_columns: [CIRCUITID, CIRCUITREF, NAME, LOCATION, COUNTRY, LAT, LNG, ALT, URL]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_circuits__schema_additive
+              arguments:
+                expected_columns: [CIRCUITID, CIRCUITREF, NAME, LOCATION, COUNTRY, LAT, LNG, ALT, URL]
+                check: additive
+              config:
+                severity: warn
+        description: One row per circuit.
+        columns:
+          - name: circuitid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+                    description: >
+                      Raw duplicates are surfaced here as a warning; staging
+                      collapses rows that are identical after cleaning, and the
+                      error-level uniqueness test on the staging model blocks
+                      anything that is a genuine conflict.
+      - name: constructors
+        data_tests:
+          - source_columns_match:
+              name: ergast_constructors__schema_breaking
+              arguments:
+                expected_columns: [CONSTRUCTORID, CONSTRUCTORREF, NAME, NATIONALITY, URL]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_constructors__schema_additive
+              arguments:
+                expected_columns: [CONSTRUCTORID, CONSTRUCTORREF, NAME, NATIONALITY, URL]
+                check: additive
+              config:
+                severity: warn
+        description: One row per constructor (team).
+        columns:
+          - name: constructorid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+                    description: >
+                      Raw duplicates are surfaced here as a warning; staging
+                      collapses rows that are identical after cleaning, and the
+                      error-level uniqueness test on the staging model blocks
+                      anything that is a genuine conflict.
+      - name: constructor_results
+        data_tests:
+          - source_columns_match:
+              name: ergast_constructor_results__schema_breaking
+              arguments:
+                expected_columns: [CONSTRUCTORRESULTSID, RACEID, CONSTRUCTORID, POINTS, STATUS]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_constructor_results__schema_additive
+              arguments:
+                expected_columns: [CONSTRUCTORRESULTSID, RACEID, CONSTRUCTORID, POINTS, STATUS]
+                check: additive
+              config:
+                severity: warn
+        description: Constructor points per race.
+      - name: constructor_standings
+        data_tests:
+          - source_columns_match:
+              name: ergast_constructor_standings__schema_breaking
+              arguments:
+                expected_columns: [CONSTRUCTORSTANDINGSID, RACEID, CONSTRUCTORID, POINTS, POSITION, POSITIONTEXT, WINS]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_constructor_standings__schema_additive
+              arguments:
+                expected_columns: [CONSTRUCTORSTANDINGSID, RACEID, CONSTRUCTORID, POINTS, POSITION, POSITIONTEXT, WINS]
+                check: additive
+              config:
+                severity: warn
+        description: Constructor championship standings after each race.
+      - name: drivers
+        data_tests:
+          - source_columns_match:
+              name: ergast_drivers__schema_breaking
+              arguments:
+                expected_columns: [DRIVERID, DRIVERREF, NUMBER, CODE, FORENAME, SURNAME, DOB, NATIONALITY, URL]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_drivers__schema_additive
+              arguments:
+                expected_columns: [DRIVERID, DRIVERREF, NUMBER, CODE, FORENAME, SURNAME, DOB, NATIONALITY, URL]
+                check: additive
+              config:
+                severity: warn
+        description: One row per driver.
+        columns:
+          - name: driverid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+                    description: >
+                      Raw duplicates are surfaced here as a warning; staging
+                      collapses rows that are identical after cleaning, and the
+                      error-level uniqueness test on the staging model blocks
+                      anything that is a genuine conflict.
+      - name: driver_standings
+        data_tests:
+          - source_columns_match:
+              name: ergast_driver_standings__schema_breaking
+              arguments:
+                expected_columns: [DRIVERSTANDINGSID, RACEID, DRIVERID, POINTS, POSITION, POSITIONTEXT, WINS]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_driver_standings__schema_additive
+              arguments:
+                expected_columns: [DRIVERSTANDINGSID, RACEID, DRIVERID, POINTS, POSITION, POSITIONTEXT, WINS]
+                check: additive
+              config:
+                severity: warn
+        description: >
+          Official driver championship standings after each race. Points here
+          already apply each era's dropped-score rules and include sprint points.
+      - name: lap_times
+        data_tests:
+          - source_columns_match:
+              name: ergast_lap_times__schema_breaking
+              arguments:
+                expected_columns: [RACEID, DRIVERID, LAP, POSITION, TIME, MILLISECONDS]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_lap_times__schema_additive
+              arguments:
+                expected_columns: [RACEID, DRIVERID, LAP, POSITION, TIME, MILLISECONDS]
+                check: additive
+              config:
+                severity: warn
+        description: Per-lap timing, 1996 onward.
+      - name: pit_stops
+        data_tests:
+          - source_columns_match:
+              name: ergast_pit_stops__schema_breaking
+              arguments:
+                expected_columns: [RACEID, DRIVERID, STOP, LAP, TIME, MILLISECONDS]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_pit_stops__schema_additive
+              arguments:
+                expected_columns: [RACEID, DRIVERID, STOP, LAP, TIME, MILLISECONDS]
+                check: additive
+              config:
+                severity: warn
+        description: Pit stops, 2011 onward. MILLISECONDS is pit-lane time, not stationary time. (The redundant DURATION text column was dropped by the vendor in 2026-10.)
+      - name: qualifying
+        data_tests:
+          - source_columns_match:
+              name: ergast_qualifying__schema_breaking
+              arguments:
+                expected_columns: [QUALIFYID, RACEID, DRIVERID, CONSTRUCTORID, NUMBER, POSITION, Q1, Q2, Q3]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_qualifying__schema_additive
+              arguments:
+                expected_columns: [QUALIFYID, RACEID, DRIVERID, CONSTRUCTORID, NUMBER, POSITION, Q1, Q2, Q3]
+                check: additive
+              config:
+                severity: warn
+        description: Qualifying results, 1994 onward.
+      - name: races
+        data_tests:
+          - source_columns_match:
+              name: ergast_races__schema_breaking
+              arguments:
+                expected_columns: [RACEID, YEAR, ROUND, CIRCUITID, NAME, DATE, TIME, URL, FP1_DATE, FP1_TIME, FP2_DATE, FP2_TIME, FP3_DATE, FP3_TIME, QUALI_DATE, QUALI_TIME, SPRINT_DATE, SPRINT_TIME]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_races__schema_additive
+              arguments:
+                expected_columns: [RACEID, YEAR, ROUND, CIRCUITID, NAME, DATE, TIME, URL, FP1_DATE, FP1_TIME, FP2_DATE, FP2_TIME, FP3_DATE, FP3_TIME, QUALI_DATE, QUALI_TIME, SPRINT_DATE, SPRINT_TIME]
+                check: additive
+              config:
+                severity: warn
+        description: The race calendar — one row per scheduled Grand Prix, including future/unrun rounds.
+        columns:
+          - name: raceid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+                    description: >
+                      Raw duplicates are surfaced here as a warning; staging
+                      collapses rows that are identical after cleaning, and the
+                      error-level uniqueness test on the staging model blocks
+                      anything that is a genuine conflict.
+      - name: results
+        data_tests:
+          - source_columns_match:
+              name: ergast_results__schema_breaking
+              arguments:
+                expected_columns: [RESULTID, RACEID, DRIVERID, CONSTRUCTORID, NUMBER, GRID, POSITION, POSITIONTEXT, POSITION_ORDER, POINTS, LAPS, TIME, MILLISECONDS, FASTESTLAP, RANK, FASTESTLAPTIME, FASTESTLAPSPEED, STATUSID]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_results__schema_additive
+              arguments:
+                expected_columns: [RESULTID, RACEID, DRIVERID, CONSTRUCTORID, NUMBER, GRID, POSITION, POSITIONTEXT, POSITION_ORDER, POINTS, LAPS, TIME, MILLISECONDS, FASTESTLAP, RANK, FASTESTLAPTIME, FASTESTLAPSPEED, STATUSID]
+                check: additive
+              config:
+                severity: warn
+        description: >
+          Grand Prix race results — one row per driver per car entry. In the
+          1950s a car could be shared, so a driver can appear more than once in
+          the same race.
+        columns:
+          - name: resultid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+                    description: >
+                      Raw duplicates are surfaced here as a warning; staging
+                      collapses rows that are identical after cleaning, and the
+                      error-level uniqueness test on the staging model blocks
+                      anything that is a genuine conflict.
+      - name: seasons
+        data_tests:
+          - source_columns_match:
+              name: ergast_seasons__schema_breaking
+              arguments:
+                expected_columns: [YEAR, URL]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_seasons__schema_additive
+              arguments:
+                expected_columns: [YEAR, URL]
+                check: additive
+              config:
+                severity: warn
+        description: One row per championship season.
+      - name: sprint_results
+        data_tests:
+          - source_columns_match:
+              name: ergast_sprint_results__schema_breaking
+              arguments:
+                expected_columns: [RESULTID, RACEID, DRIVERID, CONSTRUCTORID, NUMBER, GRID, POSITION, POSITIONTEXT, POSITION_ORDER, POINTS, LAPS, TIME, MILLISECONDS, FASTESTLAP, FASTESTLAPTIME, STATUSID]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_sprint_results__schema_additive
+              arguments:
+                expected_columns: [RESULTID, RACEID, DRIVERID, CONSTRUCTORID, NUMBER, GRID, POSITION, POSITIONTEXT, POSITION_ORDER, POINTS, LAPS, TIME, MILLISECONDS, FASTESTLAP, FASTESTLAPTIME, STATUSID]
+                check: additive
+              config:
+                severity: warn
+        description: Sprint race results (2021 onward). Not part of Grand Prix results.
+        columns:
+          - name: resultid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+                    description: >
+                      Raw duplicates are surfaced here as a warning; staging
+                      collapses rows that are identical after cleaning, and the
+                      error-level uniqueness test on the staging model blocks
+                      anything that is a genuine conflict.
+      - name: status
+        data_tests:
+          - source_columns_match:
+              name: ergast_status__schema_breaking
+              arguments:
+                expected_columns: [STATUSID, STATUS]
+                check: breaking
+              config:
+                severity: error
+          - source_columns_match:
+              name: ergast_status__schema_additive
+              arguments:
+                expected_columns: [STATUSID, STATUS]
+                check: additive
+              config:
+                severity: warn
+        description: Lookup of finishing status codes.
+        columns:
+          - name: statusid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+                    description: >
+                      Raw duplicates are surfaced here as a warning; staging
+                      collapses rows that are identical after cleaning, and the
+                      error-level uniqueness test on the staging model blocks
+                      anything that is a genuine conflict.

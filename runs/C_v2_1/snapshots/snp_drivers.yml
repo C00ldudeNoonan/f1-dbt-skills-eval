@@ -1,0 +1,36 @@
+version: 2
+
+snapshots:
+  - name: snp_drivers
+    description: >
+      Type 2 history of the drivers table. Raw `drivers` only holds current
+      values, so this snapshot records every change to a driver's number, code,
+      name, nationality or date of birth. Each version has a validity window
+      (`dbt_valid_from` to `dbt_valid_to`). The current version has
+      `dbt_valid_to` null. History starts from the first snapshot run.
+      Changes made between two runs show up as one change.
+    relation: ref('stg_f1__drivers')
+    config:
+      unique_key: driver_id
+      strategy: check
+      check_cols:
+        - driver_ref
+        - permanent_number
+        - driver_code
+        - forename
+        - surname
+        - date_of_birth
+        - nationality
+      hard_deletes: invalidate
+    columns:
+      - name: driver_id
+        description: "{{ doc('col_driver_id') }}"
+        data_tests: [not_null]
+      - name: permanent_number
+        description: Permanent race number while this version was current.
+      - name: driver_code
+        description: Three-letter timing code while this version was current.
+      - name: dbt_valid_from
+        description: When this version was first seen by the snapshot.
+      - name: dbt_valid_to
+        description: When this version was replaced, or the driver was removed from raw drivers. Null for the current version.

@@ -1,0 +1,119 @@
+version: 2
+
+models:
+  - name: metricflow_time_spine
+    description: Daily time spine for the Semantic Layer (1950 to about 2032).
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        granularity: day
+        tests: [unique, not_null]
+
+semantic_models:
+  - name: race_results
+    description: >
+      Grand Prix result entries (one row per driver entry per race). Sprints are excluded. Use this
+      model for race starts, wins, podiums and points.
+    model: ref('fct_results')
+    defaults:
+      agg_time_dimension: race_date
+    entities:
+      - name: result
+        type: primary
+        expr: result_id
+      - name: driver
+        type: foreign
+        expr: driver_id
+    dimensions:
+      - name: race_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: season
+        type: categorical
+      - name: constructor_name
+        type: categorical
+      - name: constructor_id
+        type: categorical
+    measures:
+      - name: result_entries
+        description: Grand Prix result entries (race starts).
+        agg: count
+        expr: result_id
+      - name: win_count
+        description: Grand Prix wins.
+        agg: sum
+        expr: case when is_win then 1 else 0 end
+      - name: podium_count
+        description: Grand Prix podium finishes (1st to 3rd).
+        agg: sum
+        expr: case when is_podium then 1 else 0 end
+      - name: points_total
+        description: Championship points from Grand Prix results.
+        agg: sum
+        expr: points
+
+  - name: drivers
+    description: One row per driver, with nationality and name. Joined to race results by driver.
+    model: ref('dim_drivers')
+    entities:
+      - name: driver
+        type: primary
+        expr: driver_id
+    dimensions:
+      - name: driver_ref
+        type: categorical
+      - name: nationality
+        type: categorical
+      - name: first_name
+        type: categorical
+      - name: last_name
+        type: categorical
+      - name: is_placeholder
+        type: categorical
+
+metrics:
+  - name: race_starts
+    label: Race starts
+    description: Count of Grand Prix result entries.
+    type: simple
+    type_params:
+      measure: result_entries
+
+  - name: wins
+    label: Wins
+    description: Grand Prix wins.
+    type: simple
+    type_params:
+      measure: win_count
+
+  - name: podiums
+    label: Podiums
+    description: Grand Prix podium finishes.
+    type: simple
+    type_params:
+      measure: podium_count
+
+  - name: championship_points
+    label: Championship points
+    description: Sum of Grand Prix championship points.
+    type: simple
+    type_params:
+      measure: points_total
+
+  - name: podium_rate
+    label: Podium rate
+    description: Podiums divided by race starts.
+    type: ratio
+    type_params:
+      numerator: podiums
+      denominator: race_starts
+
+  - name: points_per_start
+    label: Points per start
+    description: Championship points divided by race starts.
+    type: ratio
+    type_params:
+      numerator: championship_points
+      denominator: race_starts

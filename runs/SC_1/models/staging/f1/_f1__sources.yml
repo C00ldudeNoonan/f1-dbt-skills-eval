@@ -1,0 +1,242 @@
+version: 2
+
+sources:
+  - name: f1_raw
+    description: >
+      Ergast/Kaggle Formula 1 CSVs (1950 onward) loaded as-is. Every column is text and
+      nulls are the literal string `\N`. Treat as read-only; all cleanup happens in staging.
+      The vendor can change table shapes without notice (a column rename and a dropped
+      column have happened): the declared `columns:` below are a contract, enforced by
+      source_columns_missing (error) and source_columns_unexpected (warn) on every table.
+      When the contract fails, update this list together with staging.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_SC_1
+    tables:
+      - name: circuits
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+        columns:
+          - name: circuitid
+          - name: circuitref
+          - name: name
+          - name: location
+          - name: country
+          - name: lat
+          - name: lng
+          - name: alt
+          - name: url
+      - name: constructors
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+          - source_no_conflicting_duplicates:
+              arguments:
+                key_column: constructorid
+                compare_columns: [constructorref, name, nationality, url]
+        columns:
+          - name: constructorid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+          - name: constructorref
+          - name: name
+          - name: nationality
+          - name: url
+      - name: constructor_results
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+        columns:
+          - name: constructorresultsid
+          - name: raceid
+          - name: constructorid
+          - name: points
+          - name: status
+      - name: constructor_standings
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+        columns:
+          - name: constructorstandingsid
+          - name: raceid
+          - name: constructorid
+          - name: points
+          - name: position
+          - name: positiontext
+          - name: wins
+      - name: drivers
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+          - source_no_conflicting_duplicates:
+              arguments:
+                key_column: driverid
+                compare_columns: [driverref, number, code, forename, surname, dob, nationality, url]
+        columns:
+          - name: driverid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+          - name: driverref
+          - name: number
+          - name: code
+          - name: forename
+          - name: surname
+          - name: dob
+          - name: nationality
+          - name: url
+      - name: driver_standings
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+        columns:
+          - name: driverstandingsid
+            data_tests: [unique, not_null]
+          - name: raceid
+          - name: driverid
+          - name: points
+          - name: position
+          - name: positiontext
+          - name: wins
+      - name: lap_times
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+        columns:
+          - name: raceid
+          - name: driverid
+          - name: lap
+          - name: position
+          - name: time
+          - name: milliseconds
+      - name: pit_stops
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+        columns:
+          - name: raceid
+          - name: driverid
+          - name: stop
+          - name: lap
+          - name: time
+          - name: milliseconds
+      - name: qualifying
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+        columns:
+          - name: qualifyid
+          - name: raceid
+          - name: driverid
+          - name: constructorid
+          - name: number
+          - name: position
+          - name: q1
+          - name: q2
+          - name: q3
+      - name: races
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+          - source_no_conflicting_duplicates:
+              arguments:
+                key_column: raceid
+                compare_columns: [year, round, circuitid, name, date]
+        columns:
+          - name: raceid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+          - name: year
+          - name: round
+          - name: circuitid
+          - name: name
+          - name: date
+          - name: time
+          - name: url
+          - name: fp1_date
+          - name: fp1_time
+          - name: fp2_date
+          - name: fp2_time
+          - name: fp3_date
+          - name: fp3_time
+          - name: quali_date
+          - name: quali_time
+          - name: sprint_date
+          - name: sprint_time
+      - name: results
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+        columns:
+          - name: resultid
+            data_tests: [unique, not_null]
+          - name: raceid
+          - name: driverid
+          - name: constructorid
+          - name: number
+          - name: grid
+          - name: position
+          - name: positiontext
+          - name: position_order
+          - name: points
+          - name: laps
+          - name: time
+          - name: milliseconds
+          - name: fastestlap
+          - name: rank
+          - name: fastestlaptime
+          - name: fastestlapspeed
+          - name: statusid
+      - name: seasons
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+        columns:
+          - name: year
+          - name: url
+      - name: sprint_results
+        description: Sprint race results. Deliberately not used by fct_results (Grand Prix only).
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+        columns:
+          - name: resultid
+          - name: raceid
+          - name: driverid
+          - name: constructorid
+          - name: number
+          - name: grid
+          - name: position
+          - name: positiontext
+          - name: position_order
+          - name: points
+          - name: laps
+          - name: time
+          - name: milliseconds
+          - name: fastestlap
+          - name: fastestlaptime
+          - name: statusid
+      - name: status
+        data_tests:
+          - source_columns_missing
+          - source_columns_unexpected
+          - source_no_conflicting_duplicates:
+              arguments:
+                key_column: statusid
+                compare_columns: [status]
+        columns:
+          - name: statusid
+            data_tests:
+              - not_null
+              - unique:
+                  config:
+                    severity: warn
+          - name: status

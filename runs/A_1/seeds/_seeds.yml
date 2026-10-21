@@ -1,0 +1,20 @@
+version: 2
+
+seeds:
+  - name: historical_world_champions
+    description: >
+      Independent reference list of Drivers' World Champions and their official
+      (counted) points total, transcribed from published F1 history — NOT
+      derived from the Ergast data. Used to test that
+      mart_driver_season_standings matches real history. Append a row when a
+      season finishes.
+    config:
+      column_types:
+        season: integer
+        champion_surname: varchar
+        champion_points: number(10,2)
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: champion_surname
+      - name: champion_points

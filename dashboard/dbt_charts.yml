@@ -1,0 +1,8 @@
+sources:
+  eval:
+    type: csv
+    files:
+      grades: data/grades.csv
+      checks: data/checks.csv
+      metrics: data/metrics.csv
+      flags: data/flags.csv

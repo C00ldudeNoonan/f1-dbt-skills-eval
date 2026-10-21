@@ -1,0 +1,153 @@
+version: 2
+
+models:
+  - name: stg_f1__races
+    description: One row per race on the calendar. Types cast; `\N` nulls handled.
+    columns:
+      - name: race_id
+        description: Primary key (Ergast raceId).
+        data_tests: [unique, not_null]
+      - name: season
+        description: Championship year.
+        data_tests: [not_null]
+      - name: round
+        description: Round number within the season, cast to integer (raw text sorts '9' after '16').
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "season || '-' || round"
+
+  - name: stg_f1__results
+    description: >
+      One row per Grand Prix result entry (sprints live in a separate raw table and are not
+      staged). Includes entries that never started (DNQ, DNPQ, withdrew) as the source does.
+    columns:
+      - name: result_id
+        description: Primary key (Ergast resultId).
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__races'), field: race_id}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__drivers'), field: driver_id}
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__constructors'), field: constructor_id}
+      - name: status_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__status'), field: status_id}
+      - name: grid
+        description: Starting grid slot. 0 means pit-lane start or no grid slot (e.g. did not qualify).
+      - name: finish_position
+        description: Classified finishing position; null when not classified (retired, disqualified, DNQ...).
+      - name: position_order
+        description: Total ordering of all entries in the race, classified or not.
+        data_tests: [not_null]
+      - name: points
+        description: Points awarded for the race (can be fractional).
+      - name: fastest_lap_time_ms
+        description: Fastest lap in integer milliseconds; null when no lap time was recorded (mostly pre-2004).
+
+  - name: stg_f1__sprint_results
+    description: >
+      One row per sprint result entry (2021 onward). Its result_id is NOT unique across sprint and
+      Grand Prix results: every sprint result_id also exists in stg_f1__results.
+    columns:
+      - name: result_id
+        description: Primary key within this table only.
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__races'), field: race_id}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__drivers'), field: driver_id}
+      - name: finish_position
+        description: Classified sprint finishing position; null when not classified.
+
+  - name: stg_f1__drivers
+    description: One row per driver.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+      - name: driver_number
+        description: Permanent car number as currently held in raw (post-2014 scheme); null if none. Not unique, since retired drivers' numbers were reused.
+      - name: driver_code
+        description: Three-letter timing code as currently held in raw; null if none.
+
+  - name: stg_f1__constructors
+    description: One row per constructor.
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__status
+    description: Lookup of finishing status (Finished, +1 Lap, Engine, Did not qualify...).
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__driver_standings
+    description: >
+      Official cumulative driver championship standings after every round that has results.
+      Points already reflect historic dropped-results rules.
+    columns:
+      - name: driver_standing_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__races'), field: race_id}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__drivers'), field: driver_id}
+      - name: championship_position
+        description: Official position in the table after this round.
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "race_id || '-' || driver_id"
+
+  - name: stg_f1__pit_stops
+    description: One row per pit stop (2011 onward). Includes red-flag stoppages of many minutes.
+    columns:
+      - name: duration_ms
+        description: Pit lane time in milliseconds.
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "race_id || '-' || driver_id || '-' || stop_number"
+
+  - name: stg_f1__lap_times
+    description: One row per driver per lap per race (1996 onward).
+    columns:
+      - name: lap_time_ms
+        description: Lap time in milliseconds.
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "race_id || '-' || driver_id || '-' || lap"

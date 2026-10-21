@@ -1,0 +1,58 @@
+version: 2
+
+seeds:
+  - name: official_season_champions
+    description: >
+      Official World Drivers' Champion and final points for every completed season from 1950 to 2024.
+      Used as an independent reference for mart_driver_season_standings. 2024 was added once its calendar
+      was fully loaded (the Abu Dhabi round arrived before the 2026-10-21 vendor migration).
+      Points include half points (1953, 1975, 2021) and sprint points from 2021.
+    config:
+      column_types:
+        season: integer
+        champion_driver_ref: varchar
+        champion_points: numeric(6, 2)
+    columns:
+      - name: season
+        description: Championship season year.
+        data_tests:
+          - unique
+          - not_null
+      - name: champion_driver_ref
+        description: Driver reference (matches DRIVERS.DRIVERREF) of the official champion.
+        data_tests:
+          - not_null
+      - name: champion_points
+        description: The champion's final points total for the season.
+        data_tests:
+          - not_null
+
+  - name: points_systems
+    description: >
+      Points awarded by finishing position under each scoring system. Add a system by adding rows
+      here, with no SQL change. Select the system for mart_alt_points_standings with the points_system var.
+      Positions not listed score nothing.
+    config:
+      column_types:
+        system_name: varchar
+        position: integer
+        points: numeric(6, 2)
+    columns:
+      - name: system_name
+        description: Scoring system name, for example f1_current.
+        data_tests:
+          - not_null
+      - name: position
+        description: Finishing position the points apply to.
+        data_tests:
+          - not_null
+      - name: points
+        description: Points awarded for that position.
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - system_name
+              - position

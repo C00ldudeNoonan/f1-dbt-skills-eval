@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: int_season_status
+    description: >
+      One row per season with calendar completeness. A season is complete only when
+      every race on its calendar has results, so a truncated load (2024 here, missing
+      the last two rounds) is not treated as final.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: is_season_complete
+        data_tests: [not_null]
+      - name: last_completed_round
+        description: Highest round that has results.
+        data_tests: [not_null]
+      - name: last_completed_race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__races'), field: race_id}}
+
+  - name: int_drivers
+    description: Shared logic behind every version of dim_drivers (known drivers plus placeholders for late-arriving ones).
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: last_name
+        data_tests: [not_null]

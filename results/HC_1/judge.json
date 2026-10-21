@@ -1,0 +1,26 @@
+{
+  "scores": {
+    "layering": 4,
+    "naming": 4,
+    "testing": 4,
+    "quirks": 4,
+    "incremental_snapshot": 4,
+    "change_hygiene": 4,
+    "docs": 4,
+    "interfaces": 4,
+    "open_ended": null
+  },
+  "justifications": {
+    "layering": "The source \u2192 stg_ergast__* \u2192 int_season_completeness/int_driver_career_totals \u2192 marts flow is clean, and shared cleaning lives in macros (null_if_sentinel, classified_position, lap_time_to_ms), but some marts read other marts (fct_session_results and mart_constructor_season_pit_stops build on fct_results, and int_driver_career_totals reads mart_driver_season_standings), and the raw schema 'F1_RAW_HC_1' is hard-coded in _ergast__sources.yml and in both schema-drift tests instead of coming from a var or source.",
+    "naming": "Model prefixes (stg_ergast__, int_, fct_, dim_, mart_), the snake_case columns (season, driver_id, duration_ms, lap_time_ms) and the per-folder _<dir>__models.yml files are consistent, with small wobbles: core has a separate _lap_times__models.yml, staging keeps forename/surname while v2 renames them, and the snapshot keeps raw column names (driverid).",
+    "testing": "Keys and FK relationships are tested in staging (_ergast__models.yml), and business rules are tested at the marts with singular tests (assert_champions_match_reference against a seed, one champion per complete season, season wins vs results, pit stops fully attributed, lap-time grain); the Ferrari duplicate is caught by the unique test on stg_ergast__constructors.constructor_id plus warn_raw_constructor_duplicate_ids, and the vendor rename by assert_raw_schema_has_required_columns. Gaps: the constructor dedupe has no unit test, lap times have no range check, and sources have no tests of their own.",
+    "quirks": "`\\N` handling (null_if_sentinel), the numeric-positiontext fallback for 2005 Australia (classified_position, with the try_to_number('E') gotcha noted), the 60-second red-flag pit stop exclusion, using official standings so pre-1991 drop scores and sprint points come out right, shared drives (the grain caveat in fct_results), and the 2024 incomplete season (int_season_completeness) are all handled on purpose and explained in the README. Weaker spots: lap_time_to_ms assumes m:ss.mmm and returns null for formats without a colon, empty strings are not nulled, red-flag laps in fct_lap_times are only documented rather than flagged, and late-arriving drivers are covered only by relationships tests.",
+    "incremental_snapshot": "fct_lap_times uses delete+insert on race_id with a lookback of the two most recent races and on_schema_change='fail', so it is idempotent at race grain and well commented. snp_drivers uses a check strategy on the right columns, with tests for one current row and for values that revert. Weaknesses: the lookback is keyed on race_date from {{ this }}, so a late-loaded race dated before that window would be missed; the 'two races' window is not configurable; and the snapshot reads raw text rather than a cleaned staging view.",
+    "change_hygiene": "Later tickets refactored instead of bolting on: dim_drivers logic moved into int_driver_career_totals and is shared by v1 and v2, the season standings were rebuilt on top of the by-round mart, and the vendor rename was a one-line staging change plus a contract seed. There is no commented-out or dead code, but the README was not kept up to date: its layout table and 'Sprint results are not used' line predate fct_session_results, int_driver_career_totals and the by-round mart, and the Ferrari note is appended under the vendor-schema section.",
+    "docs": "Model and column descriptions are thorough and often explain why (the current_number caveat in _core__models.yml, the incremental rationale in fct_lap_times.sql, the drop-score and sprint reasoning in the README, the 'try_to_number('E') returns 0' note in classified_position.sql). The README is partly stale, though, and its migration guidance says to 'migrate to v2 with ref('dim_drivers', v=1)', which is confusing.",
+    "interfaces": "fct_results and both versions of dim_drivers have enforced contracts with data types, v1 has a deprecation_date, latest_version is set, and the versioned unit tests (dim_drivers_v1_keeps_full_name..., dim_drivers_v2_splits_name...) plus the fct_results, stg_ergast__results and pit stop unit tests are meaningful. However, fct_session_results and the standings marts are public-looking but have no contract, and the README's migration wording is wrong.",
+    "open_ended": null
+  },
+  "biggest_strength": "Data correctness is defended deliberately: official standings are used instead of re-summing points (which handles drop scores and sprints), season completeness gates who counts as champion, the champion list is regression-tested against a reference seed, and raw-schema drift is caught by a contract seed with error and warn tests.",
+  "biggest_weakness": "Documentation and interface follow-through lag the code: the README's layout and definitions were not updated after the sprint, career-totals and versioning tickets (including a wrong dim_drivers migration instruction), the raw schema name is hard-coded across sources and tests, and newer outputs like fct_session_results have no contract or README entry."
+}

@@ -1,0 +1,30 @@
+version: 2
+
+snapshots:
+  - name: snp_drivers
+    description: >
+      Type 2 history of the raw drivers table. The raw table only ever holds
+      each driver's current values (car number, three-letter code, etc.), so
+      this snapshot is the only record of past values. Columns are the raw TEXT
+      values (including the `\N` null marker) so the history is faithful to
+      what was loaded; clean with the staging macros when reading.
+      Drivers removed from the raw table are closed out (dbt_valid_to set).
+    relation: source('ergast', 'drivers')
+    config:
+      schema: snapshots
+      unique_key: driverid
+      strategy: check
+      check_cols: all
+      hard_deletes: invalidate
+    columns:
+      - name: driverid
+        data_tests:
+          - not_null
+          - unique:
+              config:
+                where: "dbt_valid_to is null"
+                description: At most one current version per driver.
+      - name: dbt_scd_id
+        data_tests: [unique, not_null]
+      - name: dbt_valid_from
+        data_tests: [not_null]

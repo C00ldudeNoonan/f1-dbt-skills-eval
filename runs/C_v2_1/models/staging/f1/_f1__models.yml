@@ -1,0 +1,265 @@
+version: 2
+
+models:
+  - name: stg_f1__circuits
+    description: One row per circuit, typed from the raw CSV.
+    columns:
+      - name: circuit_id
+        data_tests: [unique, not_null]
+      - name: altitude_m
+        description: Altitude in metres. Null where the source has no value.
+
+  - name: stg_f1__constructors
+    description: One row per constructor. Team rebrands appear as separate constructors.
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+      - name: constructor_name
+        data_tests: [not_null]
+
+  - name: stg_f1__drivers
+    description: >
+      One row per driver. Nationality is trimmed and standardised to the Ergast
+      demonyms (one recent row arrives as 'Argentinian ' with a trailing space;
+      every other Argentine driver is 'Argentine').
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        description: Stable, human-readable Ergast key (for example `max_verstappen`). Safer than names for joins to external data.
+        data_tests: [unique, not_null]
+      - name: permanent_number
+        description: Permanent race number. Only populated for drivers who raced in 2014 or later, when permanent numbers were introduced.
+      - name: driver_code
+        description: Three-letter timing code (for example VER). Null for most pre-2000s drivers.
+      - name: full_name
+        description: Forename and surname separated by a space.
+      - name: date_of_birth
+        data_tests: [not_null]
+      - name: nationality
+        data_tests: [not_null]
+
+  - name: stg_f1__seasons
+    description: One row per championship season.
+    columns:
+      - name: season
+        description: "{{ doc('col_season') }}"
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__status
+    description: Lookup of finishing status codes (Finished, +1 Lap, Accident, Did not qualify, ...).
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__races
+    description: >
+      One row per Grand Prix on the calendar, including rounds not yet run.
+      Session dates and times are only published from 2021 (sprints from 2021).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round]
+    columns:
+      - name: race_id
+        description: "{{ doc('col_race_id') }}"
+        data_tests: [unique, not_null]
+      - name: season
+        description: "{{ doc('col_season') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__seasons')
+                field: season
+      - name: round
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+      - name: race_time_utc
+        description: Scheduled start time in UTC. Null for most races before 2005.
+      - name: has_sprint
+        description: True when the weekend included a sprint race.
+
+  - name: stg_f1__results
+    description: >
+      One row per car per Grand Prix (no sprints). Before 1979 a driver can
+      have several rows in one race (shared cars), so `result_id` is the grain,
+      not race and driver.
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        description: "{{ doc('col_race_id') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: driver_id
+        description: >
+          {{ doc('col_driver_id') }} Can refer to a driver whose record hasn't
+          arrived yet; those are tracked in `mon_late_arriving_drivers`.
+        data_tests:
+          - not_null
+      - name: constructor_id
+        description: "{{ doc('col_constructor_id') }}"
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__constructors')
+                field: constructor_id
+      - name: grid
+        description: Starting grid slot. 0 means a pit lane start or no start.
+        data_tests: [not_null]
+      - name: position_text
+        description: Classification as published. A number when classified, otherwise R, D, E, W, F or N.
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "regexp_like(position_text, '^([0-9]+|R|D|E|W|F|N)$')"
+      - name: finish_position
+        description: "{{ doc('col_finish_position') }}"
+      - name: position_order
+        description: "{{ doc('col_position_order') }}"
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null]
+      - name: fastest_lap_time_ms
+        description: The driver's fastest race lap in milliseconds, parsed from m:ss.sss. Only recorded from 2004.
+      - name: race_time_ms
+        description: Total race time in milliseconds, classified finishers on the lead lap only.
+      - name: status_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__status')
+                field: status_id
+
+  - name: stg_f1__sprint_results
+    description: One row per car per sprint race (2021 onwards). Kept separate from Grand Prix results.
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        description: Race id of the Grand Prix weekend the sprint belonged to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+
+  - name: stg_f1__qualifying
+    description: >
+      One row per driver per qualifying (1994 onwards). Session times are null
+      when the driver set no time; the raw data uses both `\N` and empty strings
+      for that.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: qualify_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: driver_id
+        data_tests: [not_null]
+      - name: constructor_id
+        description: >
+          Constructor as recorded in qualifying. Usually matches the race result,
+          but 2015 Manor Marussia entries are sometimes recorded under the old
+          Marussia id (206 instead of 209).
+        data_tests: [not_null]
+      - name: qualifying_position
+        data_tests: [not_null]
+      - name: q1_ms
+        description: Q1 (or the single session before 2006) time in milliseconds.
+      - name: q2_ms
+        description: Q2 time in milliseconds. Null when the driver did not take part or set no time.
+      - name: q3_ms
+        description: Q3 time in milliseconds. Null when the driver did not take part or set no time.
+
+  - name: stg_f1__lap_times
+    description: One row per driver per lap (1996 onwards).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: lap
+        data_tests: [not_null]
+      - name: lap_time_ms
+        description: Lap time in milliseconds. Includes safety car and red-flag laps, which can run to hours.
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "lap_time_ms > 0"
+
+  - name: stg_f1__pit_stops
+    description: One row per pit stop (2011 onwards).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: lap
+        description: Lap on which the driver came into the pits.
+        data_tests: [not_null]
+      - name: duration_ms
+        description: Pit lane time in milliseconds. Stops over 60 seconds are red-flag stoppages where cars waited in the pit lane.
+        data_tests: [not_null]
+      - name: duration_seconds
+        description: "`duration_ms` in seconds."
+
+  - name: stg_f1__driver_standings
+    description: Drivers' championship snapshot after every Grand Prix.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: driver_standings_id
+        data_tests: [unique, not_null]
+      - name: position_text
+        description: "Numeric when ranked. 'D' marks a driver excluded from the championship (Michael Schumacher, 1997)."
+      - name: points
+        description: Official cumulative points, after dropped scores and including sprint points.
+        data_tests: [not_null]
+
+  - name: stg_f1__constructor_standings
+    description: Constructors' championship snapshot after every Grand Prix (from 1958).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, constructor_id]
+    columns:
+      - name: constructor_standings_id
+        data_tests: [unique, not_null]
+      - name: position_text
+        description: "Numeric when ranked. 'E' marks a constructor excluded from the championship (McLaren, 2007)."
+
+  - name: stg_f1__constructor_results
+    description: One row per constructor per Grand Prix, with the points the team scored.
+    columns:
+      - name: constructor_results_id
+        data_tests: [unique, not_null]

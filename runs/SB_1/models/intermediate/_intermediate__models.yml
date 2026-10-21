@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: int_season_completeness
+    description: Per season, whether every calendar race has results, and the last round with results.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: is_complete
+        data_tests: [not_null]
+      - name: last_completed_race_id
+        data_tests: [not_null]

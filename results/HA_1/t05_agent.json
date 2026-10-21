@@ -1,0 +1,104 @@
+{
+  "run_id": "HA_1",
+  "task": 5,
+  "phase": "agent",
+  "suite": "v1",
+  "structural": {
+    "sources_point_at_raw_schema": true,
+    "counts": {
+      "models": 17,
+      "data_tests": 102,
+      "unit_tests": 0,
+      "snapshots": 1,
+      "seeds": 1,
+      "macros_in_project": 2,
+      "documented_models": 15
+    },
+    "fct_lap_times_incremental": true,
+    "fct_lap_times_unique_key": "race_id",
+    "snapshot_exists": true,
+    "snapshot_verstappen_versions": 2,
+    "snapshot_verstappen_current": 1,
+    "season_standings_derived_from_by_round": true
+  },
+  "data_checks": {
+    "fct_results": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_1_marts.fct_results",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 26759,
+      "actual_rows": 26759,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "dim_drivers": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_1_marts.dim_drivers",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 861,
+      "actual_rows": 861,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_driver_season_standings": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_1_marts.mart_driver_season_standings",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 3192,
+      "actual_rows": 3192,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_constructor_season_pit_stops": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_1_marts.mart_constructor_season_pit_stops",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 147,
+      "actual_rows": 147,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_lap_times": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_1_marts.fct_lap_times",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 589081,
+      "actual_rows": 589081,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_session_results": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_1_marts.fct_session_results",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 27119,
+      "actual_rows": 27119,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_driver_standings_by_round": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_1_marts.mart_driver_standings_by_round",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 34863,
+      "actual_rows": 34863,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    }
+  },
+  "data_score": "7/7"
+}

@@ -1,0 +1,237 @@
+version: 2
+
+models:
+  - name: stg_ergast__races
+    description: One row per Grand Prix weekend, 1950 onwards, with cleaned types. Sprint-only events are not in this table.
+    columns:
+      - name: race_id
+        description: Ergast race identifier. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: season
+        description: Championship season year.
+        data_tests:
+          - not_null
+      - name: round
+        description: Round number within the season calendar.
+        data_tests:
+          - not_null
+      - name: race_date
+        description: Local race date.
+        data_tests:
+          - not_null
+
+  - name: stg_ergast__results
+    description: >
+      One row per Grand Prix classification entry, cleaned. `result_id` is the grain.
+      Race-driver pairs are not unique in the 1950s–70s (a driver could enter two cars).
+      `finish_position` is null when the entry was not classified.
+    columns:
+      - name: result_id
+        description: Ergast result identifier. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: race_id
+        description: Race the entry belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: driver_id
+        description: Driver who took the entry.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__drivers')
+                field: driver_id
+      - name: constructor_id
+        description: Constructor the driver entered with.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__constructors')
+                field: constructor_id
+      - name: status_id
+        description: Status code for how the entry ended. Joins to `stg_ergast__status`.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__status')
+                field: status_id
+      - name: finish_position
+        description: Official classified finishing position. Null when not classified (retired, disqualified, did not qualify, etc.).
+      - name: fastest_lap_time_ms
+        description: Fastest lap of the race in integer milliseconds, parsed from the m:ss.mmm text. Null when no lap time was recorded.
+      - name: points
+        description: Championship points scored by this entry (Grand Prix only, no sprint points).
+
+  - name: stg_ergast__drivers
+    description: One row per driver, with cleaned names and dates.
+    columns:
+      - name: driver_id
+        description: Ergast driver identifier. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: driver_ref
+        description: Stable human-readable driver slug (for example `hamilton`).
+        data_tests:
+          - unique
+          - not_null
+      - name: driver_number
+        description: Driver number from the raw table, null when none is recorded. Not unique across drivers.
+      - name: date_of_birth
+        description: Date of birth. Null when unknown.
+
+  - name: stg_ergast__constructors
+    description: >
+      One row per constructor (team). Text is trimmed and rows identical after cleaning are collapsed.
+      The raw table has had duplicate ids from the vendor: see the warn test on raw duplicate ids.
+    columns:
+      - name: constructor_id
+        description: Ergast constructor identifier. Primary key.
+        data_tests:
+          - unique
+          - not_null
+
+  - name: stg_ergast__status
+    description: Lookup of finishing and retirement status codes.
+    columns:
+      - name: status_id
+        description: Status identifier. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: status
+        description: Human-readable status, for example `Finished`, `+1 Lap`, `Engine`, `Did not qualify`.
+
+  - name: stg_ergast__driver_standings
+    description: >
+      Official driver championship standings snapshot after each race. Carries the
+      official points (sprint points included from 2021; drop-score rules applied before 1991).
+    columns:
+      - name: driver_standings_id
+        description: Ergast standings row identifier. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: race_id
+        description: Race after which the standings snapshot was taken.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: driver_id
+        description: Driver the standings row belongs to.
+        data_tests:
+          - not_null
+      - name: position
+        description: Championship position after this race.
+        data_tests:
+          - not_null
+
+  - name: stg_ergast__pit_stops
+    description: One row per pit stop, raw durations in milliseconds. Includes red-flag stoppages, which are excluded downstream.
+    columns:
+      - name: race_id
+        description: Race the stop happened in.
+        data_tests:
+          - not_null
+      - name: driver_id
+        description: Driver who made the stop.
+        data_tests:
+          - not_null
+      - name: stop_number
+        description: Sequence number of the stop within the driver's race (1 = first stop).
+        data_tests:
+          - not_null
+      - name: duration_ms
+        description: Stationary plus pit-lane time in milliseconds.
+        data_tests:
+          - not_null
+
+  - name: stg_ergast__lap_times
+    description: One row per driver per lap with cleaned types. Lap time is in milliseconds.
+    columns:
+      - name: race_id
+        description: Race the lap belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: driver_id
+        description: Driver who completed the lap.
+        data_tests:
+          - not_null
+      - name: lap
+        description: Lap number within the race, starting at 1.
+        data_tests:
+          - not_null
+      - name: lap_time_ms
+        description: Lap time in integer milliseconds.
+        data_tests:
+          - not_null
+
+  - name: stg_ergast__sprint_results
+    description: One row per sprint classification entry, cleaned. Sprint points are separate from Grand Prix points.
+    columns:
+      - name: sprint_result_id
+        description: Sprint result identifier. Unique within sprint results.
+        data_tests:
+          - unique
+          - not_null
+      - name: race_id
+        description: Race weekend the sprint belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: driver_id
+        description: Driver who took the sprint entry.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__drivers')
+                field: driver_id
+      - name: constructor_id
+        description: Constructor the driver entered with.
+        data_tests:
+          - not_null
+      - name: finish_position
+        description: Classified sprint finishing position. Null when not classified.
+      - name: points
+        description: Championship points from the sprint.
+
+unit_tests:
+  - name: results_clean_sentinels_and_parse_lap_times
+    description: >
+      `\N` becomes null. A null position falls back to a numeric position text (lapped finishers)
+      and stays null for status codes such as R. Lap times are converted to integer milliseconds.
+    model: stg_ergast__results
+    given:
+      - input: source('ergast', 'results')
+        rows:
+          - {resultid: '1', raceid: '10', driverid: '1', constructorid: '5', grid: '1', position: '1', positiontext: '1', position_order: '1', points: '25', laps: '58', statusid: '1', fastestlaptime: '1:23.456'}
+          - {resultid: '2', raceid: '10', driverid: '2', constructorid: '5', grid: '\N', position: '\N', positiontext: '11', position_order: '11', points: '0', laps: '57', statusid: '11', fastestlaptime: '\N'}
+          - {resultid: '3', raceid: '10', driverid: '3', constructorid: '6', grid: '3', position: '\N', positiontext: 'R', position_order: '20', points: '0', laps: '12', statusid: '2', fastestlaptime: '0:55.404'}
+          - {resultid: '4', raceid: '10', driverid: '4', constructorid: '6', grid: '4', position: '\N', positiontext: 'E', position_order: '21', points: '0', laps: '0', statusid: '3', fastestlaptime: '\N'}
+    expect:
+      rows:
+        - {result_id: 1, finish_position: 1, grid: 1, fastest_lap_time_ms: 83456}
+        - {result_id: 2, finish_position: 11, grid: null, fastest_lap_time_ms: null}
+        - {result_id: 3, finish_position: null, grid: 3, fastest_lap_time_ms: 55404}
+        - {result_id: 4, finish_position: null, grid: 4, fastest_lap_time_ms: null}

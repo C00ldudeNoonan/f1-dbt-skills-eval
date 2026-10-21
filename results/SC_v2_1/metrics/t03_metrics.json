@@ -1,0 +1,14 @@
+{
+  "input_tokens": 972850,
+  "output_tokens": 6928,
+  "tool_calls": 5,
+  "tool_errors": 0,
+  "dbt_invocations": 3,
+  "skills_used": [
+    "read:using-dbt-for-analytics-engineering"
+  ],
+  "assistant_turns": 6,
+  "wallclock_s": 455,
+  "nudges": 0,
+  "session_file": "~/.claude/projects/-Users-alexnoonan-f1-eval-workspaces-SC-v2-1-project/256e79fc-720b-41bd-9ffc-3d1d7ea21439.jsonl"
+}

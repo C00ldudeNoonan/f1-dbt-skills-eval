@@ -1,0 +1,188 @@
+version: 2
+
+models:
+  - name: mart_driver_season_vs_teammate
+    description: >
+      One row per driver, season and constructor (2006 onwards): qualifying
+      pace and race head-to-head against the teammate(s) in the same car. Race
+      head-to-head counts only Grands Prix where both cars were classified.
+    config:
+      group: f1_analytics
+      access: protected
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [driver_id, season, constructor_id]
+      - expression_is_true:
+          arguments:
+            expression: "qualifying_wins <= qualifying_comparisons and race_wins <= race_comparisons"
+    columns:
+      - name: driver_id
+        description: "{{ doc('col_driver_id') }}"
+      - name: season
+        description: "{{ doc('col_season') }}"
+      - name: constructor_id
+        description: "{{ doc('col_constructor_id') }}"
+      - name: teammate_ids
+        description: Comma-separated driver_ids of the teammates compared against.
+      - name: qualifying_comparisons
+        description: Races with a comparable qualifying time for both cars.
+      - name: clean_qualifying_comparisons
+        description: qualifying_comparisons excluding gaps over 2% (outliers).
+      - name: median_pace_advantage_pct
+        description: Median qualifying pace advantage over the teammate, as a percentage (positive is faster). Outliers excluded.
+      - name: qualifying_wins
+        description: Comparisons where the driver set the faster time.
+      - name: race_comparisons
+        description: Grands Prix where both cars were classified.
+      - name: race_wins
+        description: Of those, races where the driver finished ahead.
+
+  - name: mart_driver_vs_teammates
+    description: >
+      Career-level answer to "which drivers overperform their car?" (2006
+      onwards). The car isn't observable, so the benchmark is the teammate in
+      the same car. Each qualifying comparison is adjusted for teammate
+      strength (the teammate's median advantage over their other partners),
+      which estimates pace against a typical teammate. Trust tiers and the
+      verdict guard against small samples. See docs/leadership_questions.md
+      for the method, assumptions and limitations.
+    config:
+      group: f1_analytics
+      access: protected
+    data_tests:
+      - expression_is_true:
+          arguments:
+            expression: "qualifying_win_rate_lower_95 <= qualifying_win_rate and qualifying_win_rate <= qualifying_win_rate_upper_95 and qualifying_win_rate_lower_95 >= 0 and qualifying_win_rate_upper_95 <= 1"
+      - expression_is_true:
+          arguments:
+            expression: "verdict <> 'faster than typical teammate' or (trust_tier in ('high', 'medium') and adjusted_pace_advantage_pct > 0.1 and qualifying_win_rate_lower_95 > 0.5)"
+    columns:
+      - name: driver_id
+        description: "{{ doc('col_driver_id') }}"
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        description: Ergast driver reference.
+      - name: driver_name
+        description: First and last name.
+      - name: first_season
+        description: First season with a teammate comparison.
+      - name: last_season
+        description: Last season with a teammate comparison.
+      - name: seasons
+        description: Seasons with at least one comparison.
+      - name: distinct_teammates
+        description: Different teammates compared against (clean comparisons).
+      - name: qualifying_comparisons
+        description: All teammate qualifying comparisons, including outliers.
+      - name: clean_comparisons
+        description: Comparisons with a gap of 2% or less.
+      - name: adjusted_comparisons
+        description: Clean comparisons whose teammate also had other teammates, so the teammate-strength adjustment is possible.
+      - name: median_pace_advantage_pct
+        description: Median raw qualifying advantage over teammates, % (positive is faster).
+      - name: adjusted_pace_advantage_pct
+        description: >
+          Median advantage over a typical teammate, %: the raw advantage plus
+          the teammate's own median advantage over their other partners. The
+          headline measure.
+      - name: qualifying_wins
+        description: Comparisons where the driver was faster.
+      - name: qualifying_win_rate
+        description: qualifying_wins / qualifying_comparisons.
+      - name: qualifying_win_rate_lower_95
+        description: Wilson 95% lower bound of the qualifying win rate.
+      - name: qualifying_win_rate_upper_95
+        description: Wilson 95% upper bound of the qualifying win rate.
+      - name: race_comparisons
+        description: Grands Prix where both cars were classified.
+      - name: race_wins
+        description: Of those, races where the driver finished ahead.
+      - name: race_win_rate
+        description: race_wins / race_comparisons. Secondary, because race results also reflect strategy, team orders and luck.
+      - name: trust_tier
+        description: "'high' (>= 60 clean comparisons, >= 3 teammates, >= 40 adjusted), 'medium' (>= 30, >= 2 teammates) or 'low'."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['high', 'medium', 'low']
+      - name: verdict
+        description: >
+          'faster than typical teammate' / 'slower than typical teammate' when
+          the adjusted advantage exceeds ±0.1% and the qualifying head-to-head
+          is significantly away from 50/50. 'not distinguishable' otherwise,
+          and 'insufficient evidence' for the low tier.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['faster than typical teammate', 'slower than typical teammate', 'not distinguishable', 'insufficient evidence']
+      - name: rank_within_trust
+        description: Rank by trust tier, then adjusted pace advantage.
+
+  - name: mart_race_pit_lane_times
+    description: >
+      One row per Grand Prix with pit stop data (2011 onwards): median and
+      10th-percentile pit-lane time, and the difference from that circuit's
+      own norm. The baseline uses only races after the mid-2013 pit-lane
+      speed-limit change (var `pit_regime_start_date`). Pit-lane time is
+      entry-to-exit, not the stationary time of the stop itself.
+    config:
+      group: f1_analytics
+      access: protected
+    data_tests:
+      - expression_is_true:
+          arguments:
+            expression: "p10_seconds <= median_seconds and median_seconds between 10 and 60"
+    columns:
+      - name: race_id
+        description: "{{ doc('col_race_id') }}"
+        data_tests: [unique, not_null]
+      - name: is_current_regime
+        description: True for races after the mid-2013 pit-lane speed-limit change.
+      - name: stops
+        description: Pit stops of 60s or less.
+      - name: median_seconds
+        description: Median pit-lane time, seconds.
+      - name: p10_seconds
+        description: 10th-percentile pit-lane time, seconds. Tracks the quickest, cleanest stops.
+      - name: baseline_races
+        description: Current-regime races at this circuit used for its baseline.
+      - name: circuit_baseline_median_seconds
+        description: The circuit's median of race medians, current regime only.
+      - name: median_vs_circuit_seconds
+        description: median_seconds minus the circuit baseline. Negative means faster than this circuit's norm.
+      - name: p10_vs_circuit_seconds
+        description: p10_seconds minus the circuit's baseline p10.
+
+  - name: mart_pit_lane_time_trend
+    description: >
+      One row per season: raw median pit-lane time and the circuit-adjusted
+      median (races vs the same circuit's norm, current regime, circuits with
+      >= 3 races), with the least-squares trend over the current regime.
+    config:
+      group: f1_analytics
+      access: protected
+    columns:
+      - name: season
+        description: "{{ doc('col_season') }}"
+        data_tests: [unique, not_null]
+      - name: stops
+        description: Pit stops of 60s or less in the season.
+      - name: raw_median_seconds
+        description: Median pit-lane time across all stops. Mixes circuits, so it isn't comparable across seasons.
+      - name: comparable_races
+        description: Races counted in the adjusted figures.
+      - name: comparable_circuits
+        description: Circuits counted in the adjusted figures.
+      - name: adjusted_median_vs_circuit_seconds
+        description: Median across races of (race median - circuit norm). The comparable measure.
+      - name: adjusted_p10_vs_circuit_seconds
+        description: The same for the 10th-percentile (quickest) stops.
+      - name: trend_seconds_per_season
+        description: Least-squares slope of the race-level adjusted median per season (current regime). Same on every row.
+      - name: p10_trend_seconds_per_season
+        description: The same slope for the 10th-percentile stops.
+      - name: trend_r2
+        description: R-squared of the trend. Near 0 means season explains almost none of the variation.
+      - name: trend_races
+        description: Races the trend is fitted on.

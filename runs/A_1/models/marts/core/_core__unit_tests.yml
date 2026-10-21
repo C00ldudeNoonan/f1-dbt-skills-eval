@@ -1,0 +1,69 @@
+version: 2
+
+unit_tests:
+  - name: test_championship_counts_only_completed_seasons
+    description: >
+      world_championships counts seasons where the driver is P1 in the
+      standings AND the season is complete. Driver 1 leads complete 2022 and
+      2023 (2 titles). Driver 2 leads 2024, which is still in progress (0
+      titles). Driver 3 is P2 in a complete season (0 titles).
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: 'one', forename: 'Ada', surname: 'One'}
+          - {driver_id: 2, driver_ref: 'two', forename: 'Bo', surname: 'Two'}
+          - {driver_id: 3, driver_ref: 'three', forename: 'Cy', surname: 'Three'}
+      - input: ref('fct_results')
+        rows:
+          - {driver_id: 1, race_id: 1, season: 2022, is_win: true, is_podium: true, points: 25}
+      - input: ref('fct_session_results')
+        rows:
+          - {driver_id: 1, race_id: 1, session_type: 'race', is_win: true}
+      - input: ref('int_seasons__completion')
+        rows:
+          - {season: 2022, is_complete: true}
+          - {season: 2023, is_complete: true}
+          - {season: 2024, is_complete: false}
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2022, driver_id: 1, championship_position: 1}
+          - {season: 2023, driver_id: 1, championship_position: 1}
+          - {season: 2023, driver_id: 3, championship_position: 2}
+          - {season: 2024, driver_id: 2, championship_position: 1}
+          - {season: 2024, driver_id: 1, championship_position: 2}
+    expect:
+      rows:
+        - {driver_id: 1, first_name: 'Ada', last_name: 'One', world_championships: 2}
+        - {driver_id: 2, first_name: 'Bo', last_name: 'Two', world_championships: 0}
+        - {driver_id: 3, first_name: 'Cy', last_name: 'Three', world_championships: 0}
+
+  - name: test_sprint_wins_separate_from_grand_prix_wins
+    description: career_wins counts Grand Prix wins only; sprint wins go to career_sprint_wins.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: 'one', forename: 'Ada', surname: 'One'}
+      - input: ref('fct_results')
+        rows:
+          - {driver_id: 1, race_id: 10, season: 2023, is_win: true, is_podium: true, points: 25}
+          - {driver_id: 1, race_id: 11, season: 2023, is_win: false, is_podium: true, points: 18}
+      - input: ref('fct_session_results')
+        rows:
+          - {driver_id: 1, race_id: 10, session_type: 'race', is_win: true}
+          - {driver_id: 1, race_id: 10, session_type: 'sprint', is_win: true}
+          - {driver_id: 1, race_id: 11, session_type: 'sprint', is_win: true}
+      - input: ref('int_seasons__completion')
+        rows:
+          - {season: 2023, is_complete: true}
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2023, driver_id: 1, championship_position: 1}
+    expect:
+      rows:
+        - {driver_id: 1, career_starts: 2, career_wins: 1, career_podiums: 2, career_sprint_wins: 2, world_championships: 1}

@@ -1,0 +1,116 @@
+version: 2
+
+# Tests on fct_telemetry only look at rows loaded in the last
+# var('telemetry_test_window_days') days (relative to the latest load), so
+# routine builds don't rescan 20M rows. Uniqueness over all history is
+# guaranteed by the merge on the sample key.
+
+models:
+  - name: fct_telemetry
+    description: >
+      One row per car telemetry sample (2022 onwards, ~4 per second per car).
+      Incremental by arrival time (loaded_at), merged on the sample key, so
+      samples that arrive weeks late are added on the next run and re-sent
+      samples replace earlier copies. Clustered by race_id.
+    config:
+      tags: [telemetry]
+    data_tests:
+      - unique_recent_keys:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap, sample_index]
+            loaded_at_column: loaded_at
+            window_days: "{{ var('telemetry_test_window_days') }}"
+    columns:
+      - name: race_id
+      - name: driver_id
+      - name: lap
+      - name: sample_index
+        description: Position of the sample within the driver's lap.
+      - name: recorded_at
+        description: When the car recorded the sample.
+      - name: speed_kph
+      - name: throttle_pct
+        description: Throttle application, 0-100.
+      - name: brake
+        description: True when the brake is applied.
+      - name: gear
+      - name: drs
+        description: 1 when DRS is open.
+      - name: loaded_at
+        description: When the sample landed in the warehouse (raw _LOADED_AT). Drives incremental loads.
+
+  - name: mart_lap_telemetry_summary
+    description: >
+      One row per driver per lap with telemetry. Any lap that receives new or
+      re-sent samples is recomputed in full from fct_telemetry and merged, so
+      figures stay exact without full refreshes.
+    config:
+      tags: [telemetry]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+      - expression_is_true:
+          arguments:
+            expression: "brake_samples <= samples and full_throttle_pct between 0 and 100"
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: lap
+        data_tests: [not_null]
+      - name: samples
+        description: Telemetry samples in the lap.
+      - name: max_speed_kph
+      - name: avg_throttle_pct
+        description: Mean throttle across the lap's samples.
+      - name: full_throttle_pct
+        description: Percentage of samples with throttle at 99 or above.
+      - name: brake_samples
+        description: Samples with the brake applied.
+      - name: source_loaded_at
+        description: Latest loaded_at among the lap's samples; the model's high-water mark.
+
+unit_tests:
+  - name: mart_lap_telemetry_summary_aggregates
+    description: Full-throttle share uses throttle >= 99; brake samples are counted.
+    model: mart_lap_telemetry_summary
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      # Only read on incremental runs; declared via depends_on, so mock it empty.
+      - input: ref('stg_telemetry__car_telemetry')
+        rows: []
+      - input: ref('fct_telemetry')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 2, sample_index: 1, speed_kph: 300.5, throttle_pct: 100, brake: false, loaded_at: '2024-01-01 10:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 2, sample_index: 2, speed_kph: 310.0, throttle_pct: 99, brake: false, loaded_at: '2024-01-01 10:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 2, sample_index: 3, speed_kph: 120.0, throttle_pct: 0, brake: true, loaded_at: '2024-01-01 10:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 2, sample_index: 4, speed_kph: 150.0, throttle_pct: 41, brake: false, loaded_at: '2024-01-02 09:00:00'}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, lap: 2, samples: 4, max_speed_kph: 310.0, avg_throttle_pct: 60.00, full_throttle_pct: 50.00, brake_samples: 1, source_loaded_at: '2024-01-02 09:00:00'}
+
+  # Incremental-mode unit tests are not used here: this dbt version needs the
+  # model's table to exist before such a test can run, which would break the
+  # first build in a fresh environment. The incremental path is covered by
+  # tests/assert_lap_summary_matches_fact.sql on every build and was proved
+  # end to end with late and re-sent samples (see README).
+  - name: fct_telemetry_keeps_latest_copy_of_resent_sample
+    description: A sample delivered twice keeps only its most recently loaded copy.
+    model: fct_telemetry
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_telemetry__car_telemetry')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, sample_index: 1, speed_kph: 100.0, loaded_at: '2024-01-01 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 1, sample_index: 2, speed_kph: 110.0, loaded_at: '2024-01-20 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 1, sample_index: 2, speed_kph: 111.0, loaded_at: '2024-01-21 00:00:00'}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, lap: 1, sample_index: 1, speed_kph: 100.0, loaded_at: '2024-01-01 00:00:00'}
+        - {race_id: 1, driver_id: 1, lap: 1, sample_index: 2, speed_kph: 111.0, loaded_at: '2024-01-21 00:00:00'}

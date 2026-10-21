@@ -1,0 +1,25 @@
+version: 2
+
+snapshots:
+  - name: snp_drivers
+    description: >
+      Type 2 history of the raw drivers table. The source only holds each
+      driver's current values (e.g. permanent number, code), so this snapshot
+      is the system of record for how they changed over time. Values are kept
+      raw (text, '\N' for null); use stg_ergast__driver_history for typed columns.
+      History only accumulates from the first snapshot run onward.
+    # Deduplicated raw rows; same columns as source('ergast', 'drivers').
+    relation: ref('base_ergast__drivers')
+    config:
+      schema: snapshots
+      unique_key: driverid
+      # The raw table has no reliable updated_at, so compare every column.
+      strategy: check
+      check_cols: all
+      # A driver removed from the source gets their current row closed out.
+      hard_deletes: invalidate
+    columns:
+      - name: driverid
+        data_tests: [not_null]
+      - name: dbt_scd_id
+        data_tests: [unique, not_null]

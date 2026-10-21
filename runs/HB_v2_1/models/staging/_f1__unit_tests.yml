@@ -1,0 +1,23 @@
+unit_tests:
+  - name: stg_f1__results_parses_fastest_lap_time_to_milliseconds
+    description: >
+      Fastest lap text m:ss.SSS becomes milliseconds. The \N and blank markers, and malformed
+      text, become NULL and never a wrong number.
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: 1, raceid: 1, driverid: 1, constructorid: 1, number: 44, grid: 1, position: 1, positiontext: '1', position_order: 1, points: 25, laps: 58, milliseconds: 5690616, fastestlap: 39, fastestlaptime: '1:27.452', statusid: 1}
+          - {resultid: 2, raceid: 1, driverid: 2, constructorid: 2, number: 5, grid: 2, position: 2, positiontext: '2', position_order: 2, points: 18, laps: 58, milliseconds: 5696094, fastestlap: 41, fastestlaptime: '2:03.124', statusid: 1}
+          - {resultid: 3, raceid: 1, driverid: 3, constructorid: 3, number: 7, grid: 3, position: 3, positiontext: '3', position_order: 3, points: 15, laps: 58, milliseconds: 5698779, fastestlap: 41, fastestlaptime: '1:02.000', statusid: 1}
+          - {resultid: 4, raceid: 1, driverid: 4, constructorid: 4, number: 5, grid: 4, position: 4, positiontext: '4', position_order: 4, points: 12, laps: 57, milliseconds: '\N', fastestlap: '\N', fastestlaptime: '\N', statusid: 11}
+          - {resultid: 5, raceid: 1, driverid: 5, constructorid: 5, number: 6, grid: 5, position: 5, positiontext: '5', position_order: 5, points: 10, laps: 57, milliseconds: '\N', fastestlap: '\N', fastestlaptime: '', statusid: 11}
+          - {resultid: 6, raceid: 1, driverid: 6, constructorid: 6, number: 8, grid: 6, position: 6, positiontext: '6', position_order: 6, points: 8, laps: 57, milliseconds: '\N', fastestlap: 50, fastestlaptime: '1:27', statusid: 11}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 87452}
+        - {result_id: 2, fastest_lap_time_ms: 123124}
+        - {result_id: 3, fastest_lap_time_ms: 62000}
+        - {result_id: 4, fastest_lap_time_ms: null}
+        - {result_id: 5, fastest_lap_time_ms: null}
+        - {result_id: 6, fastest_lap_time_ms: null}

@@ -1,0 +1,92 @@
+version: 2
+
+models:
+  - name: mart_driver_standings_by_round
+    description: >
+      Official drivers' championship standings after every round — one row per
+      driver per round in which they appear in the official standings. Use it
+      to chart how a championship evolved. Points are counted points (dropped
+      scores applied, sprints included) as of that round.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, championship_position]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: race_date
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: championship_position
+        description: Position after this round; null only for a driver excluded from the championship (Schumacher, 1997).
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "championship_position is not null or is_excluded_from_championship"
+      - name: points
+        data_tests: [not_null]
+      - name: wins
+        data_tests: [not_null]
+      - name: is_excluded_from_championship
+
+  - name: mart_driver_season_standings
+    description: >
+      Drivers' championship standings, one row per driver per season, as of the
+      latest completed round of that season (the final round for finished
+      seasons). The latest-completed-round slice of
+      mart_driver_standings_by_round. Sourced from the official standings, which apply each era's
+      dropped-score rules, include sprint points, and reflect exclusions —
+      validated against an independent list of champions and reconciled to
+      race results.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, championship_position]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: championship_position
+        description: >
+          Official championship position. Null only when the driver was excluded
+          from the championship (Michael Schumacher, 1997).
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "championship_position is not null or is_excluded_from_championship"
+      - name: points
+        description: Official (counted) championship points.
+        data_tests: [not_null]
+      - name: wins
+        data_tests: [not_null]
+      - name: as_of_round
+        description: The round these standings reflect.
+      - name: is_season_complete
+        description: False for a season still in progress; its standings are provisional.
+      - name: is_excluded_from_championship

@@ -1,0 +1,55 @@
+version: 2
+
+models:
+  - name: int_seasons
+    description: >
+      One row per Formula 1 season with the calendar size, how many races have results, whether the
+      season is complete, and the race used as the latest completed round. Season completeness gates
+      championship titles in `dim_drivers`.
+    columns:
+      - name: season
+        description: Championship year.
+        data_tests:
+          - unique
+          - not_null
+      - name: calendar_races
+        description: Number of races on the season calendar (every row in the raw races table for that year).
+      - name: races_with_results
+        description: Number of calendar races that have at least one result row.
+      - name: latest_completed_round
+        description: Highest round number that has results.
+      - name: is_season_complete
+        description: True when every calendar race has results.
+      - name: latest_completed_race_id
+        description: race_id of the latest completed round.
+
+unit_tests:
+  - name: championship_counts_only_once_season_is_complete
+    description: A driver's title counts only when the season is complete. A position-1 finish in an incomplete season is not a title.
+    model: int_dim_drivers
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: alpha, forename: Ann, surname: Alpha, nationality: Dutch, date_of_birth: '1990-01-01', driver_number: 7}
+          - {driver_id: 2, driver_ref: beta, forename: Bo, surname: Beta, nationality: German, date_of_birth: '1991-02-02', driver_number: null}
+          - {driver_id: 3, driver_ref: gamma, forename: Cy, surname: Gamma, nationality: French, date_of_birth: '1992-03-03', driver_number: null}
+      - input: ref('fct_results')
+        rows:
+          - {driver_id: 1, race_id: 10, is_win: true, is_podium: true}
+          - {driver_id: 1, race_id: 11, is_win: false, is_podium: false}
+          - {driver_id: 2, race_id: 10, is_win: false, is_podium: true}
+      - input: ref('fct_session_results')
+        rows:
+          - {driver_id: 1, session_type: sprint, is_win: true}
+          - {driver_id: 1, session_type: race, is_win: true}
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2020, driver_id: 1, championship_position: 1, is_season_complete: true}
+          - {season: 2021, driver_id: 1, championship_position: 2, is_season_complete: true}
+          - {season: 2024, driver_id: 2, championship_position: 1, is_season_complete: false}
+          - {season: 2023, driver_id: 2, championship_position: 1, is_season_complete: true}
+    expect:
+      rows:
+        - {driver_id: 1, world_championships: 1, career_starts: 2, career_wins: 1, career_sprint_wins: 1}
+        - {driver_id: 2, world_championships: 1, career_starts: 1, career_wins: 0, career_sprint_wins: 0}
+        - {driver_id: 3, world_championships: 0, career_starts: 0, career_wins: 0, career_sprint_wins: 0}

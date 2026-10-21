@@ -1,0 +1,68 @@
+version: 2
+
+models:
+  - name: int_pit_stops_circuit_adjusted
+    description: >
+      One row per pit stop from 2011, with its time compared with its circuit's median. Circuits with under 30
+      stops are not stable and are excluded from adjusted figures.
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+      - name: driver_id
+        data_tests:
+          - not_null
+      - name: stop_number
+        data_tests:
+          - not_null
+      - name: stop_seconds
+        description: Stop duration in seconds, at most 60 s (red-flag stoppages excluded).
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 60
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - race_id
+              - driver_id
+              - stop_number
+
+  - name: mart_pit_stop_trend_by_season
+    description: >
+      Pit stop time by season, raw and adjusted for circuit. Use the adjusted columns to compare seasons. The raw median
+      mixes in which circuits were on the calendar that year.
+    columns:
+      - name: season
+        data_tests:
+          - unique
+          - not_null
+      - name: stops
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+      - name: median_stop_seconds
+        data_tests:
+          - not_null
+      - name: mean_seconds_vs_circuit
+        description: Average seconds vs the circuit median, stable circuits only. Negative is faster.
+        data_tests:
+          - not_null
+
+  - name: mart_pit_stop_trend_summary
+    description: >
+      Headline answer to whether pit stops are getting faster. slope_seconds_per_year is over stable-circuit stops; negative
+      means faster.
+    columns:
+      - name: period
+        data_tests:
+          - unique
+          - not_null
+      - name: slope_seconds_per_year
+        data_tests:
+          - not_null

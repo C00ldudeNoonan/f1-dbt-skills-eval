@@ -1,0 +1,99 @@
+version: 2
+
+sources:
+  - name: f1_raw
+    description: >
+      Ergast/Kaggle Formula 1 extract (1950 to 2024), loaded as text from the vendor feed.
+      Missing values are the literal string \N in most tables, and an empty string in
+      qualifying times. The table and column list is pinned in macros/raw_contract.sql,
+      and the formats below are checked on every run. Treated as read-only.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_HA_V2_1
+    tables:
+      - name: RACES
+        description: One row per Grand Prix (season, round, date, circuit). DATE is dd/mm/yyyy.
+        columns:
+          - name: RACEID
+            tests:
+              - not_null
+          - name: YEAR
+          - name: ROUND
+          - name: DATE
+            tests:
+              - not_null
+      - name: RESULTS
+        description: One row per Grand Prix result entry (driver in a car, one race).
+        columns:
+          - name: RESULTID
+            tests: [not_null]
+          - name: POSITION_ORDER
+            tests:
+              - not_null
+          - name: POSITIONTEXT
+          - name: POINTS
+          - name: FASTESTLAPTIME
+      - name: SPRINT_RESULTS
+        description: One row per sprint result entry. Not used by the Grand Prix marts.
+        columns:
+          - name: RESULTID
+            tests: [not_null]
+          - name: POSITION_ORDER
+      - name: QUALIFYING
+        description: One row per qualifying entry. Times are m:ss.mmm; empty or \N when not set.
+        columns:
+          - name: QUALIFYID
+            tests: [not_null]
+          - name: Q1
+          - name: Q2
+          - name: Q3
+      - name: LAP_TIMING
+        description: >
+          One row per driver per lap (from 1996). Renamed from LAP_TIMES by the vendor
+          migration (same columns).
+        columns:
+          - name: MILLISECONDS
+          - name: LAP
+      - name: PIT_STOPS
+        description: >
+          One row per pit stop (from 2011). The DURATION text column was dropped by the
+          vendor. MILLISECONDS is the stop duration the project uses.
+        columns:
+          - name: MILLISECONDS
+          - name: LAP
+      - name: DRIVER_STANDINGS
+        description: Driver championship snapshot after each race.
+        columns:
+          - name: DRIVERSTANDINGSID
+            tests: [not_null]
+      - name: DRIVERS
+        description: Driver reference data.
+        columns:
+          - name: DRIVERID
+            tests: [not_null]
+          - name: DOB
+      - name: CONSTRUCTORS
+        description: Constructor (team) reference data.
+        columns:
+          - name: CONSTRUCTORID
+            tests: [not_null]
+      - name: CIRCUITS
+        description: Circuit reference data.
+        columns:
+          - name: CIRCUITID
+            tests: [not_null]
+      - name: CONSTRUCTOR_RESULTS
+        description: Constructor points per race.
+      - name: CONSTRUCTOR_STANDINGS
+        description: Constructor championship snapshot after each race.
+      - name: SEASONS
+        description: One row per season.
+      - name: STATUS
+        description: Lookup of finishing status text (for example Finished, Retired, +1 Lap).
+      - name: VB_DRIVERS
+        description: >
+          Vendor B driver reference (second feed, 2018 to 2024 coverage). Its keys (DRIVER_KEY,
+          SESSION_KEY) are not ours. Matched to our ids by macros in marts/dim_driver_crosswalk.
+      - name: VB_SESSIONS
+        description: Vendor B sessions (races and sprints). DATE_START is ISO but can contain \\N.
+      - name: VB_RESULTS
+        description: Vendor B result entries, one per session and driver. POSITION is text.

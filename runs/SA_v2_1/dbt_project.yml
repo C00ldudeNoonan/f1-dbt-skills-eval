@@ -1,0 +1,32 @@
+name: f1
+version: '1.0.0'
+profile: f1
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+clean-targets: ["target", "dbt_packages"]
+
+# Fail fast, with a readable report, if the vendor renamed/dropped raw tables or columns.
+on-run-start:
+  - "{{ assert_source_contract() }}"
+
+# Everything builds into the single target schema (F1_DBT_SA_v2_1); layers are
+# separated by folder and naming convention (stg_ / int_ / fct_ dim_ mart_).
+models:
+  f1:
+    +on_schema_change: fail
+    # Only models explicitly marked `access: public` (fct_results, dim_drivers) are consumable by other projects.
+    +access: protected
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: view
+    marts:
+      +materialized: table
+
+vars:
+  # System shown by mart_alt_points_standings; must exist in seeds/points_systems.csv.
+  default_points_system: current_2010
+  # Overlap when reading raw telemetry by load time, to survive loads that were still committing.
+  telemetry_lookback_hours: 2

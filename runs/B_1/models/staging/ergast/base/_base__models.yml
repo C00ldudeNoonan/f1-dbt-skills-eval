@@ -1,0 +1,9 @@
+version: 2
+
+models:
+  - name: base_ergast__drivers
+    description: Raw drivers columns as-is, with rows that differ only in whitespace removed. Feeds snp_drivers only.
+    columns:
+      - name: driverid
+        description: Must be unique, or the snapshot would record two current versions.
+        data_tests: [unique, not_null]

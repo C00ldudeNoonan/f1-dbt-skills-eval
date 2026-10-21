@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: mart_pit_stop_trend
+    description: >
+      One row per season: pit stop duration distribution (medians and quartiles, red flags excluded),
+      with the number of stops and stops per race. See the README (Leadership questions) for what the
+      trend does and does not show.
+    columns:
+      - name: season
+        tests: [unique, not_null]
+      - name: median_seconds
+        description: Median stop duration in seconds.
+        tests:
+          - not_null
+          - in_range:
+              arguments:
+                min_value: 15
+                max_value: 40
+
+  - name: mart_driver_car_performance
+    description: >
+      One row per driver, head-to-head against teammates over 2014 onward. race_win_rate is the share of
+      shared races the driver finished ahead of the teammate. trusted_overperformer is set only when the
+      driver has at least 30 shared races and the 95% interval is above 50%. This measures teammate
+      comparison, not car performance. See the README.
+    columns:
+      - name: driver_id
+        tests: [unique, not_null]
+      - name: race_win_rate
+        tests:
+          - in_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+      - name: trusted_overperformer
+        tests:
+          - not_null

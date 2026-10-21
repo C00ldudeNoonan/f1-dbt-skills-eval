@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: time_spine_daily
+    description: Daily time spine (1945 to 2030) used by the Semantic Layer for time-based metrics.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: One row per calendar day.
+        granularity: day
+        data_tests:
+          - unique
+          - not_null

@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: dim_driver_crosswalk
+    description: >
+      One row per Vendor B driver, with the matching driver_id from our project. driver_id is null only when the driver
+      cannot be matched, and that fails the build. See the model SQL for the matching rules.
+    columns:
+      - name: driver_key
+        description: Vendor B DRIVER_KEY.
+        data_tests:
+          - unique
+          - not_null
+      - name: driver_id
+        description: Our driver_id. Null means unmatched and fails the build.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__drivers')
+                field: driver_id
+      - name: match_method
+        description: Which rule matched the driver, or 'manual override'.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['surname, given name and code', 'surname and given name', 'surname, given name prefix and code', 'surname and given name prefix', 'manual override']
+      - name: candidate_count
+        description: Number of our drivers tied at the best score. Matching needs exactly one.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1]
+
+  - name: dim_session_crosswalk
+    description: >
+      One row per Vendor B session, with the matching race_id and session_type. race_id is null only when the session
+      cannot be matched, and that fails the build. See the model SQL for the matching rules.
+    columns:
+      - name: session_key
+        description: Vendor B SESSION_KEY.
+        data_tests:
+          - unique
+          - not_null
+      - name: race_id
+        description: Our race_id. Null means unmatched and fails the build.
+        data_tests:
+          - not_null
+      - name: session_type
+        description: '''race'' or ''sprint''.'
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+
+  - name: mart_vendor_result_discrepancies
+    description: >
+      Where our feed and Vendor B disagree on 2018 to 2024 Grand Prix and sprint results. One row per entry per discrepancy.
+      Our feed is the system of record.
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+      - name: session_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: driver_id
+        data_tests:
+          - not_null
+      - name: discrepancy_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['points', 'position', 'missing_in_vendor_b', 'missing_in_vendor_a']
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - race_id
+              - session_type
+              - driver_id
+              - discrepancy_type

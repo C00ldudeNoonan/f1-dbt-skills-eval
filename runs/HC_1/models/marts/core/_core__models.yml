@@ -1,0 +1,347 @@
+version: 2
+
+models:
+  - name: fct_results
+    description: >
+      One row per Grand Prix classification entry (`result_id` grain), 1950 onwards. Sprint results
+      are excluded. `finish_position` is null when the entry was not classified. `is_race_start`
+      is false for did-not-qualify, did-not-prequalify and withdrawn entries. Grain caveat: in the
+      1950s–70s the same driver can appear twice in one race when driving two cars, so count
+      distinct `race_id` for "races entered".
+      Public interface: contract enforced. Column names and types are versioned by this contract;
+      breaking changes need a new model version.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: result_id
+        description: Ergast result identifier. Primary key.
+        data_type: number(38,0)
+        data_tests:
+          - unique
+          - not_null
+      - name: race_id
+        description: Race the entry belongs to. Joins to `stg_ergast__races`.
+        data_type: number(38,0)
+        data_tests:
+          - not_null
+      - name: season
+        description: Championship season of the race.
+        data_type: number(38,0)
+        data_tests:
+          - not_null
+      - name: round
+        description: Round number of the race within its season.
+        data_type: number(38,0)
+        data_tests:
+          - not_null
+      - name: race_name
+        description: Name of the Grand Prix.
+        data_type: text
+      - name: race_date
+        description: Local race date.
+        data_type: date
+      - name: driver_id
+        description: Driver who took the entry. Joins to `dim_drivers`.
+        data_type: number(38,0)
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        description: Constructor (team) the driver entered with for this race.
+        data_type: number(38,0)
+        data_tests:
+          - not_null
+      - name: constructor_name
+        description: Constructor name.
+        data_type: text
+      - name: grid
+        description: Starting grid position. 0 is the pit lane.
+        data_type: number(38,0)
+      - name: finish_position
+        description: Official classified finishing position. Null when not classified.
+        data_type: number(38,0)
+      - name: finish_position_text
+        description: Finishing position as the source writes it, including codes such as R, D, E, W, F and N.
+        data_type: text
+      - name: position_order
+        description: Order used for sorting results, including unclassified entries.
+        data_type: number(38,0)
+      - name: points
+        description: Championship points scored by this entry (Grand Prix only, no sprint points).
+        data_type: number(6,2)
+      - name: laps
+        description: Laps completed by the entry.
+        data_type: number(38,0)
+      - name: status
+        description: Finishing or retirement status text.
+        data_type: text
+      - name: is_race_start
+        description: True when the entry took the start (false for DNQ, DNPQ and withdrawn entries).
+        data_type: boolean
+        data_tests:
+          - not_null
+      - name: is_win
+        description: True when the entry finished first.
+        data_type: boolean
+        data_tests:
+          - not_null
+      - name: is_podium
+        description: True when the entry is classified in positions 1–3.
+        data_type: boolean
+        data_tests:
+          - not_null
+      - name: fastest_lap_time_ms
+        description: Race fastest lap in integer milliseconds. Null when no lap time was recorded.
+        data_type: number(38,0)
+
+  - name: dim_drivers
+    description: >
+      One row per driver, with career totals. Career totals come from `fct_results`:
+      `career_starts` counts distinct Grands Prix where the driver took the start, `career_wins` and
+      `career_podiums` count classified results. `world_championships` counts only seasons that are complete.
+      Public interface, versioned. Version 2 is the latest. Version 1 is deprecated from 2027-01-01 but
+      still builds; version 2 replaces `full_name` with `first_name` and `last_name`.
+    latest_version: 2
+    versions:
+      - v: 1
+        deprecation_date: 2027-01-01
+        description: Version 1, with `full_name`. Deprecated from 2027-01-01; migrate to version 2.
+        config:
+          contract:
+            enforced: true
+        columns:
+          - name: driver_id
+            description: Ergast driver identifier. Primary key.
+            data_type: number(38,0)
+            data_tests:
+              - unique
+              - not_null
+          - name: driver_ref
+            description: Stable driver slug.
+            data_type: text
+            data_tests:
+              - unique
+              - not_null
+          - name: full_name
+            description: Forename and surname.
+            data_type: text
+            data_tests:
+              - not_null
+          - name: nationality
+            description: Nationality as recorded by the source.
+            data_type: text
+          - name: date_of_birth
+            description: Date of birth. Null when unknown.
+            data_type: date
+          - name: current_number
+            description: >
+              The driver's number from the raw DRIVERS table, null when none is recorded. Only 59 drivers have one.
+              Numbers are not unique: 48 are shared by two drivers, so this is not a reliable permanent number.
+              Use results-level car numbers for per-race numbers.
+            data_type: number(38,0)
+          - name: career_starts
+            description: Distinct Grands Prix started (excludes did-not-qualify, did-not-prequalify and withdrawn entries).
+            data_type: number(38,0)
+            data_tests:
+              - not_null
+          - name: career_wins
+            description: Race wins across all Grands Prix.
+            data_type: number(38,0)
+            data_tests:
+              - not_null
+          - name: career_podiums
+            description: Classified top-three finishes across all Grands Prix.
+            data_type: number(38,0)
+            data_tests:
+              - not_null
+          - name: career_sprint_wins
+            description: Sprint wins across all sprint sessions. Career Grand Prix wins are in `career_wins`.
+            data_type: number(38,0)
+            data_tests:
+              - not_null
+          - name: world_championships
+            description: Number of World Drivers' Championships won in seasons that are complete.
+            data_type: number(38,0)
+            data_tests:
+              - not_null
+      - v: 2
+        description: Version 2. Replaces `full_name` with `first_name` and `last_name`.
+        config:
+          contract:
+            enforced: true
+        columns:
+          - name: driver_id
+            description: Ergast driver identifier. Primary key.
+            data_type: number(38,0)
+            data_tests:
+              - unique
+              - not_null
+          - name: driver_ref
+            description: Stable driver slug.
+            data_type: text
+            data_tests:
+              - unique
+              - not_null
+          - name: first_name
+            description: Forename.
+            data_type: text
+            data_tests:
+              - not_null
+          - name: last_name
+            description: Surname.
+            data_type: text
+            data_tests:
+              - not_null
+          - name: nationality
+            description: Nationality as recorded by the source.
+            data_type: text
+          - name: date_of_birth
+            description: Date of birth. Null when unknown.
+            data_type: date
+          - name: current_number
+            description: >
+              The driver's number from the raw DRIVERS table, null when none is recorded. Only 59 drivers have one.
+              Numbers are not unique: 48 are shared by two drivers, so this is not a reliable permanent number.
+              Use results-level car numbers for per-race numbers.
+            data_type: number(38,0)
+          - name: career_starts
+            description: Distinct Grands Prix started (excludes did-not-qualify, did-not-prequalify and withdrawn entries).
+            data_type: number(38,0)
+            data_tests:
+              - not_null
+          - name: career_wins
+            description: Race wins across all Grands Prix.
+            data_type: number(38,0)
+            data_tests:
+              - not_null
+          - name: career_podiums
+            description: Classified top-three finishes across all Grands Prix.
+            data_type: number(38,0)
+            data_tests:
+              - not_null
+          - name: career_sprint_wins
+            description: Sprint wins across all sprint sessions. Career Grand Prix wins are in `career_wins`.
+            data_type: number(38,0)
+            data_tests:
+              - not_null
+          - name: world_championships
+            description: Number of World Drivers' Championships won in seasons that are complete.
+            data_type: number(38,0)
+            data_tests:
+              - not_null
+
+  - name: fct_session_results
+    description: >
+      One row per classification entry across every session: Grands Prix (`session_type` 'race')
+      and sprints ('sprint'). `source_result_id` is the id in the source table. Result ids are
+      unique only within a session type, so use `session_result_id` as the key.
+    columns:
+      - name: session_result_id
+        description: Surrogate key, session type plus source result id. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: session_type
+        description: Either 'race' or 'sprint'.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: source_result_id
+        description: Result id in the source table for this session type.
+        data_tests:
+          - not_null
+      - name: race_id
+        description: Race weekend the session belongs to.
+        data_tests:
+          - not_null
+      - name: season
+        description: Championship season.
+        data_tests:
+          - not_null
+      - name: round
+        description: Round number within the season.
+        data_tests:
+          - not_null
+      - name: driver_id
+        description: Driver who took the entry.
+        data_tests:
+          - not_null
+      - name: constructor_id
+        description: Constructor the driver entered with.
+        data_tests:
+          - not_null
+      - name: finish_position
+        description: Classified finishing position in that session. Null when not classified.
+      - name: points
+        description: Championship points scored in that session.
+
+unit_tests:
+  - name: dim_drivers_v1_keeps_full_name_and_career_totals
+    description: Version 1 still carries `full_name`, the current number, and the career totals.
+    model: dim_drivers
+    versions:
+      include: [1]
+    given:
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: hamilton, forename: Lewis, surname: Hamilton, nationality: British, date_of_birth: '1985-01-07', driver_number: 44}
+          - {driver_id: 2, driver_ref: nobody, forename: No, surname: Body, nationality: Unknown, date_of_birth: null, driver_number: null}
+      - input: ref('int_driver_career_totals')
+        rows:
+          - {driver_id: 1, career_starts: 2, career_wins: 1, career_podiums: 2, career_sprint_wins: 1, world_championships: 1}
+          - {driver_id: 2, career_starts: 0, career_wins: 0, career_podiums: 0, career_sprint_wins: 0, world_championships: 0}
+    expect:
+      rows:
+        - {driver_id: 1, driver_ref: hamilton, full_name: Lewis Hamilton, current_number: 44, career_starts: 2, career_wins: 1, career_podiums: 2, career_sprint_wins: 1, world_championships: 1}
+        - {driver_id: 2, driver_ref: nobody, full_name: No Body, current_number: null, career_starts: 0, career_wins: 0, career_podiums: 0, career_sprint_wins: 0, world_championships: 0}
+
+  - name: dim_drivers_v2_splits_name_and_keeps_career_totals
+    description: Version 2 replaces `full_name` with separate first and last name columns and keeps the same career totals.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: hamilton, forename: Lewis, surname: Hamilton, nationality: British, date_of_birth: '1985-01-07', driver_number: 44}
+      - input: ref('int_driver_career_totals')
+        rows:
+          - {driver_id: 1, career_starts: 2, career_wins: 1, career_podiums: 2, career_sprint_wins: 1, world_championships: 1}
+    expect:
+      rows:
+        - {driver_id: 1, driver_ref: hamilton, first_name: Lewis, last_name: Hamilton, current_number: 44, career_starts: 2, career_wins: 1, career_podiums: 2, career_sprint_wins: 1, world_championships: 1}
+
+  - name: result_flags_follow_classification
+    description: Win and podium flags use the classified position. Unclassified or withdrawn entries never score as wins or podiums.
+    model: fct_results
+    given:
+      - input: ref('stg_ergast__results')
+        rows:
+          - {result_id: 1, race_id: 10, driver_id: 1, constructor_id: 5, grid: 1, finish_position: 1, finish_position_text: '1', position_order: 1, points: 25, laps: 58, status_id: 1, fastest_lap_time_ms: 80000}
+          - {result_id: 2, race_id: 10, driver_id: 2, constructor_id: 5, grid: 2, finish_position: 3, finish_position_text: '3', position_order: 3, points: 15, laps: 58, status_id: 1, fastest_lap_time_ms: null}
+          - {result_id: 3, race_id: 10, driver_id: 3, constructor_id: 6, grid: 3, finish_position: null, finish_position_text: R, position_order: 20, points: 0, laps: 12, status_id: 2, fastest_lap_time_ms: null}
+          - {result_id: 4, race_id: 10, driver_id: 4, constructor_id: 6, grid: 0, finish_position: null, finish_position_text: W, position_order: 21, points: 0, laps: 0, status_id: 3, fastest_lap_time_ms: null}
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 10, season: 2021, round: 1, race_name: Test GP, race_date: '2021-03-28'}
+      - input: ref('stg_ergast__constructors')
+        rows:
+          - {constructor_id: 5, constructor_name: Team A}
+          - {constructor_id: 6, constructor_name: Team B}
+      - input: ref('stg_ergast__status')
+        rows:
+          - {status_id: 1, status: Finished}
+          - {status_id: 2, status: Engine}
+          - {status_id: 3, status: Withdrew}
+    expect:
+      rows:
+        - {result_id: 1, season: 2021, finish_position: 1, is_race_start: true, is_win: true, is_podium: true, fastest_lap_time_ms: 80000}
+        - {result_id: 2, season: 2021, finish_position: 3, is_race_start: true, is_win: false, is_podium: true, fastest_lap_time_ms: null}
+        - {result_id: 3, season: 2021, finish_position: null, is_race_start: true, is_win: false, is_podium: false, fastest_lap_time_ms: null}
+        - {result_id: 4, season: 2021, finish_position: null, is_race_start: false, is_win: false, is_podium: false, fastest_lap_time_ms: null}

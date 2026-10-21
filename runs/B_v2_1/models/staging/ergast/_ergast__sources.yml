@@ -1,0 +1,681 @@
+# Every column the vendor sends is declared here. Two layers catch vendor changes:
+#   1. on-run-start macro check_source_schemas fails the run before anything builds
+#      if a declared table or column is missing (and warns on new, undeclared columns).
+#   2. matches_pattern tests fail if a parsed column's values change format.
+#   3. no_conflicting_duplicates fails if a natural key arrives twice with different
+#      values; no_redelivered_rows warns on identical re-deliveries (staging dedupes them).
+# When the vendor changes something, update this file, the staging model, and
+# the 'Vendor changes' log in README.md.
+sources:
+  - name: ergast
+    description: >
+      Ergast / Kaggle Formula 1 dataset (1950 to the current season). Every
+      column is TEXT; nulls are the literal string `\N` (or empty strings in
+      some columns). Read-only: never write to this schema.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_B_v2_1
+    quoting:
+      schema: false
+      identifier: false
+    tables:
+      - name: circuits
+        description: "Circuits."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [circuitid]
+                compare_columns: [circuitref, name, location, country, lat, lng, alt, url]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [circuitid]
+              config:
+                severity: warn
+        columns:
+          - name: circuitid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: circuitref
+            data_type: text
+          - name: name
+            data_type: text
+          - name: location
+            data_type: text
+          - name: country
+            data_type: text
+          - name: lat
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^-?[0-9]+([.][0-9]+)?$'}}
+          - name: lng
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^-?[0-9]+([.][0-9]+)?$'}}
+          - name: alt
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^-?[0-9]+([.][0-9]+)?$'}}
+          - name: url
+            data_type: text
+      - name: constructors
+        description: "Constructors (teams)."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [constructorid]
+                compare_columns: [constructorref, name, nationality, url]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [constructorid]
+              config:
+                severity: warn
+        columns:
+          - name: constructorid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: constructorref
+            data_type: text
+          - name: name
+            data_type: text
+          - name: nationality
+            data_type: text
+          - name: url
+            data_type: text
+      - name: constructor_results
+        description: "Constructor points per race."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, constructorid]
+                compare_columns: [points, status]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [raceid, constructorid]
+              config:
+                severity: warn
+        columns:
+          - name: constructorresultsid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: raceid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: constructorid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: points
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+([.][0-9]+)?$'}}
+          - name: status
+            data_type: text
+      - name: constructor_standings
+        description: "Cumulative constructor standings after each race."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, constructorid]
+                compare_columns: [points, position, positiontext, wins]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [raceid, constructorid]
+              config:
+                severity: warn
+        columns:
+          - name: constructorstandingsid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: raceid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: constructorid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: points
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+([.][0-9]+)?$'}}
+          - name: position
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: positiontext
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^([0-9]+|[RDEWFN])$'}}
+          - name: wins
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+      - name: drivers
+        description: "Drivers, current values only (history is in snp_drivers)."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [driverid]
+                compare_columns: [driverref, number, code, forename, surname, dob, nationality, url]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [driverid]
+              config:
+                severity: warn
+        columns:
+          - name: driverid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: driverref
+            data_type: text
+            data_tests:
+              - not_null
+          - name: number
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: code
+            data_type: text
+          - name: forename
+            data_type: text
+          - name: surname
+            data_type: text
+          - name: dob
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'}}
+          - name: nationality
+            data_type: text
+          - name: url
+            data_type: text
+      - name: driver_standings
+        description: "Cumulative championship standings after each race (includes sprint points from 2021)."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, driverid]
+                compare_columns: [points, position, positiontext, wins]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [raceid, driverid]
+              config:
+                severity: warn
+        columns:
+          - name: driverstandingsid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: raceid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: driverid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: points
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+([.][0-9]+)?$'}}
+          - name: position
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: positiontext
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^([0-9]+|[RDEWFN])$'}}
+          - name: wins
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+      - name: lap_times
+        identifier: LAP_TIMING
+        description: "Lap times. Table renamed LAP_TIMES to LAP_TIMING by the vendor on 2026-10-21."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, driverid, lap]
+                compare_columns: [position, time, milliseconds]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [raceid, driverid, lap]
+              config:
+                severity: warn
+        columns:
+          - name: raceid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: driverid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: lap
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: position
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: time
+            data_type: text
+          - name: milliseconds
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+      - name: pit_stops
+        description: "Pit stops, available from 2011. DURATION column dropped by the vendor on 2026-10-21."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, driverid, stop]
+                compare_columns: [lap, time, milliseconds]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [raceid, driverid, stop]
+              config:
+                severity: warn
+        columns:
+          - name: raceid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: driverid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: stop
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: lap
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: time
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}$'}}
+          - name: milliseconds
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+      - name: qualifying
+        description: "Qualifying sessions. Since 2026-10-21 missing times are empty strings instead of \N."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, driverid]
+                compare_columns: [constructorid, number, position, q1, q2, q3]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [raceid, driverid]
+              config:
+                severity: warn
+        columns:
+          - name: qualifyid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: raceid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: driverid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: constructorid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: number
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: position
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: q1
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+:[0-9]{2}[.][0-9]{3}$'}}
+          - name: q2
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+:[0-9]{2}[.][0-9]{3}$'}}
+          - name: q3
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+:[0-9]{2}[.][0-9]{3}$'}}
+      - name: races
+        description: "Race calendar, including scheduled races with no results yet."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid]
+                compare_columns: [year, round, circuitid, name, date, time, url, fp1_date, fp1_time, fp2_date, fp2_time, fp3_date, fp3_time, quali_date, quali_time, sprint_date, sprint_time]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [raceid]
+              config:
+                severity: warn
+        columns:
+          - name: raceid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: year
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: round
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: circuitid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: name
+            data_type: text
+          - name: date
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'}}
+          - name: time
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}$'}}
+          - name: url
+            data_type: text
+          - name: fp1_date
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'}}
+          - name: fp1_time
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}$'}}
+          - name: fp2_date
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'}}
+          - name: fp2_time
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}$'}}
+          - name: fp3_date
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'}}
+          - name: fp3_time
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}$'}}
+          - name: quali_date
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'}}
+          - name: quali_time
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}$'}}
+          - name: sprint_date
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'}}
+          - name: sprint_time
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]{2}:[0-9]{2}:[0-9]{2}$'}}
+      - name: results
+        description: "Grand Prix classification, one row per car entry (RESULTID). POSITIONORDER renamed POSITION_ORDER on 2026-10-21."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, driverid, position_order]
+                compare_columns: [constructorid, number, grid, position, positiontext, points, laps, time, milliseconds, fastestlap, rank, fastestlaptime, fastestlapspeed, statusid]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [raceid, driverid, position_order]
+              config:
+                severity: warn
+        columns:
+          - name: resultid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: raceid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: driverid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: constructorid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: number
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: grid
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: position
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: positiontext
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^([0-9]+|[RDEWFN])$'}}
+          - name: position_order
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: points
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+([.][0-9]+)?$'}}
+          - name: laps
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: time
+            data_type: text
+          - name: milliseconds
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: fastestlap
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: rank
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: fastestlaptime
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+:[0-9]{2}[.][0-9]{3}$'}}
+          - name: fastestlapspeed
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+([.][0-9]+)?$'}}
+          - name: statusid
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+      - name: seasons
+        description: "Seasons."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [year]
+                compare_columns: [url]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [year]
+              config:
+                severity: warn
+        columns:
+          - name: year
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: url
+            data_type: text
+      - name: sprint_results
+        description: "Sprint results (2021 onward). POSITIONORDER renamed POSITION_ORDER on 2026-10-21."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, driverid]
+                compare_columns: [constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, fastestlaptime, statusid]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [raceid, driverid]
+              config:
+                severity: warn
+        columns:
+          - name: resultid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: raceid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: driverid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: constructorid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: number
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: grid
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: position
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: positiontext
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^([0-9]+|[RDEWFN])$'}}
+          - name: position_order
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: points
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+([.][0-9]+)?$'}}
+          - name: laps
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: time
+            data_type: text
+          - name: milliseconds
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: fastestlap
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: fastestlaptime
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+:[0-9]{2}[.][0-9]{3}$'}}
+          - name: statusid
+            data_type: text
+            data_tests:
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+      - name: status
+        description: "Finishing status lookup."
+        data_tests:
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [statusid]
+                compare_columns: [status]
+          - no_redelivered_rows:
+              arguments:
+                key_columns: [statusid]
+              config:
+                severity: warn
+        columns:
+          - name: statusid
+            data_type: text
+            data_tests:
+              - not_null
+              - matches_pattern: {arguments: {pattern: '^[0-9]+$'}}
+          - name: status
+            data_type: text
+            data_tests:
+              - not_null

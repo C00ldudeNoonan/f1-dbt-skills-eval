@@ -1,0 +1,59 @@
+version: 2
+
+sources:
+  - name: f1_raw
+    description: >
+      Ergast / Kaggle Formula 1 CSVs loaded as-is (all columns text, NULLs encoded as the
+      literal string `\N`). Read-only; covers 1950 through the 2024 season.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_SB_1
+    tables:
+      - name: circuits
+      - name: constructor_results
+      - name: constructor_standings
+      - name: constructors
+        columns:
+          - name: constructorid
+            data_tests:
+              - unique:
+                  config: {severity: warn}
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [constructorid, constructorref, name, nationality]}
+      - name: driver_standings
+        description: Official championship standings after each race (includes sprint points since 2021).
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [driverstandingsid, raceid, driverid, points, position, wins]}
+      - name: drivers
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [driverid, driverref, number, code, forename, surname, dob, nationality]}
+      - name: lap_times
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [raceid, driverid, lap, position, milliseconds]}
+      - name: pit_stops
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [raceid, driverid, stop, lap, milliseconds]}
+      - name: qualifying
+      - name: races
+        description: Season calendar. Includes races that have not (yet) got results loaded.
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [raceid, year, round, circuitid, name, date]}
+      - name: results
+        description: Grand Prix classification. Sprint results live in `sprint_results`.
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [resultid, raceid, driverid, constructorid, statusid, grid, position, position_order, points, laps, fastestlaptime]}
+      - name: seasons
+      - name: sprint_results
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [resultid, raceid, driverid, constructorid, statusid, grid, position, position_order, points, laps, fastestlaptime]}
+      - name: status
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [statusid, status]}

@@ -1,0 +1,168 @@
+version: 2
+
+models:
+  - name: stg_ergast__circuits
+    description: Circuits, typed and renamed.
+    columns:
+      - name: circuit_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__constructors
+    description: Constructors (teams), typed and renamed.
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+      - name: constructor_name
+        data_tests: [not_null]
+
+  - name: stg_ergast__constructor_results
+    description: Constructor points per race.
+    columns:
+      - name: constructor_result_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__constructor_standings
+    description: Constructors' championship standings after each race.
+    columns:
+      - name: constructor_standing_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__drivers
+    description: Drivers, typed and renamed, with nationality spelling standardised.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+      - name: full_name
+        description: Forename and surname as recorded by Ergast (e.g. "Juan Fangio").
+        data_tests: [not_null]
+
+  - name: stg_ergast__driver_history
+    description: >
+      Typed view of the snp_drivers snapshot: one row per driver per version
+      of their attributes (number, code, name, ...). Use it to answer "what
+      number/code did this driver have on date X". is_current marks the live version.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [driver_id, valid_from]
+    columns:
+      - name: driver_version_id
+        data_tests: [unique, not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__drivers')
+                field: driver_id
+      - name: is_current
+        data_tests: [not_null]
+
+  - name: stg_ergast__driver_standings
+    description: Official drivers' championship standings after each race.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: driver_standing_id
+        data_tests: [unique, not_null]
+      - name: position
+        data_tests: [not_null]
+      - name: is_excluded_from_championship
+        description: True when positionText is 'D' (Michael Schumacher, 1997 final round).
+
+  - name: stg_ergast__lap_times
+    description: Lap times per driver per lap.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+
+  - name: stg_ergast__pit_stops
+    description: Pit stops, 2011 onwards. Duration is pit lane time.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: duration_ms
+        data_tests: [not_null]
+      - name: duration_seconds
+        description: Pit lane time in seconds, derived from duration_ms.
+
+  - name: stg_ergast__qualifying
+    description: Qualifying sessions with Q1-Q3 lap times in milliseconds.
+    columns:
+      - name: qualifying_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__races
+    description: The championship calendar, including scheduled races that have not yet been run.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round]
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+
+  - name: stg_ergast__results
+    description: Grand Prix results, typed and renamed.
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__drivers')
+                field: driver_id
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__constructors')
+                field: constructor_id
+      - name: status_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__status')
+                field: status_id
+
+  - name: stg_ergast__seasons
+    description: Championship seasons.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__sprint_results
+    description: Sprint race results (2021 onwards). Kept separate from Grand Prix results.
+    columns:
+      - name: sprint_result_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__status
+    description: Finishing status lookup.
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]

@@ -1,0 +1,12 @@
+version: 2
+
+snapshots:
+  - name: snp_drivers
+    description: >
+      Type 2 history of driver attributes (strategy check on driver_ref, number, code, name,
+      date of birth and nationality). Current rows have dbt_valid_to null.
+    config:
+      unique_key: driver_id
+    columns:
+      - name: driver_id
+        data_tests: [not_null]

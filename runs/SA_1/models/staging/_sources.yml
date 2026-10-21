@@ -1,0 +1,52 @@
+version: 2
+
+sources:
+  - name: f1_raw
+    description: >
+      Ergast/Kaggle F1 CSVs loaded as text. Missing values are the literal string `\N`. Read-only.
+      The vendor occasionally renames or drops columns; `source_has_columns` tests list the
+      columns we depend on so such changes fail loudly, up front, and name the column.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_SA_1
+    tables:
+      - name: races
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [raceid, year, round, circuitid, name, date]}
+      - name: results
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [resultid, raceid, driverid, constructorid, statusid, grid, position, position_order, points, laps, fastestlaptime]}
+      - name: sprint_results
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [resultid, raceid, driverid, constructorid, statusid, grid, position, position_order, points, laps, fastestlaptime]}
+      - name: drivers
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [driverid, driverref, number, code, forename, surname, dob, nationality]}
+      - name: constructors
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [constructorid, constructorref, name, nationality]}
+      - name: status
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [statusid, status]}
+      - name: pit_stops
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [raceid, driverid, stop, lap, milliseconds]}
+      - name: driver_standings
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [driverstandingsid, raceid, driverid, points, position, wins]}
+      - name: lap_times
+        data_tests:
+          - source_has_columns:
+              arguments: {columns: [raceid, driverid, lap, position, milliseconds]}
+      - name: constructor_standings
+      - name: constructor_results
+      - name: circuits
+      - name: seasons
+      - name: qualifying

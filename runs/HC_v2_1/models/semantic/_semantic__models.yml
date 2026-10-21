@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: metricflow_time_spine
+    description: Daily calendar used by the Semantic Layer for time grains and time-based metrics.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: Calendar day.
+        granularity: day
+        data_type: date
+        data_tests:
+          - unique
+          - not_null

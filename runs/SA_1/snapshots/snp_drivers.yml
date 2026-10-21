@@ -1,0 +1,12 @@
+snapshots:
+  - name: snp_drivers
+    description: >
+      Type 2 history of the raw drivers table, which only holds current values.
+      Run `dbt snapshot` regularly (each run captures changes since the last one);
+      history starts from the first run. Values are kept exactly as in raw (text, `\N` for missing).
+    relation: source('f1_raw', 'drivers')
+    config:
+      unique_key: driverid
+      strategy: check
+      check_cols: [driverref, number, code, forename, surname, dob, nationality]
+      schema: snapshots

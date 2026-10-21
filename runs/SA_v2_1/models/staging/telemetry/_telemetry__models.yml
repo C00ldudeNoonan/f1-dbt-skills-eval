@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: stg_telemetry__car_telemetry
+    description: Renamed view over the raw telemetry table (no row-level transformation).
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: loaded_at
+        data_tests: [not_null]

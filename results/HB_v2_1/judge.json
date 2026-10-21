@@ -1,0 +1,26 @@
+{
+  "scores": {
+    "layering": 4,
+    "naming": 4,
+    "testing": 5,
+    "quirks": 5,
+    "incremental_snapshot": 4,
+    "change_hygiene": 4,
+    "docs": 5,
+    "interfaces": 5,
+    "open_ended": 5
+  },
+  "justifications": {
+    "layering": "The flow from source to stg_f1__* to int_* (int_teammate_race_gaps, int_lap_flags, int_season_completion) to marts is clean and uses refs and sources throughout, but the stops/circuit_baseline/adjusted CTE chain is copied between mart_pit_stop_trend_by_season.sql and mart_pit_stop_speed_trend.sql, the last-two-races window subquery is copied between fct_lap_times.sql and fct_stints.sql, and mart_driver_overperformance.sql joins stg_f1__drivers directly instead of dim_drivers.",
+    "naming": "Naming is consistent (stg_f1__/stg_vendor_b__, int_, fct_/dim_/mart_, assert_/warn_ test prefixes, shared race_id/driver_id/season keys, *_ms units), but the mart YAML is a single 687-line _marts__models.yml alongside six separately named unit-test YAMLs, and the fct_/mart_ split (e.g. fct_driver_race_pace vs mart_lap_telemetry_summary) is not explained.",
+    "testing": "Staging and mart keys get unique/not_null tests and sources are tested in _f1__sources.yml; business-rule singular tests (assert_champions_match_official_history, assert_standings_reconcile_with_race_points, assert_pit_stop_metrics_exclude_red_flags) sit at the marts; the ticket 5 and 6 regressions are guarded directly by assert_raw_matches_source_contract.sql + seeds/source_contract.csv, assert_parsed_values_are_not_dropped.sql, and assert_no_conflicting_duplicate_copies.sql; and unit tests cover incremental behaviour and the overperformance threshold logic.",
+    "quirks": "Each quirk is handled on purpose and documented: clean_null covers both \\N and empty strings, lap_time_to_ms uses a strict regex backed by a not-dropped count test, the red-flag threshold is a var, sprints are split into fct_session_results, standings come from the official snapshot because pre-1991 dropped scores and post-2021 sprint points break summing, int_season_completion keeps incomplete 2024 out of title counts, shared 1950s entries are kept at result_id grain, and late-arriving drivers get placeholders in dim_drivers_base.sql with dq_orphan_driver_results.",
+    "incremental_snapshot": "fct_telemetry.sql merges on the full sample key with a loaded_at lookback var (not recorded_at), which is idempotent and correction-safe, and snp_drivers.sql reasonably uses the check strategy because raw DRIVERS has no updated_at; but fct_lap_times/fct_stints delete+insert on race_id with only a two-most-recent-races window, so older corrections need a full refresh (documented in the README, still a weak lookback).",
+    "change_hygiene": "Ticket commits are scoped and descriptive, the vendor migration was handled in staging and the source identifier with a documented change table and drift guardrails, and dim_drivers was refactored into a shared dim_drivers_base with thin v1/v2 models; there is no commented-out or TODO code, though some later tickets copied logic rather than extracting it (the duplicated pit-stop baseline and incremental window).",
+    "docs": "Almost every model has a Jinja header explaining why (the CONCAT null note in dim_drivers_v1.sql, the dedupe-safety note in stg_f1__driver_standings.sql, the loaded_at vs recorded_at reasoning in fct_telemetry.sql), and the README documents layers, grains, vendor changes, feed-integrity incidents, costs and CI; staging column descriptions are thinner than mart ones.",
+    "interfaces": "fct_results and dim_drivers are public in the f1_core group with enforced contracts and data_types; dim_drivers is versioned (v1 deprecated 2027-01-01, latest_version 2) with pinning guidance in the README; everything else is protected; and the unit tests in _marts__late_driver_unit_tests.yml and _marts__incremental_unit_tests.yml test real edge cases (placeholders, correction windows) rather than happy paths.",
+    "open_ended": "mart_driver_overperformance.sql uses teammate-relative finishing gaps from 1981 on, ranked by the lower 95% bound with minimum sample rules, and the pit-stop marts adjust for circuit mix and exclude red flags; analysis/leadership_questions.md states the confounders (teammate quality, within-season correlation, reliability, pit-lane time not stationary time, no stop reasons) and pushes back that neither 'overperform the car' nor 'faster' can be measured directly from this data."
+  },
+  "biggest_strength": "Defensive handling of vendor and feed changes: the source_contract seed and test, the parsed-values-not-dropped test, the conflicting-duplicate test and the standings reconciliation make schema drift, format changes and duplicate fan-out fail loudly, and the README documents each incident.",
+  "biggest_weakness": "Logic is sometimes copied instead of shared: the circuit-baseline pit-stop adjustment is in two marts and the incremental window is in two facts. This sits alongside a narrow two-race lookback on fct_lap_times/fct_stints that silently misses older corrections unless someone runs a full refresh."
+}

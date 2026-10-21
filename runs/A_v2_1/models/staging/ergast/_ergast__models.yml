@@ -1,0 +1,182 @@
+version: 2
+
+models:
+  - name: stg_ergast__circuits
+    description: Circuits, typed and renamed.
+    columns:
+      - name: circuit_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__constructors
+    description: Constructors (team entry names), typed and renamed.
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+      - name: constructor_name
+        data_tests: [not_null]
+
+  - name: stg_ergast__constructor_results
+    description: Constructor points per race.
+    columns:
+      - name: constructor_result_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__constructor_standings
+    description: Constructor championship standings after each race.
+    columns:
+      - name: constructor_standing_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__drivers
+    description: Drivers, typed and renamed.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+      - name: full_name
+        data_tests: [not_null]
+
+  - name: stg_ergast__driver_standings
+    description: Driver championship standings after each race, as published.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: driver_standing_id
+        data_tests: [unique, not_null]
+      - name: points
+        data_tests: [not_null]
+
+  - name: stg_ergast__lap_times
+    description: One row per driver per lap (1996 onwards).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: lap_time_ms
+        data_tests: [not_null]
+
+  - name: stg_ergast__pit_stops
+    description: One row per pit stop (2011 onwards). Duration includes red-flag stoppages.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: duration_ms
+        data_tests: [not_null]
+
+  - name: stg_ergast__qualifying
+    description: One row per qualifying entry. Session times parsed to milliseconds.
+    columns:
+      - name: qualify_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+
+  - name: stg_ergast__races
+    description: Grand Prix calendar, including scheduled races that have no results yet.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round]
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: race_date
+        data_tests: [not_null]
+
+  - name: stg_ergast__results
+    description: Grand Prix result entries (no sprints), typed and renamed.
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: driver_id
+        description: >
+          Can reference a driver not yet in DRIVERS (late-arriving record). Kept;
+          see audit_orphan_driver_results. The relationship test only warns.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__drivers')
+                field: driver_id
+              config:
+                severity: warn
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__constructors')
+                field: constructor_id
+      - name: status_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__status')
+                field: status_id
+      - name: position_order
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null]
+
+  - name: stg_ergast__seasons
+    description: Championship seasons.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__sprint_results
+    description: Sprint race result entries (2021 onwards).
+    columns:
+      - name: sprint_result_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__status
+    description: Finishing status lookup.
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+
+unit_tests:
+  - name: stg_ergast__results_parses_fastest_lap_time
+    description: >
+      FASTESTLAPTIME text (m:ss.mmm, mm:ss.mmm or ss.mmm, possibly padded) becomes
+      integer milliseconds; the \N sentinel, empty strings and garbage become null.
+    model: stg_ergast__results
+    given:
+      - input: source('ergast', 'results')
+        rows:
+          - {resultid: "1", fastestlaptime: "1:31.338"}
+          - {resultid: "2", fastestlaptime: "10:02.003"}
+          - {resultid: "3", fastestlaptime: "59.999"}
+          - {resultid: "4", fastestlaptime: " 1:05.1 "}
+          - {resultid: "5", fastestlaptime: "\\N"}
+          - {resultid: "6", fastestlaptime: ""}
+          - {resultid: "7", fastestlaptime: "n/a"}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 91338}
+        - {result_id: 2, fastest_lap_time_ms: 602003}
+        - {result_id: 3, fastest_lap_time_ms: 59999}
+        - {result_id: 4, fastest_lap_time_ms: 65100}
+        - {result_id: 5, fastest_lap_time_ms: null}
+        - {result_id: 6, fastest_lap_time_ms: null}
+        - {result_id: 7, fastest_lap_time_ms: null}

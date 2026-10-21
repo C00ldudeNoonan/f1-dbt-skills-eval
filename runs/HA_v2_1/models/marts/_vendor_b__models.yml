@@ -1,0 +1,65 @@
+version: 2
+
+models:
+  - name: dim_driver_crosswalk
+    description: >
+      One row per Vendor B driver, mapped to our driver_id by name (and racing number when
+      needed). match_method is full_name or surname_initial. The build fails if any Vendor B
+      driver has no match, so nothing is dropped silently.
+    columns:
+      - name: driver_key
+        tests: [unique, not_null]
+      - name: driver_id
+        description: Our driver_id. Null only if matching failed, which fails the build.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+
+  - name: dim_session_crosswalk
+    description: >
+      One row per Vendor B session, mapped to our race_id and session_type. Matches on season,
+      place (meeting name to circuit location) and date within a day. Exactly one match is required.
+    columns:
+      - name: session_key
+        tests: [unique, not_null]
+      - name: race_id
+        description: Our race_id. Null only if matching failed, which fails the build.
+        tests: [not_null]
+      - name: session_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: match_count
+        tests:
+          - not_null
+
+  - name: mart_vendor_result_discrepancies
+    description: >
+      Where our primary feed and Vendor B disagree on 2018 to 2024 Grand Prix and sprint results.
+      Our feed is the system of record. One row per entry per discrepancy.
+    columns:
+      - name: race_id
+        tests: [not_null]
+      - name: session_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: driver_id
+        tests: [not_null]
+      - name: discrepancy_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['points', 'position', 'missing_in_vendor_b', 'missing_in_vendor_a']
+    tests:
+      - unique_together:
+          arguments:
+            columns: [race_id, session_type, driver_id, discrepancy_type]

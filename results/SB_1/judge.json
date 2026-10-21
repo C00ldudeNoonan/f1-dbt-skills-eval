@@ -1,0 +1,26 @@
+{
+  "scores": {
+    "layering": 4,
+    "naming": 4,
+    "testing": 4,
+    "quirks": 4,
+    "incremental_snapshot": 4,
+    "change_hygiene": 4,
+    "docs": 4,
+    "interfaces": 4,
+    "open_ended": null
+  },
+  "justifications": {
+    "layering": "The flow is clean: source \u2192 stg_f1__* \u2192 int_season_completeness \u2192 marts, with refs throughout, and later tickets reuse earlier models (mart_driver_season_standings now derives from mart_driver_standings_by_round, dim_drivers_v1 from v2). Some logic is still repeated: fct_session_results.sql redoes the races/constructors/status joins for sprints and the is_win/is_podium logic already in fct_results.sql, and the 60000 ms red-flag cutoff is hard-coded in both mart_constructor_season_pit_stops.sql and assert_pit_stop_count_reconciles.sql.",
+    "naming": "Names follow one convention throughout (stg_f1__<table>, int_, fct_/dim_/mart_, snp_), the YAML files are per layer (_f1__sources.yml, _f1__models.yml, _marts__models.yml, _*__unit_tests.yml), and columns are renamed consistently (finish_position, duration_ms, lap_time_ms). Small gaps: the mart_ and fct_ prefixes are used side by side, and staging keeps forename/surname while marts use first_name/last_name.",
+    "testing": "Key and relationship tests sit at staging (_f1__models.yml), business rules are tested at marts (assert_one_champion_per_completed_season, assert_pit_stops_within_limit), and there are tests that would catch both ticket bugs: source_has_columns would catch the vendor rename, and the reconciliation tests plus assert_no_conflicting_constructor_duplicates would catch the Ferrari fan-out. However, the comment in assert_fct_results_reconciles_to_staging.sql promises a constructor-season points check the test doesn't do, it compares only global totals, and stg_f1__lap_times and stg_f1__pit_stops lack race/driver relationship tests.",
+    "quirks": "Many quirks are handled on purpose and explained in the README: `\\N` through the clean_null macro, shared drives via count(distinct race_id) in dim_drivers_v2.sql, pre-1991 dropped scores and sprint points by using official driver_standings, red-flag stops over 60s excluded, the 2024 season incomplete via int_season_completeness, and sprint id collisions. Gaps: empty strings are not nulled (clean_null only catches `\\N`), lap_time_to_ms assumes m:ss.mmm and would fail on a bare ss.mmm string (its unit tests only use colon formats), and nothing addresses late-arriving drivers.",
+    "incremental_snapshot": "fct_lap_times.sql merges on the natural key (race_id, driver_id, lap), reprocesses from the second-most-recent loaded race so corrections are picked up, is idempotent, and documents when to run --full-refresh. snp_drivers.yml is a reasonable check-strategy snapshot, since raw drivers has no updated_at. Weaknesses: the lookback is tied to what is already in the table rather than to a date window, laps deleted upstream are never removed, and the snapshot stores raw `\\N` text rather than cleaned values.",
+    "change_hygiene": "Each ticket is one coherent commit that refactors rather than bolts on: dim_drivers.sql is renamed to v2 and v1 is derived from it, season standings are rebuilt on the by-round model with an output-hash check noted in the README, and nothing is left commented out. Small leftovers: the refactor of mart_driver_season_standings.sql dropped the comment explaining dropped scores, assert_fct_results_reconciles_to_staging.sql has a stale comment, and unused source tables (circuits, qualifying, seasons) are still declared.",
+    "docs": "The README is an excellent account of why each decision was made (shared drives, the incomplete 2024 season, official vs summed points, the vendor-change and Ferrari incidents), and the mart YAML plus inline SQL comments explain non-obvious columns such as career_starts including DNQs and current_number being reused. Several staging models (stg_f1__drivers, stg_f1__constructors, stg_f1__status) and many mart columns have no description.",
+    "interfaces": "fct_results and dim_drivers are access: public with enforced contracts that pin explicit types, dim_drivers is versioned with a v1 deprecation_date, a latest pointer, and a migration note, and the unit tests in _marts__unit_tests.yml target real business rules (titles only for complete seasons, shared-drive counting). Gaps: the contract has few not_null constraints (constructor_name, for example, has a test but no constraint), relying on latest_version_pointer and having downstream refs to the unpinned dim_drivers is risky, and the staging unit tests don't cover the sub-minute lap-time format.",
+    "open_ended": null
+  },
+  "biggest_strength": "Data-quality incidents get a deliberate, documented response: source_has_columns guards against vendor schema changes, reconciliation and conflicting-duplicate tests cover the Ferrari fan-out, and the README explains why the project uses official standings and the season-completeness logic.",
+  "biggest_weakness": "Null and format handling is narrower than claimed: clean_null ignores empty strings and lap_time_to_ms fails on non-colon times, while sprint/Grand Prix logic is duplicated in fct_session_results; the project also never attempts leadership's analytical questions (overperforming the car, whether pit stops are getting faster)."
+}

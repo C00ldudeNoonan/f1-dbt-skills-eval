@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: mart_constructor_season_pit_stops
+    description: >
+      One row per constructor per season with pit stop data (2011 onwards).
+      Stops over 60 seconds are excluded as red-flag stoppages. Times are pit
+      lane times as published by Ergast, not stationary times.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, constructor_id]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: constructor_name
+        data_tests: [not_null]
+      - name: pit_stop_count
+        description: Number of genuine pit stops (<= 60s).
+        data_tests:
+          - not_null
+          - accepted_range:
+              arguments:
+                min_value: 1
+      - name: median_pit_stop_seconds
+        description: Median pit lane time in seconds, rounded to milliseconds.
+        data_tests:
+          - not_null
+          - accepted_range:
+              arguments:
+                min_value: 10
+                max_value: 60

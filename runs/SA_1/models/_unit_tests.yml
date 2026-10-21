@@ -1,0 +1,73 @@
+unit_tests:
+  - name: stg_results_parses_fastest_lap_to_ms
+    description: m:ss.mmm lap strings become integer milliseconds; \N stays null.
+    model: stg_results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', constructorid: '1', statusid: '1', grid: '1', position: '1', position_order: '1', points: '10', laps: '50', fastestlaptime: '1:27.452'}
+          - {resultid: '2', raceid: '1', driverid: '2', constructorid: '1', statusid: '1', grid: '2', position: '\N', position_order: '2', points: '0', laps: '3', fastestlaptime: '0:59.005'}
+          - {resultid: '3', raceid: '1', driverid: '3', constructorid: '1', statusid: '1', grid: '0', position: '\N', position_order: '3', points: '0', laps: '0', fastestlaptime: '\N'}
+          - {resultid: '4', raceid: '1', driverid: '4', constructorid: '1', statusid: '1', grid: '3', position: '3', position_order: '4', points: '4', laps: '50', fastestlaptime: '2:03.100'}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 87452, finish_position: 1}
+        - {result_id: 2, fastest_lap_time_ms: 59005, finish_position: null}
+        - {result_id: 3, fastest_lap_time_ms: null, finish_position: null}
+        - {result_id: 4, fastest_lap_time_ms: 123100, finish_position: 3}
+
+  - name: int_driver_career_counts_only_completed_seasons_as_championships
+    description: >
+      Driver 1 leads the standings in a complete season (2 of 2 races have results) and in
+      an incomplete one (1 of 2 races have results); only the complete season is a title.
+      Driver 2 is P2 in the complete season; driver 3 never starts.
+    model: int_driver_career
+    given:
+      - input: ref('stg_drivers')
+        rows:
+          - {driver_id: 1, driver_ref: a, nationality: X}
+          - {driver_id: 2, driver_ref: b, nationality: X}
+          - {driver_id: 3, driver_ref: c, nationality: X}
+      - input: ref('fct_results')
+        rows:
+          - {result_id: 1, race_id: 10, driver_id: 1, is_win: true, is_podium: true}
+          - {result_id: 2, race_id: 10, driver_id: 2, is_win: false, is_podium: true}
+          - {result_id: 3, race_id: 11, driver_id: 1, is_win: true, is_podium: true}
+      - input: ref('fct_session_results')
+        rows:
+          - {session_type: race, race_id: 10, driver_id: 1, is_win: true}
+          - {session_type: sprint, race_id: 10, driver_id: 2, is_win: true}
+      - input: ref('int_season_status')
+        rows:
+          - {season: 2000, is_complete: true}
+          - {season: 2001, is_complete: false}
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2000, driver_id: 1, championship_position: 1}
+          - {season: 2000, driver_id: 2, championship_position: 2}
+          - {season: 2001, driver_id: 1, championship_position: 1}
+          - {season: 2001, driver_id: 2, championship_position: 2}
+    expect:
+      rows:
+        - {driver_id: 1, career_starts: 2, career_wins: 2, career_sprint_wins: 0, world_championships: 1}
+        - {driver_id: 2, career_starts: 1, career_wins: 0, career_sprint_wins: 1, world_championships: 0}
+        - {driver_id: 3, career_starts: 0, career_wins: 0, career_sprint_wins: 0, world_championships: 0}
+
+  - name: int_season_status_flags_season_incomplete_when_a_race_has_no_results
+    model: int_season_status
+    given:
+      - input: ref('stg_races')
+        rows:
+          - {race_id: 1, season: 2000, round: 1}
+          - {race_id: 2, season: 2000, round: 2}
+          - {race_id: 3, season: 2001, round: 1}
+          - {race_id: 4, season: 2001, round: 2}
+      - input: ref('stg_results')
+        rows:
+          - {result_id: 1, race_id: 1}
+          - {result_id: 2, race_id: 2}
+          - {result_id: 3, race_id: 3}
+    expect:
+      rows:
+        - {season: 2000, races_on_calendar: 2, races_with_results: 2, last_completed_round: 2, is_complete: true}
+        - {season: 2001, races_on_calendar: 2, races_with_results: 1, last_completed_round: 1, is_complete: false}

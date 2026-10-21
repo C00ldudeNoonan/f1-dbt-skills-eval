@@ -1,0 +1,20 @@
+name: f1
+version: '1.0.0'
+profile: f1
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+clean-targets: ["target", "dbt_packages"]
+
+# Everything builds into the target schema (F1_DBT_SC_1); layers are separated by
+# materialization and folder, not by extra schemas.
+models:
+  f1:
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: view
+    marts:
+      +materialized: table

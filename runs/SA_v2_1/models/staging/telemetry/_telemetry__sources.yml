@@ -1,0 +1,23 @@
+version: 2
+
+sources:
+  - name: telemetry
+    description: >
+      Car telemetry (about 4 samples per second per car, 2022 onwards). Typed columns. Samples can land
+      weeks after a race; `_loaded_at` is when a row landed in our warehouse and is the incremental watermark.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_SA_v2_1
+    tables:
+      - name: car_telemetry
+        columns:
+          - name: raceid
+          - name: driverid
+          - name: lap
+          - name: sample_index
+          - name: recorded_at
+          - name: speed_kph
+          - name: throttle_pct
+          - name: brake
+          - name: gear
+          - name: drs
+          - name: _loaded_at

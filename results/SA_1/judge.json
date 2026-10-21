@@ -1,0 +1,26 @@
+{
+  "scores": {
+    "layering": 3,
+    "naming": 4,
+    "testing": 4,
+    "quirks": 3,
+    "incremental_snapshot": 4,
+    "change_hygiene": 4,
+    "docs": 3,
+    "interfaces": 4,
+    "open_ended": null
+  },
+  "justifications": {
+    "layering": "The source \u2192 stg \u2192 int \u2192 marts flow is clear, and shared macros (`macros/clean_text.sql`) are used everywhere, but there are three problems: `int_driver_career.sql` refs marts (`fct_results`, `fct_session_results`, `mart_driver_season_standings`), which inverts the layers; `fct_results.sql` and `fct_session_results.sql` repeat the same race/constructor/status joins and is_win/is_podium logic instead of one being built from the other; and `_sources.yml` hard-codes `database: ANALYTICS_DEV`.",
+    "naming": "Prefixes are consistent (stg_/int_/fct_/dim_/mart_/snp_/assert_), columns use snake_case with units in the name (`lap_time_ms`, `duration_ms`, `median_pit_stop_seconds`), and there is one YAML file per layer (`_sources.yml`, `_staging.yml`, `_intermediate.yml`, `_marts.yml`, `_unit_tests.yml`); small drift: `fct_` vs `mart_` for similar-grain tables, and `stg_drivers` exposes `forename`/`surname` while dim v2 renames them to first/last_name.",
+    "testing": "Keys and relationships are tested at staging (`_staging.yml`) with business rules at marts (`assert_known_champions.sql`, `assert_standings_points_cover_race_points.sql`); the ticket-5 vendor rename is caught up front by the `source_has_columns` generic test on every source, and the ticket-6 constructor fan-out is caught by the grain/points reconciliation in `assert_fct_results_reconciles_to_staging.sql` and `assert_constructor_pit_stops_reconcile.sql`; gaps: no unique test on `stg_pit_stops`/`stg_lap_times` grain at staging, and no value-range tests.",
+    "quirks": "`\\N` nulls (`clean_text`), shared drives (distinct race counting in `int_driver_career.sql`), incomplete seasons (`int_season_status.sql`), dropped scores (official standings used), sprint wins, and red-flag stops (a 60s cutoff in `mart_constructor_season_pit_stops.sql`) are handled deliberately; but empty-string nulls are not handled, `lap_time_to_ms` assumes `m:ss.mmm` and would fail on mixed formats such as `83.456`, the 60s cutoff is a magic number duplicated in a test, and late-arriving drivers are not addressed.",
+    "incremental_snapshot": "`fct_lap_times.sql` uses delete+insert on race_id, so a whole race is replaced at once and laps removed by a reissue disappear too; it has a documented two-race lookback for vendor corrections and is idempotent, and `snp_drivers.yml` correctly uses the check strategy on the raw table, which has no updated_at; but corrections older than two races are silently missed, and the snapshot is not consumed by any model.",
+    "change_hygiene": "The commits are scoped one per ticket, and the dim_drivers versioning refactor moved shared logic into `int_driver_career.sql` instead of copying it, with nothing commented out; leftovers: `assert_standings_points_cover_race_points.sql` still reads `source('f1_raw','sprint_results')` with a stale comment even though `stg_sprint_results` now exists, `fct_session_results` was added next to `fct_results` rather than replacing it, and five unused sources are still declared.",
+    "docs": "Public marts have good column descriptions that explain why (shared-drive counting, completed-season titles, overlapping sprint ids) and the SQL header comments explain the vendor quirks, but most staging models (`stg_drivers`, `stg_pit_stops`, `stg_lap_times`, `stg_constructors`) have no model or column descriptions, and the pit-stop mart doesn't explain its 60s threshold beyond one line.",
+    "interfaces": "`fct_results` and `dim_drivers` have enforced contracts with data types, `access: public`, and versioning (v2 with include/exclude, v1 with a `deprecation_date` and a deprecation comment), and the three unit tests in `_unit_tests.yml` cover real edge cases (lap parsing with `\\N`, titles only in complete seasons, sprint vs GP wins); there are no unit tests for mixed lap formats or the incremental lookback, and `fct_session_results` is undocumented as an interface.",
+    "open_ended": null
+  },
+  "biggest_strength": "The tests are designed to catch the actual ticket regressions: `source_has_columns` fails loudly and names the missing column when the vendor changes the schema, and the reconciliation tests guard the grain of `fct_results` and the pit-stop mart against join fan-out like the duplicate-constructor bug.",
+  "biggest_weakness": "Logic is duplicated and the layers are inverted (`fct_results` vs `fct_session_results`, and `int_driver_career` built from marts), and some data quirks are not handled: empty-string nulls, mixed-format lap times in `lap_time_to_ms`, late-arriving drivers, and a magic-number 60s red-flag cutoff repeated in two places."
+}

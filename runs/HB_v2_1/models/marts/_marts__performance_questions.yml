@@ -1,0 +1,71 @@
+unit_tests:
+  - name: int_teammate_race_gaps_pairs_classified_teammates_only
+    description: >
+      A driver's gap is teammate finish minus driver finish, so the mirror row is negated. A
+      driver who did not finish is excluded from pairs, and so is a teammate who did not finish.
+    model: int_teammate_race_gaps
+    given:
+      - input: ref('fct_results')
+        rows:
+          - {season: 2000, race_id: 1, constructor_id: 1, driver_id: 10, finish_position: 3}
+          - {season: 2000, race_id: 1, constructor_id: 1, driver_id: 11, finish_position: 5}
+          - {season: 2000, race_id: 1, constructor_id: 1, driver_id: 12, finish_position: null}
+      - input: ref('fct_qualifying')
+        rows:
+          - {season: 2000, race_id: 1, constructor_id: 1, driver_id: 10, position: 2}
+          - {season: 2000, race_id: 1, constructor_id: 1, driver_id: 11, position: 4}
+    expect:
+      rows:
+        - {season: 2000, race_id: 1, driver_id: 10, teammate_id: 11, race_gap: 2, quali_gap: 2}
+        - {season: 2000, race_id: 1, driver_id: 11, teammate_id: 10, race_gap: -2, quali_gap: -2}
+
+  - name: mart_driver_overperformance_ranks_only_drivers_with_enough_evidence
+    description: >
+      A driver needs at least 30 race pairs over at least 3 seasons to be ranked. Ranking is by
+      the lower 95% bound, so a consistent +1 with 30 races outranks a noisy driver with 10 races.
+    model: mart_driver_overperformance
+    given:
+      - input: ref('int_teammate_race_gaps')
+        rows:
+          - {season: 2000, race_id: 1, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2000, race_id: 2, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2000, race_id: 3, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2000, race_id: 4, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2000, race_id: 5, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2000, race_id: 6, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2000, race_id: 7, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2000, race_id: 8, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2000, race_id: 9, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2000, race_id: 10, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2001, race_id: 11, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2001, race_id: 12, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2001, race_id: 13, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2001, race_id: 14, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2001, race_id: 15, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2001, race_id: 16, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2001, race_id: 17, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2001, race_id: 18, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2001, race_id: 19, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2001, race_id: 20, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2002, race_id: 21, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2002, race_id: 22, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2002, race_id: 23, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2002, race_id: 24, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2002, race_id: 25, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2002, race_id: 26, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2002, race_id: 27, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2002, race_id: 28, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2002, race_id: 29, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2002, race_id: 30, constructor_id: 1, driver_id: 10, teammate_id: 11, race_gap: 1, quali_gap: 1}
+          - {season: 2000, race_id: 31, constructor_id: 2, driver_id: 20, teammate_id: 21, race_gap: 3, quali_gap: 3}
+          - {season: 2000, race_id: 32, constructor_id: 2, driver_id: 20, teammate_id: 21, race_gap: 3, quali_gap: 3}
+          - {season: 2000, race_id: 33, constructor_id: 2, driver_id: 20, teammate_id: 21, race_gap: 3, quali_gap: 3}
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 10, driver_ref: alpha}
+          - {driver_id: 20, driver_ref: beta}
+    expect:
+      rows:
+        - {driver_id: 10, race_pairs: 30, seasons: 3, is_ranked: true, rank_by_lower_95: 1, mean_race_gap: 1.0, lower_95: 1.0, upper_95: 1.0}
+        - {driver_id: 20, race_pairs: 3, seasons: 1, is_ranked: false, rank_by_lower_95: null, mean_race_gap: 3.0, lower_95: 3.0, upper_95: 3.0}
+

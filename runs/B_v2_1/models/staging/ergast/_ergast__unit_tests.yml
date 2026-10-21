@@ -1,0 +1,61 @@
+unit_tests:
+  - name: constructors_redelivery_with_trailing_space_is_collapsed
+    description: >
+      2026-10-21 incident: Ferrari was resent with a trailing space in NAME.
+      Both copies clean to the same row, so staging must return one Ferrari,
+      otherwise every Ferrari result fans out in fct_results.
+    model: stg_ergast__constructors
+    given:
+      - input: source('ergast', 'constructors')
+        rows:
+          - {constructorid: '6', constructorref: ferrari, name: Ferrari, nationality: Italian, url: 'http://en.wikipedia.org/wiki/Scuderia_Ferrari'}
+          - {constructorid: '6', constructorref: ferrari, name: 'Ferrari ', nationality: Italian, url: 'http://en.wikipedia.org/wiki/Scuderia_Ferrari'}
+          - {constructorid: '131', constructorref: mercedes, name: Mercedes, nationality: German, url: 'http://en.wikipedia.org/wiki/Mercedes-Benz_in_Formula_One'}
+    expect:
+      rows:
+        - {constructor_id: 6, constructor_name: Ferrari}
+        - {constructor_id: 131, constructor_name: Mercedes}
+
+  - name: driver_standings_redelivery_with_new_ids_is_collapsed
+    description: >
+      2026-10-21 incident: race 1142 standings were resent with new
+      DRIVERSTANDINGSID values (id + 100000). Staging keeps one row per race
+      and driver, the original (lowest) id.
+    model: stg_ergast__driver_standings
+    given:
+      - input: source('ergast', 'driver_standings')
+        rows:
+          - {driverstandingsid: '73201', raceid: '1142', driverid: '830', points: '403', position: '1', positiontext: '1', wins: '8'}
+          - {driverstandingsid: '173201', raceid: '1142', driverid: '830', points: '403', position: '1', positiontext: '1', wins: '8'}
+          - {driverstandingsid: '73206', raceid: '1142', driverid: '846', points: '340', position: '2', positiontext: '2', wins: '3'}
+    expect:
+      rows:
+        - {driver_standing_id: 73201, race_id: 1142, driver_id: 830, points: 403}
+        - {driver_standing_id: 73206, race_id: 1142, driver_id: 846, points: 340}
+
+  - name: fastest_lap_time_parses_to_integer_milliseconds
+    description: >
+      FASTESTLAPTIME 'm:ss.mmm' becomes integer milliseconds. The null markers
+      (\N, empty string) and anything not in that exact shape become null.
+    model: stg_ergast__results
+    given:
+      - input: source('ergast', 'results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', position_order: '1', fastestlaptime: '1:27.438'}
+          - {resultid: '2', raceid: '1', driverid: '2', position_order: '2', fastestlaptime: '0:59.999'}
+          - {resultid: '3', raceid: '1', driverid: '3', position_order: '3', fastestlaptime: '10:01.001'}
+          - {resultid: '4', raceid: '1', driverid: '4', position_order: '4', fastestlaptime: ' 1:30.000 '}
+          - {resultid: '5', raceid: '1', driverid: '5', position_order: '5', fastestlaptime: '\N'}
+          - {resultid: '6', raceid: '1', driverid: '6', position_order: '6', fastestlaptime: ''}
+          - {resultid: '7', raceid: '1', driverid: '7', position_order: '7', fastestlaptime: '87.438'}
+          - {resultid: '8', raceid: '1', driverid: '8', position_order: '8', fastestlaptime: '1:27.4'}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 87438}
+        - {result_id: 2, fastest_lap_time_ms: 59999}
+        - {result_id: 3, fastest_lap_time_ms: 601001}
+        - {result_id: 4, fastest_lap_time_ms: 90000}
+        - {result_id: 5, fastest_lap_time_ms: null}
+        - {result_id: 6, fastest_lap_time_ms: null}
+        - {result_id: 7, fastest_lap_time_ms: null}
+        - {result_id: 8, fastest_lap_time_ms: null}

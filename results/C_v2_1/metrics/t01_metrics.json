@@ -1,0 +1,19 @@
+{
+  "input_tokens": 7737511,
+  "output_tokens": 68795,
+  "tool_calls": 65,
+  "tool_errors": 5,
+  "dbt_invocations": 18,
+  "skills_used": [
+    "read:using-dbt-for-analytics-engineering",
+    "read:adding-dbt-unit-test",
+    "read:maintaining-dbt-documentation",
+    "read:maintaining-dbt-documentation",
+    "read:maintaining-dbt-documentation",
+    "read:maintaining-dbt-documentation"
+  ],
+  "assistant_turns": 62,
+  "wallclock_s": 1271,
+  "nudges": 0,
+  "session_file": "~/.claude/projects/-Users-alexnoonan-f1-eval-workspaces-C-v2-1-project/e37b5e95-fc3e-4dc0-ace1-c489456f2a87.jsonl"
+}

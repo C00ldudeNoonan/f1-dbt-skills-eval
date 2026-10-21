@@ -1,0 +1,76 @@
+version: 2
+
+models:
+  - name: stg_f1__races
+    description: Cleaned Grand Prix calendar. One row per race, including races without results yet.
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+
+  - name: stg_f1__results
+    description: Cleaned Grand Prix result entries. One row per result. Sprint results are not in this model.
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: driver_id
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: status_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__status')
+                field: status_id
+
+  - name: stg_f1__drivers
+    description: Cleaned driver list. One row per driver.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__constructors
+    description: Cleaned constructor (team) list. One row per constructor.
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__status
+    description: Finishing status lookup.
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__driver_standings
+    description: Official driver standings after each race, cleaned.
+    columns:
+      - name: driver_standings_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+
+  - name: stg_f1__pit_stops
+    description: Pit stops with durations parsed to milliseconds. Red-flag stoppages are kept here and excluded in the marts.
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: stop_number
+        data_tests: [not_null]

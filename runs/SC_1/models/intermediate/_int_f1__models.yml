@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: int_f1__season_status
+    description: >
+      One row per season describing calendar completeness. A season is complete only when
+      every race on its calendar has results; the raw data's current season is typically not.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: calendar_race_count
+        description: Races scheduled on the season calendar.
+      - name: resulted_race_count
+        description: Races with at least one result row.
+      - name: is_season_complete
+        description: True when calendar_race_count = resulted_race_count.
+        data_tests: [not_null]
+      - name: last_completed_round
+        description: Highest round with results.
+      - name: last_completed_race_id
+        description: race_id of the last completed round.
+        data_tests: [not_null]

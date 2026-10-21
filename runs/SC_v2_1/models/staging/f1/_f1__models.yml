@@ -1,0 +1,166 @@
+version: 2
+
+models:
+  - name: stg_f1__races
+    description: One row per race on the calendar, typed. Includes races without results (e.g. not yet run).
+    columns:
+      - name: race_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+        description: Championship year.
+      - name: round
+        data_tests: [not_null]
+        description: Round number within the season.
+      - name: race_date
+        description: Scheduled/actual race date.
+        data_tests: [not_null]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            columns: [season, round]
+
+  - name: stg_f1__drivers
+    description: One row per driver, typed, with a combined full name.
+    columns:
+      - name: driver_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        description: Unique URL-style slug.
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__constructors
+    description: One row per constructor.
+    columns:
+      - name: constructor_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__status
+    description: Finish status lookup.
+    columns:
+      - name: status_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__results
+    description: >
+      Grand Prix results, typed. `finish_position` is the classified position (null when
+      unclassified); `fastest_lap_time_ms` is parsed from the fastest-lap time text.
+    columns:
+      - name: result_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: race_id
+        description: Race.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: driver_id
+        description: Driver.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('int_f1__drivers_with_placeholders')
+                field: driver_id
+      - name: constructor_id
+        description: Constructor.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__constructors')
+                field: constructor_id
+      - name: status_id
+        description: Finish status.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__status')
+                field: status_id
+
+  - name: stg_f1__qualifying
+    description: Qualifying entries with Q1-Q3 converted to milliseconds (null when no time).
+    columns:
+      - name: constructor_id
+        description: Foreign key to `stg_f1__constructors`.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_f1__constructors')
+                field: constructor_id
+      - name: race_id
+        description: Foreign key to `stg_f1__races`.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: qualify_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            columns: [race_id, driver_id]
+
+  - name: stg_f1__lap_times
+    description: One row per driver per lap, lap time in milliseconds.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        description: Foreign key to `stg_f1__races`.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: lap_time_ms
+        description: Lap time in milliseconds.
+        data_tests: [not_null, positive_when_present]
+
+  - name: stg_f1__pit_stops
+    description: One row per pit stop; `duration_ms` is pit lane time in milliseconds.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: race_id
+        description: Foreign key to `stg_f1__races`.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: duration_ms
+        description: Pit stop duration in milliseconds. Includes red-flag stoppages (hundreds of seconds); marts filter them.
+        data_tests: [not_null, positive_when_present]
+
+  - name: stg_f1__driver_standings
+    description: Standings snapshot after every race (one row per driver per race).
+    columns:
+      - name: race_id
+        description: Foreign key to `stg_f1__races`.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: driver_standings_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            columns: [race_id, driver_id]

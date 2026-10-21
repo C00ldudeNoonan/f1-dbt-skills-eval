@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: stg_vendor_b__drivers
+    description: >
+      Vendor B drivers, one row per driver_key. The surname (capitals, possibly
+      several words) is split from the forename so names can be compared with
+      ours.
+    columns:
+      - name: driver_key
+        description: Vendor B's driver id (no relation to ours).
+        data_tests: [unique, not_null]
+      - name: surname
+        description: Surname as written by Vendor B (capitals, no accents).
+        data_tests: [not_null]
+      - name: forename
+        description: Forename as written by Vendor B (may be a short form, e.g. Alex).
+        data_tests: [not_null]
+      - name: racing_number
+        description: Racing number. Not unique across drivers, so never used alone as a key.
+
+  - name: stg_vendor_b__sessions
+    description: Vendor B sessions, one row per Grand Prix or sprint.
+    columns:
+      - name: session_key
+        description: Vendor B's session id.
+        data_tests: [unique, not_null]
+      - name: session_type
+        description: "'race' or 'sprint' (normalised from Race / Sprint)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: session_date
+        description: UTC date of the session start.
+        data_tests: [not_null]
+      - name: session_start_utc
+        description: UTC start time. Null for the 2021 sprints, which Vendor B sends without a time.
+
+  - name: stg_vendor_b__results
+    description: Vendor B results, one row per driver per session.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [session_key, driver_key]
+    columns:
+      - name: finish_position
+        description: Classified finishing position. Null for DNF and DSQ.
+      - name: position_text
+        description: Position as published, a number or DNF / DSQ.
+      - name: points
+        description: Points scored in the session.

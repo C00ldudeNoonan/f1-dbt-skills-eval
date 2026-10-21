@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: stg_races
+    description: Race calendar, one row per race (including scheduled races with no results yet).
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+  - name: stg_results
+    description: Grand Prix results, one row per result entry. A driver can have two rows in one race (shared drives, 1950s-60s).
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_races'), field: race_id}}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_drivers'), field: driver_id}}
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_constructors'), field: constructor_id}}
+      - name: status_id
+        data_tests:
+          - relationships: {arguments: {to: ref('stg_status'), field: status_id}}
+  - name: stg_drivers
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+  - name: stg_constructors
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+  - name: stg_status
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+  - name: stg_pit_stops
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_races'), field: race_id}}
+      - name: duration_ms
+        data_tests: [not_null]
+  - name: stg_driver_standings
+    columns:
+      - name: driver_standings_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - relationships: {arguments: {to: ref('stg_races'), field: race_id}}

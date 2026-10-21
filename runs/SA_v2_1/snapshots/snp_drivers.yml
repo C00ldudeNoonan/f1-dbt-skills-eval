@@ -1,0 +1,10 @@
+snapshots:
+  - name: snp_drivers
+    relation: ref('stg_ergast__drivers')
+    description: >
+      Type-2 history of driver attributes. The raw `drivers` table only holds current
+      values, so this records when a driver's number, code or name details change.
+    config:
+      unique_key: driver_id
+      strategy: check
+      check_cols: [driver_ref, driver_number, driver_code, forename, surname, date_of_birth, nationality]

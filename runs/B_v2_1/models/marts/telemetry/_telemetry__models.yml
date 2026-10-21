@@ -1,0 +1,90 @@
+models:
+  - name: fct_telemetry
+    description: >
+      One row per car telemetry sample (2022 onward, ~4 Hz per car). Incremental,
+      replaced a race at a time: each run finds races with newly loaded raw rows
+      (watermark on loaded_at minus var telemetry_lookback_hours), re-reads just
+      those races and replaces them, so late samples are picked up without a full
+      refresh. A sample delivered twice keeps its latest delivery. Heavy tests check only rows
+      ingested in the last telemetry_test_window_days days.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap, sample_index]
+          config:
+            where: "ingested_at > dateadd(day, -{{ var('telemetry_test_window_days') }}, current_timestamp())"
+    columns:
+      - name: race_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: lap
+        data_type: integer
+        data_tests: [not_null]
+      - name: sample_index
+        data_type: integer
+        description: Sample sequence number within the driver's lap.
+        data_tests: [not_null]
+      - name: recorded_at
+        data_type: timestamp_ntz
+        description: When the car recorded the sample.
+      - name: speed_kph
+        data_type: number(6, 1)
+      - name: throttle_pct
+        data_type: integer
+        description: Throttle application, 0-100.
+      - name: brake
+        data_type: boolean
+      - name: gear
+        data_type: integer
+      - name: drs
+        data_type: integer
+        description: DRS flag (0 closed, 1 open).
+      - name: loaded_at
+        data_type: timestamp_ntz
+        description: When the sample landed in the raw table (_LOADED_AT). Drives the incremental watermark.
+      - name: ingested_at
+        data_type: timestamp_ntz
+        description: When this model last wrote the row. Drives mart_lap_telemetry_summary's incremental logic.
+
+  - name: mart_lap_telemetry_summary
+    description: >
+      One row per driver per lap with telemetry. Incremental, replaced a race at a
+      time: races that fct_telemetry rewrote since the last run are recomputed
+      from all their samples, so the figures stay exact without full refreshes.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: lap
+        data_type: integer
+        data_tests: [not_null]
+      - name: samples
+        data_type: integer
+      - name: max_speed_kph
+        data_type: number(6, 1)
+      - name: avg_throttle_pct
+        data_type: number(6, 2)
+        description: Mean throttle_pct across the lap's samples.
+      - name: full_throttle_pct
+        data_type: number(6, 2)
+        description: Percentage of the lap's samples with throttle_pct >= 99.
+      - name: brake_samples
+        data_type: integer
+        description: Samples with the brake applied.
+      - name: source_ingested_at
+        data_type: timestamp_ntz
+        description: fct_telemetry.ingested_at of the race's samples when this lap was computed. The incremental watermark.

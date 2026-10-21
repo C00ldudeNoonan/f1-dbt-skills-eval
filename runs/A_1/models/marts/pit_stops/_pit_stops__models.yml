@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: mart_constructor_season_pit_stops
+    description: >
+      Pit stop performance per constructor per season (pit data exists from
+      2011). Excludes stops over 60 seconds, which are red-flag stoppages or
+      repairs rather than real stops. Durations are total pit-lane time.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, constructor_id]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: pit_stop_count
+        description: Number of stops of 60 seconds or less.
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "pit_stop_count > 0"
+      - name: median_pit_stop_seconds
+        description: Median pit-lane time in seconds (3 dp), over stops of 60 seconds or less.
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "median_pit_stop_seconds between 10 and 60"

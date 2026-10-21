@@ -1,0 +1,20 @@
+version: 2
+
+seeds:
+  - name: world_champions_reference
+    description: >
+      Published World Drivers' Champions for every completed season from 1950 to 2023, used as a
+      regression check on the championship standings mart. 2024 is deliberately absent: its
+      calendar is incomplete in the source data, so no champion is counted for it.
+    columns:
+      - name: season
+        description: Championship season.
+        data_tests:
+          - unique
+          - not_null
+      - name: driver_ref
+        description: Ergast driver_ref of the champion (matches stg_ergast__drivers.driver_ref).
+        data_tests:
+          - not_null
+      - name: champion_name
+        description: Champion's display name, for human review.

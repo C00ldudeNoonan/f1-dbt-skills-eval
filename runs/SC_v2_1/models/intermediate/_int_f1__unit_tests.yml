@@ -1,0 +1,87 @@
+version: 2
+
+unit_tests:
+  - name: drivers_placeholder_for_unknown_driver
+    model: int_f1__drivers_with_placeholders
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: hamilton, full_name: Lewis Hamilton, driver_code: HAM, current_number: 44, nationality: British, date_of_birth: 1985-01-07}
+      - input: ref('stg_f1__results')
+        rows:
+          - {driver_id: 1}
+          - {driver_id: 999}
+      - input: ref('stg_f1__qualifying')
+        rows:
+          - {driver_id: 999}
+          - {driver_id: 998}
+      - input: ref('stg_f1__driver_standings')
+        rows:
+          - {driver_id: 1}
+      - input: ref('stg_f1__lap_times')
+        rows:
+          - {driver_id: 1}
+      - input: ref('stg_f1__pit_stops')
+        rows:
+          - {driver_id: 1}
+    expect:
+      rows:
+        - {driver_id: 1, driver_ref: hamilton, is_placeholder: false, current_number: 44}
+        - {driver_id: 999, driver_ref: unknown_999, full_name: Unknown driver (999), is_placeholder: true}
+        - {driver_id: 998, driver_ref: unknown_998, is_placeholder: true}
+
+  - name: season_status_incomplete_when_a_race_has_no_results
+    description: A season is complete only if every race on its calendar has results.
+    model: int_f1__season_status
+    given:
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 1, season: 2023, round: 1}
+          - {race_id: 2, season: 2023, round: 2}
+          - {race_id: 3, season: 2024, round: 1}
+          - {race_id: 4, season: 2024, round: 2}
+          - {race_id: 5, season: 2024, round: 3}
+      - input: ref('stg_f1__results')
+        rows:
+          - {race_id: 1}
+          - {race_id: 1}
+          - {race_id: 2}
+          - {race_id: 3}
+          - {race_id: 4}
+    expect:
+      rows:
+        - {season: 2023, scheduled_races: 2, races_with_results: 2, latest_completed_round: 2, is_season_complete: true}
+        - {season: 2024, scheduled_races: 3, races_with_results: 2, latest_completed_round: 2, is_season_complete: false}
+
+  - name: driver_profiles_count_championships_only_for_complete_seasons
+    description: >
+      Driver 1 won the 2023 title (complete season) and leads 2024 (incomplete season): only one
+      championship counts. A placeholder driver keeps working.
+    model: int_f1__driver_profiles
+    given:
+      - input: ref('int_f1__drivers_with_placeholders')
+        rows:
+          - {driver_id: 1, driver_ref: max, full_name: Max V, first_name: Max, last_name: V, is_placeholder: false}
+          - {driver_id: 2, driver_ref: lando, full_name: Lando N, first_name: Lando, last_name: N, is_placeholder: false}
+          - {driver_id: 999, driver_ref: unknown_999, full_name: Unknown driver (999), first_name: Unknown, last_name: driver (999), is_placeholder: true}
+      - input: ref('fct_results')
+        rows:
+          - {result_id: 1, race_id: 10, driver_id: 1, is_win: true, is_podium: true}
+          - {result_id: 2, race_id: 10, driver_id: 1, is_win: false, is_podium: true}
+          - {result_id: 3, race_id: 11, driver_id: 2, is_win: false, is_podium: false}
+          - {result_id: 4, race_id: 12, driver_id: 999, is_win: false, is_podium: false}
+      - input: ref('fct_session_results')
+        rows:
+          - {session_type: sprint, race_id: 10, driver_id: 2, finish_position: 1}
+          - {session_type: race, race_id: 10, driver_id: 1, finish_position: 1}
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2023, driver_id: 1, championship_position: 1, is_season_complete: true}
+          - {season: 2023, driver_id: 2, championship_position: 2, is_season_complete: true}
+          - {season: 2024, driver_id: 1, championship_position: 1, is_season_complete: false}
+          - {season: 2024, driver_id: 2, championship_position: 2, is_season_complete: false}
+    expect:
+      rows:
+        - {driver_id: 1, world_championships: 1, career_starts: 1, career_wins: 1, career_podiums: 1, career_sprint_wins: 0}
+        - {driver_id: 2, world_championships: 0, career_starts: 1, career_wins: 0, career_podiums: 0, career_sprint_wins: 1}
+        - {driver_id: 999, world_championships: 0, career_starts: 1, career_wins: 0, career_podiums: 0, career_sprint_wins: 0, is_placeholder: true}

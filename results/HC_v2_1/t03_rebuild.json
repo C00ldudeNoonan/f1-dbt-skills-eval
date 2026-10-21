@@ -1,0 +1,135 @@
+{
+  "run_id": "HC_v2_1",
+  "task": 3,
+  "phase": "rebuild",
+  "suite": "v2",
+  "harness_build": {
+    "exit_code": 1,
+    "seconds": 14.5,
+    "log": "~/dbt-skill-eval/results/HC_v2_1/grades/t03_rebuild_build.log"
+  },
+  "structural": {
+    "sources_point_at_raw_schema": true,
+    "counts": {
+      "models": 22,
+      "data_tests": 136,
+      "unit_tests": 7,
+      "snapshots": 1,
+      "seeds": 1,
+      "macros_in_project": 3,
+      "documented_models": 22
+    },
+    "fct_lap_times_incremental": true,
+    "fct_lap_times_unique_key": "race_id",
+    "snapshot_exists": true,
+    "snapshot_verstappen_versions": 2,
+    "snapshot_verstappen_current": 1,
+    "fct_stints_materialized": "incremental",
+    "orphan_result_in_fct_results": true,
+    "orphan_driver_in_dim_drivers": false
+  },
+  "data_checks": {
+    "fct_results": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HC_v2_1.fct_results",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 26740,
+      "actual_rows": 26740,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "dim_drivers": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HC_v2_1.dim_drivers",
+      "ok": false,
+      "missing_columns": [],
+      "expected_rows": 861,
+      "actual_rows": 861,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {
+        "current_number": 2
+      }
+    },
+    "mart_driver_season_standings": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HC_v2_1.mart_driver_season_standings",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 3191,
+      "actual_rows": 3191,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_constructor_season_pit_stops": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HC_v2_1.mart_constructor_season_pit_stops",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 147,
+      "actual_rows": 147,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_qualifying": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HC_v2_1.fct_qualifying",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 10474,
+      "actual_rows": 10474,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_teammate_head_to_head": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HC_v2_1.mart_teammate_head_to_head",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 13476,
+      "actual_rows": 13476,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_driver_race_pace": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HC_v2_1.fct_driver_race_pace",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 10849,
+      "actual_rows": 10849,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_lap_times": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HC_v2_1.fct_lap_times",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 588048,
+      "actual_rows": 588048,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_stints": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HC_v2_1.fct_stints",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 17059,
+      "actual_rows": 17059,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    }
+  },
+  "data_score": "8/9"
+}

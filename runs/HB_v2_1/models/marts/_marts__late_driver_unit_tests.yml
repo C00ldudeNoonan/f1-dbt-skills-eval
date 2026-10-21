@@ -1,0 +1,71 @@
+unit_tests:
+  - name: int_orphan_driver_ids_finds_result_driver_without_record
+    description: A driver in RESULTS but not in DRIVERS is an orphan. A known driver is not.
+    model: int_orphan_driver_ids
+    given:
+      - input: ref('int_driver_references')
+        rows:
+          - {driver_id: 1, race_id: 1, source_table: results}
+          - {driver_id: 99, race_id: 1, source_table: results}
+          - {driver_id: 99, race_id: 1, source_table: lap_times}
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: hamilton}
+    expect:
+      rows:
+        - {driver_id: 99}
+
+  - name: dim_drivers_base_placeholder_for_orphan_and_real_values_once_record_arrives
+    description: >
+      Driver 99 has results but no driver record, so it gets a placeholder that still
+      carries its career stats. Driver 1 has a real record and is not a placeholder.
+    model: dim_drivers_base
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: hamilton, driver_number: 44, driver_code: HAM, forename: Lewis, surname: Hamilton, date_of_birth: '1985-01-07', nationality: British}
+      - input: ref('int_orphan_driver_ids')
+        rows:
+          - {driver_id: 99}
+      - input: ref('fct_results')
+        rows:
+          - {driver_id: 99, race_id: 1, is_win: false, is_podium: true}
+          - {driver_id: 1, race_id: 1, is_win: true, is_podium: true}
+      - input: ref('fct_session_results')
+        rows: []
+      - input: ref('mart_driver_season_standings')
+        rows: []
+    expect:
+      rows:
+        - {driver_id: 1, driver_ref: hamilton, current_number: 44, first_name: Lewis, last_name: Hamilton, is_placeholder: false, career_starts: 1, career_wins: 1, career_podiums: 1}
+        - {driver_id: 99, driver_ref: unknown_99, current_number: null, first_name: null, last_name: Unknown driver 99, is_placeholder: true, career_starts: 1, career_wins: 0, career_podiums: 1}
+
+  - name: dim_drivers_v1_keeps_full_name_and_placeholders
+    description: Version 1 joins first and last name into full_name. Placeholders read as "Unknown driver <id>".
+    model: dim_drivers
+    versions:
+      include: [1]
+    given:
+      - input: ref('dim_drivers_base')
+        rows:
+          - {driver_id: 1, driver_ref: hamilton, current_number: 44, driver_code: HAM, first_name: Lewis, last_name: Hamilton, nationality: British, date_of_birth: '1985-01-07', is_placeholder: false, career_starts: 1, career_wins: 1, career_podiums: 1, career_sprint_wins: 0, world_championships: 7}
+          - {driver_id: 99, driver_ref: unknown_99, current_number: null, driver_code: null, first_name: null, last_name: Unknown driver 99, nationality: null, date_of_birth: null, is_placeholder: true, career_starts: 1, career_wins: 0, career_podiums: 1, career_sprint_wins: 0, world_championships: 0}
+    expect:
+      rows:
+        - {driver_id: 1, driver_ref: hamilton, full_name: Lewis Hamilton, is_placeholder: false, career_wins: 1, world_championships: 7}
+        - {driver_id: 99, driver_ref: unknown_99, full_name: Unknown driver 99, is_placeholder: true, career_starts: 1, career_wins: 0, career_podiums: 1, world_championships: 0}
+
+  - name: dim_drivers_v2_has_first_and_last_name_and_placeholders
+    description: Version 2 exposes first_name and last_name. Placeholders keep null first_name.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('dim_drivers_base')
+        rows:
+          - {driver_id: 1, driver_ref: hamilton, current_number: 44, driver_code: HAM, first_name: Lewis, last_name: Hamilton, nationality: British, date_of_birth: '1985-01-07', is_placeholder: false, career_starts: 1, career_wins: 1, career_podiums: 1, career_sprint_wins: 0, world_championships: 7}
+          - {driver_id: 99, driver_ref: unknown_99, current_number: null, driver_code: null, first_name: null, last_name: Unknown driver 99, nationality: null, date_of_birth: null, is_placeholder: true, career_starts: 1, career_wins: 0, career_podiums: 1, career_sprint_wins: 0, world_championships: 0}
+    expect:
+      rows:
+        - {driver_id: 1, first_name: Lewis, last_name: Hamilton, is_placeholder: false, world_championships: 7}
+        - {driver_id: 99, first_name: null, last_name: Unknown driver 99, is_placeholder: true, career_podiums: 1, world_championships: 0}

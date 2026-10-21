@@ -1,0 +1,481 @@
+version: 2
+
+# Vendor contract: every column listed under a source table below is one our staging models read.
+# - `check_source_schema` (on-run-start) stops the run with one readable report if a table or column
+#   is missing or renamed.
+# - `matches_format` tests fail if a value stops matching the format we parse (dates, times, numbers).
+#   Missing values (`\N` or empty) are allowed by those tests.
+sources:
+  - name: f1_raw
+    description: >
+      Ergast/Kaggle Formula 1 dataset (1950 onward), loaded as-is by the vendor. Every column is text and
+      missing values are the literal string `\N`. Read-only: never write to this schema.
+      Vendor changes so far: lap_times table renamed lap_timing (mapped via `identifier`), positionorder
+      renamed position_order, pit_stops.duration dropped, races.date now dd/mm/yyyy.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_SB_v2_1
+    tables:
+      - name: circuits
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [circuitid], compare_columns: [circuitref, name, location, country]}
+          - duplicate_keys:
+              arguments: {key_columns: [circuitid]}
+              config: {severity: warn}
+        columns:
+          - name: circuitid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: circuitref
+          - name: name
+          - name: location
+          - name: country
+      - name: constructors
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [constructorid], compare_columns: [constructorref, name, nationality]}
+          - duplicate_keys:
+              arguments: {key_columns: [constructorid]}
+              config: {severity: warn}
+        columns:
+          - name: constructorid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: constructorref
+          - name: name
+          - name: nationality
+      - name: constructor_results
+        columns:
+          - name: constructorresultsid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+      - name: constructor_standings
+        columns:
+          - name: constructorstandingsid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+      - name: drivers
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [driverid], compare_columns: [driverref, number, code, forename, surname, dob, nationality]}
+          - duplicate_keys:
+              arguments: {key_columns: [driverid]}
+              config: {severity: warn}
+        columns:
+          - name: driverid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: driverref
+          - name: number
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: code
+          - name: forename
+          - name: surname
+          - name: dob
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'}
+          - name: nationality
+      - name: races
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [raceid], compare_columns: [year, round, circuitid, name, date]}
+          - duplicate_keys:
+              arguments: {key_columns: [raceid]}
+              config: {severity: warn}
+        columns:
+          - name: raceid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: year
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: round
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: circuitid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: name
+          - name: date
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^([0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2})$'}
+      - name: seasons
+        columns:
+          - name: year
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+      - name: status
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [statusid], compare_columns: [status]}
+          - duplicate_keys:
+              arguments: {key_columns: [statusid]}
+              config: {severity: warn}
+        columns:
+          - name: statusid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: status
+      - name: results
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [resultid], compare_columns: [raceid, driverid, constructorid, grid, position, positiontext, position_order, points, laps, fastestlaptime, statusid]}
+          - duplicate_keys:
+              arguments: {key_columns: [resultid]}
+              config: {severity: warn}
+        columns:
+          - name: resultid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: constructorid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: grid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: position
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: positiontext
+          - name: position_order
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: points
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+(\.[0-9]+)?$'}
+          - name: laps
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: fastestlaptime
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^[0-9]+:[0-9]{2}\.[0-9]{3}$'}
+          - name: statusid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+      - name: sprint_results
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [resultid], compare_columns: [raceid, driverid, constructorid, grid, position, positiontext, position_order, points, laps]}
+          - duplicate_keys:
+              arguments: {key_columns: [resultid]}
+              config: {severity: warn}
+        columns:
+          - name: resultid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: constructorid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: grid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: position
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: positiontext
+          - name: position_order
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: points
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+(\.[0-9]+)?$'}
+          - name: laps
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+      - name: qualifying
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [qualifyid], compare_columns: [raceid, driverid, constructorid, position, q1, q2, q3]}
+          - duplicate_keys:
+              arguments: {key_columns: [qualifyid]}
+              config: {severity: warn}
+        columns:
+          - name: qualifyid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: constructorid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: position
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: q1
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^[0-9]+:[0-9]{2}\.[0-9]{3}$'}
+          - name: q2
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^[0-9]+:[0-9]{2}\.[0-9]{3}$'}
+          - name: q3
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^[0-9]+:[0-9]{2}\.[0-9]{3}$'}
+      - name: lap_times
+        identifier: lap_timing
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [raceid, driverid, lap], compare_columns: [position, milliseconds, time]}
+          - duplicate_keys:
+              arguments: {key_columns: [raceid, driverid, lap]}
+              config: {severity: warn}
+        columns:
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: lap
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: position
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: milliseconds
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: time
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^([0-9]+:)?[0-9]+:[0-9]{2}\.[0-9]{3}$'}
+      - name: pit_stops
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [raceid, driverid, stop], compare_columns: [lap, milliseconds]}
+          - duplicate_keys:
+              arguments: {key_columns: [raceid, driverid, stop]}
+              config: {severity: warn}
+        columns:
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: stop
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: lap
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: milliseconds
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+      - name: driver_standings
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [raceid, driverid], compare_columns: [points, position, wins]}
+          - duplicate_keys:
+              arguments: {key_columns: [raceid, driverid]}
+              config: {severity: warn}
+        columns:
+          - name: driverstandingsid
+            data_tests:
+              - unique:
+                  config: {severity: warn}   # duplicates are removed in staging; see conflicting_duplicates
+              - not_null
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: points
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+(\.[0-9]+)?$'}
+          - name: position
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: wins
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+      # ---- Vendor B (second feed, 2018-2024): its own keys and conventions, mapped via crosswalks ----
+      - name: vb_drivers
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [driver_key], compare_columns: [full_name, abbreviation, racing_number]}
+        columns:
+          - name: driver_key
+            data_tests:
+              - not_null
+              - unique:
+                  config: {severity: warn}
+          - name: full_name
+          - name: abbreviation
+          - name: racing_number
+      - name: vb_sessions
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [session_key], compare_columns: [session_type, meeting_name, year, date_start]}
+        columns:
+          - name: session_key
+            data_tests:
+              - not_null
+              - unique:
+                  config: {severity: warn}
+          - name: session_type
+            data_tests:
+              - accepted_values:
+                  arguments: {values: ['Race', 'Sprint']}
+          - name: meeting_name
+          - name: year
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^[0-9]{4}$'}
+          - name: date_start
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*'}
+      - name: vb_results
+        data_tests:
+          - conflicting_duplicates:
+              arguments: {key_columns: [session_key, driver_key], compare_columns: [team_name, grid_position, position, points]}
+        columns:
+          - name: session_key
+            data_tests: [not_null]
+          - name: driver_key
+            data_tests: [not_null]
+          - name: team_name
+          - name: grid_position
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^-?[0-9]+$'}
+          - name: position
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^([0-9]+|DNF|DSQ|DNS|NC|DNQ|EX|WD)$'}
+          - name: points
+            data_tests:
+              - matches_format:
+                  arguments: {pattern: '^[0-9]+(\.[0-9]+)?$'}
+
+  # Telemetry lives in its own source so its schema can be pointed elsewhere (tests / future relocation) without
+  # touching the main feed:  dbt build --vars '{telemetry_raw_schema: SOME_SCHEMA}'
+  - name: f1_telemetry
+    description: >
+      Car telemetry (about 20M rows from 2022, ~4 samples per second per car). Typed, not text. Append-only
+      with `_loaded_at` = when the sample landed in our warehouse; samples can arrive weeks after the race.
+      Never scan this table whole in routine runs: always filter on `_loaded_at` first.
+    database: ANALYTICS_DEV
+    schema: "{{ var('telemetry_raw_schema', 'F1_RAW_SB_v2_1') }}"
+    tables:
+      - name: car_telemetry
+        columns:
+          - name: raceid
+          - name: driverid
+          - name: lap
+          - name: sample_index
+          - name: recorded_at
+          - name: speed_kph
+          - name: throttle_pct
+          - name: brake
+          - name: gear
+          - name: drs
+          - name: _loaded_at
+

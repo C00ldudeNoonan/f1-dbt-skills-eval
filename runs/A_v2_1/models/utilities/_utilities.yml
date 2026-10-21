@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: metricflow_time_spine
+    description: >
+      Daily time spine (1950-01-01 to 2049-12-31) for the dbt Semantic Layer.
+      Extend the end date before 2050.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        granularity: day
+        data_tests: [unique, not_null]

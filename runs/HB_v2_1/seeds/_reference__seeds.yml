@@ -1,0 +1,25 @@
+version: 2
+
+seeds:
+  - name: official_world_champions
+    description: >
+      Published Formula 1 World Drivers' Champions, 1950 to 2024, typed in from
+      the official record. It is used only to check the standings marts against
+      history, never to produce them. Only seasons that are complete in the source
+      data are checked; the 2024 row is checked once that season is complete.
+    config:
+      column_types:
+        season: integer
+    columns:
+      - name: season
+        data_tests:
+          - unique
+          - not_null
+      - name: driver_ref
+        description: Ergast driver_ref of the champion. Must exist in the source drivers table.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                  to: ref('stg_f1__drivers')
+                  field: driver_ref

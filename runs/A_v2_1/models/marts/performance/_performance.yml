@@ -1,0 +1,139 @@
+version: 2
+
+models:
+  - name: mart_constructor_season_pit_stops
+    description: >
+      Pit stops per constructor per season (2011 onwards, where pit data exists).
+      Stops longer than var pit_stop_max_seconds (60s) are red-flag stoppages and
+      are excluded. Constructor is taken from the driver's result in that race.
+    config:
+      tags: [performance]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, constructor_id]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: pit_stop_count
+        description: Pit stops of 60 seconds or less.
+        data_tests: [not_null]
+      - name: median_pit_stop_seconds
+        description: Median pit lane duration of those stops, in seconds.
+        data_tests: [not_null]
+
+  - name: mart_teammate_head_to_head
+    description: >
+      Teammate head-to-head per season and constructor, one row per driver and
+      teammate in both orderings, for pairs who both had a Grand Prix result for
+      the same constructor in the same race at least once. Qualifying counts use
+      the constructor recorded on the qualifying entry.
+    config:
+      tags: [performance]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, constructor_id, driver_id, teammate_id]
+      - expression_is_true:
+          arguments:
+            expression: "driver_id != teammate_id"
+      - expression_is_true:
+          arguments:
+            expression: "races_ahead <= races_together and qualifying_ahead <= qualifying_together"
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: teammate_id
+        data_tests: [not_null]
+      - name: races_together
+        description: Distinct Grands Prix where both had a result for this constructor.
+        data_tests: [not_null]
+      - name: races_ahead
+        description: >
+          Of races_together, races where the driver's best position_order beat
+          the teammate's best.
+        data_tests: [not_null]
+      - name: qualifying_together
+        description: Distinct races where both have a qualifying entry for this constructor.
+        data_tests: [not_null]
+      - name: qualifying_ahead
+        description: >
+          Of qualifying_together, races where the driver's qualifying position
+          beat the teammate's.
+        data_tests: [not_null]
+
+  - name: fct_driver_race_pace
+    description: >
+      Green-flag race pace, one row per driver per race with lap data (1996
+      onwards) and at least one green-flag lap. A green-flag lap excludes lap 1,
+      the lap of a pit stop, the lap after a pit stop, and any lap slower than
+      var green_lap_max_ratio (130%) of the fastest lap anyone set in the race.
+    config:
+      tags: [performance]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: green_laps
+        description: Number of green-flag laps.
+        data_tests: [not_null]
+      - name: median_green_lap_ms
+        description: Median green-flag lap time in milliseconds (can end in .5).
+        data_tests: [not_null]
+
+unit_tests:
+  - name: fct_driver_race_pace_excludes_non_green_laps
+    description: >
+      Lap 1, the pit lap, the lap after it and laps over 130% of the race's
+      fastest lap are excluded.
+    model: fct_driver_race_pace
+    given:
+      - input: ref('stg_ergast__lap_times')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, lap_time_ms: 90000}
+          - {race_id: 1, driver_id: 1, lap: 2, lap_time_ms: 80000}
+          - {race_id: 1, driver_id: 1, lap: 3, lap_time_ms: 81000}
+          - {race_id: 1, driver_id: 1, lap: 4, lap_time_ms: 95000}
+          - {race_id: 1, driver_id: 1, lap: 5, lap_time_ms: 84000}
+          - {race_id: 1, driver_id: 1, lap: 6, lap_time_ms: 82000}
+          - {race_id: 1, driver_id: 1, lap: 7, lap_time_ms: 110000}
+          - {race_id: 1, driver_id: 2, lap: 1, lap_time_ms: 91000}
+          - {race_id: 1, driver_id: 2, lap: 2, lap_time_ms: 79000}
+      - input: ref('stg_ergast__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 4}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, green_laps: 3, median_green_lap_ms: 81000}
+        - {race_id: 1, driver_id: 2, green_laps: 1, median_green_lap_ms: 79000}
+
+  - name: mart_teammate_head_to_head_counts
+    description: Both orderings are produced and best position_order decides who was ahead.
+    model: mart_teammate_head_to_head
+    given:
+      - input: ref('fct_results')
+        rows:
+          - {season: 2020, race_id: 1, constructor_id: 9, driver_id: 1, position_order: 1}
+          - {season: 2020, race_id: 1, constructor_id: 9, driver_id: 2, position_order: 2}
+          - {season: 2020, race_id: 2, constructor_id: 9, driver_id: 1, position_order: 5}
+          - {season: 2020, race_id: 2, constructor_id: 9, driver_id: 2, position_order: 3}
+          - {season: 2020, race_id: 3, constructor_id: 9, driver_id: 1, position_order: 4}
+      - input: ref('fct_qualifying')
+        rows:
+          - {season: 2020, race_id: 1, constructor_id: 9, driver_id: 1, qualifying_position: 2}
+          - {season: 2020, race_id: 1, constructor_id: 9, driver_id: 2, qualifying_position: 1}
+    expect:
+      rows:
+        - {driver_id: 1, teammate_id: 2, races_together: 2, races_ahead: 1, qualifying_together: 1, qualifying_ahead: 0}
+        - {driver_id: 2, teammate_id: 1, races_together: 2, races_ahead: 1, qualifying_together: 1, qualifying_ahead: 1}

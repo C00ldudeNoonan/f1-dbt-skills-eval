@@ -1,0 +1,8 @@
+version: 2
+
+models:
+  - name: stg_telemetry__car_samples
+    description: >
+      Car telemetry samples renamed to project conventions. A view with no
+      logic, so downstream race filters prune the raw table. It's not tested
+      directly, because any test here would scan all of the raw telemetry.

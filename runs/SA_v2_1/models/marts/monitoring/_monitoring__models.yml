@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: monitor_orphan_driver_results
+    description: >
+      Late-arriving drivers: results whose driver is missing from `drivers`. Empty when the
+      feed is consistent. Those drivers appear in dim_drivers as placeholders.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: orphan_results
+        data_tests: [not_null]

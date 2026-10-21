@@ -1,0 +1,94 @@
+version: 2
+
+models:
+  - name: fct_telemetry
+    description: >
+      One row per car telemetry sample, from 2022. Incremental by race: each run rebuilds the races that received samples
+      since the last load, so late samples arrive in their own race. loaded_at is when the sample landed in the warehouse.
+    config:
+      cluster_by: [race_id]
+    columns:
+      - name: race_id
+        description: Grand Prix. Incremental unique key, so a whole race is replaced at once.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: driver_id
+        data_tests:
+          - not_null
+      - name: lap
+        data_tests:
+          - not_null
+      - name: sample_index
+        data_tests:
+          - not_null
+      - name: recorded_at
+        description: When the car recorded the sample.
+        data_tests:
+          - not_null
+      - name: loaded_at
+        description: When the sample landed in the warehouse. The incremental watermark.
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - race_id
+              - driver_id
+              - lap
+              - sample_index
+          config:
+            where: "loaded_at >= dateadd(day, -3, current_timestamp())"
+
+  - name: mart_lap_telemetry_summary
+    description: >
+      One row per driver per lap, summarising telemetry. Incremental by race, with the same rebuild rule as fct_telemetry,
+      so a late sample updates its lap. full_throttle_pct is the share of samples with throttle at 99% or above.
+      source_loaded_at is the latest load time among the lap's samples.
+    config:
+      cluster_by: [race_id]
+    columns:
+      - name: race_id
+        description: Incremental unique key.
+        data_tests:
+          - not_null
+      - name: driver_id
+        data_tests:
+          - not_null
+      - name: lap
+        data_tests:
+          - not_null
+      - name: samples
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+      - name: full_throttle_pct
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+      - name: avg_throttle_pct
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+      - name: source_loaded_at
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - race_id
+              - driver_id
+              - lap
+          config:
+            where: "source_loaded_at >= dateadd(day, -3, current_timestamp())"

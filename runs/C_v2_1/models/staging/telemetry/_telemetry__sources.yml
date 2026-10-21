@@ -1,0 +1,38 @@
+version: 2
+
+sources:
+  - name: telemetry
+    description: >
+      Car telemetry from the performance team's feed, in the same raw schema as
+      the F1 data. About 20 million rows from 2022 onwards, roughly 4 samples
+      per second per car. `_LOADED_AT` is when a row landed in the warehouse.
+      Samples can land weeks after the race. Columns are typed. Read-only.
+    database: ANALYTICS_DEV
+    # Overridable for end-to-end tests against a sandbox copy
+    # (--vars '{telemetry_raw_schema: ...}'). Production reads the raw schema.
+    schema: "{{ var('telemetry_raw_schema', 'F1_RAW_C_v2_1') }}"
+    quoting:
+      database: false
+      schema: false
+      identifier: false
+    tables:
+      - name: car_telemetry
+        description: >
+          One row per car sample. Grain: raceid, driverid, lap, sample_index
+          (sample_index restarts every lap). No row-level source tests: they
+          would scan all 20 million rows on every build. Duplicates are handled
+          in fct_telemetry, and completeness is checked with metadata-only row
+          counts.
+        data_tests:
+          - source_columns_match:
+              name: source_contract_car_telemetry_columns_present
+              arguments:
+                expected_columns: [raceid, driverid, lap, sample_index, recorded_at, speed_kph, throttle_pct, brake, gear, drs, _loaded_at]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_car_telemetry_no_unexpected_columns
+              arguments:
+                expected_columns: [raceid, driverid, lap, sample_index, recorded_at, speed_kph, throttle_pct, brake, gear, drs, _loaded_at]
+                mode: unexpected
+              config:
+                severity: warn

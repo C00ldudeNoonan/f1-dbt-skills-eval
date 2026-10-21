@@ -1,0 +1,63 @@
+version: 2
+
+sources:
+  - name: f1_raw
+    description: >
+      Ergast/Kaggle Formula 1 extract, loaded as text exactly as it appeared in the CSVs.
+      Read-only. Missing values are the literal string \N. Coverage is 1950 through 2024.
+    database: ANALYTICS_DEV
+    schema: "{{ var('raw_schema') }}"
+
+    tables:
+      - name: races
+        description: One row per Grand Prix weekend (the season calendar).
+        columns:
+          - name: raceid
+            data_tests:
+              - unique
+              - not_null
+      - name: results
+        description: One row per driver entry in a Grand Prix. Sprints live in sprint_results.
+        columns:
+          - name: resultid
+            data_tests:
+              - unique
+              - not_null
+      - name: drivers
+        description: One row per driver.
+        columns:
+          - name: driverid
+            data_tests:
+              - unique
+              - not_null
+      - name: constructors
+        description: >
+          One row per constructor (team). The vendor has sent duplicate rows for a constructor before
+          (Ferrari, constructorid 6). stg_f1__constructors dedupes them, and the duplicate is reported as a warning.
+        columns:
+          - name: constructorid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+      - name: status
+        description: Lookup of finishing status text.
+        columns:
+          - name: statusid
+            data_tests:
+              - unique
+              - not_null
+      - name: driver_standings
+        description: Driver championship standings snapshot after every Grand Prix.
+      - name: lap_times
+        description: One row per driver per lap. TIME is text (h:mm:ss.sss for red-flag laps); MILLISECONDS is the reliable value.
+      - name: pit_stops
+        description: One row per pit stop. Durations are also in milliseconds.
+      - name: sprint_results
+        description: Sprint race results. Feeds fct_session_results.
+        columns:
+          - name: resultid
+            data_tests:
+              - unique
+              - not_null

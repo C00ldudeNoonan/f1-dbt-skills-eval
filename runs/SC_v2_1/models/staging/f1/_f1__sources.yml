@@ -1,0 +1,679 @@
+version: 2
+
+sources:
+  - name: f1_raw
+    description: >
+      Ergast / Kaggle Formula 1 CSVs (1950 to the latest loaded season) landed as-is by an
+      external vendor. Every column is text; missing values arrive as `\N`, blank or NULL
+      (staging treats all three as null). The schema is read-only; all cleaning happens in
+      staging.
+
+
+      Every table is guarded by two schema tests: `source_columns_missing` (error: a column,
+      or the whole table, we rely on disappeared or was renamed) and `source_columns_added`
+      (warn: the vendor added a column we have not reviewed). Format tests (`matches_regex`)
+      pin the text formats staging parses, so a vendor format change fails the build at the
+      source instead of silently producing nulls or wrong numbers. Run
+      `dbt test --select source:f1_raw` to check the feed on its own.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_SC_V2_1
+    tables:
+      - name: circuits
+        data_tests:
+          - source_columns_missing:
+              arguments:
+                expected_columns: [circuitid, circuitref, name, location, country, lat, lng, alt, url]
+          - source_columns_added:
+              arguments:
+                expected_columns: [circuitid, circuitref, name, location, country, lat, lng, alt, url]
+      - name: constructors
+        data_tests:
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [constructorid]
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [constructorid]
+          - no_untrimmed_values:
+              arguments:
+                columns: [constructorref, name, nationality]
+          - source_columns_missing:
+              arguments:
+                expected_columns: [constructorid, constructorref, name, nationality, url]
+          - source_columns_added:
+              arguments:
+                expected_columns: [constructorid, constructorref, name, nationality, url]
+        columns:
+          - name: constructorid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+      - name: constructor_results
+        data_tests:
+          - source_columns_missing:
+              arguments:
+                expected_columns: [constructorresultsid, raceid, constructorid, points, status]
+          - source_columns_added:
+              arguments:
+                expected_columns: [constructorresultsid, raceid, constructorid, points, status]
+      - name: constructor_standings
+        data_tests:
+          - source_columns_missing:
+              arguments:
+                expected_columns: [constructorstandingsid, raceid, constructorid, points, position, positiontext, wins]
+          - source_columns_added:
+              arguments:
+                expected_columns: [constructorstandingsid, raceid, constructorid, points, position, positiontext, wins]
+      - name: drivers
+        data_tests:
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [driverid]
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [driverid]
+          - no_untrimmed_values:
+              arguments:
+                columns: [driverref, code, forename, surname, nationality]
+          - source_columns_missing:
+              arguments:
+                expected_columns: [driverid, driverref, number, code, forename, surname, dob, nationality, url]
+          - source_columns_added:
+              arguments:
+                expected_columns: [driverid, driverref, number, code, forename, surname, dob, nationality, url]
+        columns:
+          - name: driverid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: number
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+          - name: dob
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}/[0-9]{2}/[0-9]{4})$'
+      - name: driver_standings
+        data_tests:
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [raceid, driverid]
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, driverid]
+                ignore_columns: [driverstandingsid]
+          - source_columns_missing:
+              arguments:
+                expected_columns: [driverstandingsid, raceid, driverid, points, position, positiontext, wins]
+          - source_columns_added:
+              arguments:
+                expected_columns: [driverstandingsid, raceid, driverid, points, position, positiontext, wins]
+        columns:
+          - name: driverstandingsid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: raceid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: driverid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: points
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 0
+                    max_value: 1000
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+([.][0-9]+)?$'
+                    allow_null: false
+          - name: position
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1
+                    max_value: 200
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: wins
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 0
+                    max_value: 30
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+      - name: lap_times
+        identifier: lap_timing
+        description: Vendor renamed this table from `lap_times` to `lap_timing`; `identifier` maps it so models keep using `source('f1_raw', 'lap_times')`.
+        data_tests:
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [raceid, driverid, lap]
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, driverid, lap]
+          - source_columns_missing:
+              arguments:
+                expected_columns: [raceid, driverid, lap, position, time, milliseconds]
+          - source_columns_added:
+              arguments:
+                expected_columns: [raceid, driverid, lap, position, time, milliseconds]
+        columns:
+          - name: raceid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: driverid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: lap
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1
+                    max_value: 400
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: position
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1
+                    max_value: 60
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: milliseconds
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1
+                    max_value: 14400000
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+      - name: pit_stops
+        data_tests:
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [raceid, driverid, stop]
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid, driverid, stop]
+          - source_columns_missing:
+              arguments:
+                expected_columns: [raceid, driverid, stop, lap, time, milliseconds]
+          - source_columns_added:
+              arguments:
+                expected_columns: [raceid, driverid, stop, lap, time, milliseconds]
+        columns:
+          - name: raceid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: driverid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: stop
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1
+                    max_value: 100
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: lap
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: milliseconds
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1000
+                    max_value: 7200000
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+      - name: qualifying
+        data_tests:
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [qualifyid]
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [qualifyid]
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [raceid, driverid]
+                severity: error
+          - source_columns_missing:
+              arguments:
+                expected_columns: [qualifyid, raceid, driverid, constructorid, number, position, q1, q2, q3]
+          - source_columns_added:
+              arguments:
+                expected_columns: [qualifyid, raceid, driverid, constructorid, number, position, q1, q2, q3]
+        columns:
+          - name: qualifyid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: raceid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: driverid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: constructorid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: position
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1
+                    max_value: 60
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: q1
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+:[0-9]{2}[.][0-9]{3}$'
+          - name: q2
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+:[0-9]{2}[.][0-9]{3}$'
+          - name: q3
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+:[0-9]{2}[.][0-9]{3}$'
+      - name: races
+        data_tests:
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [raceid]
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [raceid]
+          - no_untrimmed_values:
+              arguments:
+                columns: [name]
+          - source_columns_missing:
+              arguments:
+                expected_columns: [raceid, year, round, circuitid, name, date, time, url, fp1_date, fp1_time, fp2_date, fp2_time, fp3_date, fp3_time, quali_date, quali_time, sprint_date, sprint_time]
+          - source_columns_added:
+              arguments:
+                expected_columns: [raceid, year, round, circuitid, name, date, time, url, fp1_date, fp1_time, fp2_date, fp2_time, fp3_date, fp3_time, quali_date, quali_time, sprint_date, sprint_time]
+        columns:
+          - name: raceid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: year
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1950
+                    max_value: 2100
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: round
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1
+                    max_value: 40
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: date
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}/[0-9]{2}/[0-9]{4})$'
+                    allow_null: false
+      - name: results
+        data_tests:
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [resultid]
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [resultid]
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [raceid, driverid, constructorid, position_order]
+                severity: error
+          - source_columns_missing:
+              arguments:
+                expected_columns: [resultid, raceid, driverid, constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, rank, fastestlaptime, fastestlapspeed, statusid]
+          - source_columns_added:
+              arguments:
+                expected_columns: [resultid, raceid, driverid, constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, rank, fastestlaptime, fastestlapspeed, statusid]
+        columns:
+          - name: resultid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: raceid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: driverid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: constructorid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: statusid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: grid
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 0
+                    max_value: 60
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: position
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+          - name: position_order
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1
+                    max_value: 100
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: points
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 0
+                    max_value: 50
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+([.][0-9]+)?$'
+                    allow_null: false
+          - name: laps
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 0
+                    max_value: 400
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: fastestlaptime
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+:[0-9]{2}[.][0-9]{3}$'
+      - name: seasons
+        data_tests:
+          - source_columns_missing:
+              arguments:
+                expected_columns: [year, url]
+          - source_columns_added:
+              arguments:
+                expected_columns: [year, url]
+      - name: sprint_results
+        description: Sprint session results. Intentionally not part of `fct_results` (Grands Prix only).
+        data_tests:
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [resultid]
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [resultid]
+          - source_columns_missing:
+              arguments:
+                expected_columns: [resultid, raceid, driverid, constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, fastestlaptime, statusid]
+          - source_columns_added:
+              arguments:
+                expected_columns: [resultid, raceid, driverid, constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, fastestlaptime, statusid]
+        columns:
+          - name: resultid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: raceid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: driverid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: constructorid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: position
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+          - name: position_order
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 1
+                    max_value: 40
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: points
+            data_tests:
+              - values_between:
+                  arguments:
+                    min_value: 0
+                    max_value: 20
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+([.][0-9]+)?$'
+                    allow_null: false
+      - name: status
+        data_tests:
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [statusid]
+          - no_conflicting_duplicates:
+              arguments:
+                key_columns: [statusid]
+          - no_untrimmed_values:
+              arguments:
+                columns: [status]
+          - source_columns_missing:
+              arguments:
+                expected_columns: [statusid, status]
+          - source_columns_added:
+              arguments:
+                expected_columns: [statusid, status]
+        columns:
+          - name: statusid
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+      - name: vb_drivers
+        description: Vendor B drivers (own DRV keys, names as SURNAME Firstname). Racing numbers are not trusted for matching.
+        data_tests:
+          - source_columns_missing:
+              arguments:
+                expected_columns: [driver_key, full_name, abbreviation, racing_number]
+          - source_columns_added:
+              arguments:
+                expected_columns: [driver_key, full_name, abbreviation, racing_number]
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [driver_key]
+                severity: error
+          - no_untrimmed_values:
+              arguments:
+                columns: [full_name, abbreviation]
+      - name: vb_sessions
+        description: Vendor B sessions (own numeric keys, meeting names are venue names, date_start is UTC and sometimes missing).
+        data_tests:
+          - source_columns_missing:
+              arguments:
+                expected_columns: [session_key, session_type, meeting_name, year, date_start]
+          - source_columns_added:
+              arguments:
+                expected_columns: [session_key, session_type, meeting_name, year, date_start]
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [session_key]
+                severity: error
+        columns:
+          - name: year
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]{4}$'
+                    allow_null: false
+          - name: date_start
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T([0-9]{2}:[0-9]{2}:[0-9]{2}|[^0-9]{2})Z$'
+      - name: vb_results
+        description: Vendor B results. position is a number or a status (DNF, DSQ).
+        data_tests:
+          - source_columns_missing:
+              arguments:
+                expected_columns: [session_key, driver_key, team_name, grid_position, position, points]
+          - source_columns_added:
+              arguments:
+                expected_columns: [session_key, driver_key, team_name, grid_position, position, points]
+          - duplicate_key_rows:
+              arguments:
+                key_columns: [session_key, driver_key]
+                severity: error
+        columns:
+          - name: grid_position
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+$'
+                    allow_null: false
+          - name: position
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^([0-9]+|DNF|DSQ|DNS|NC|WD)$'
+                    allow_null: false
+          - name: points
+            data_tests:
+              - matches_regex:
+                  arguments:
+                    regex: '^[0-9]+([.][0-9]+)?$'
+                    allow_null: false
+      - name: car_telemetry
+        description: >
+          Car telemetry samples (~20M rows, 2022 onward, ~4 samples/s/car). Typed columns (not text).
+          `sample_index` restarts every lap, so a sample is keyed by race, driver, lap and index.
+          `_loaded_at` is the warehouse landing time and is the incremental watermark: samples can land
+          weeks after the race. Deliberately no row-level source tests here: any test on this table
+          scans all of it. Schema tests only (DESCRIBE, free).
+        data_tests:
+          - source_columns_missing:
+              arguments:
+                expected_columns: [raceid, driverid, lap, sample_index, recorded_at, speed_kph, throttle_pct, brake, gear, drs, _loaded_at]
+          - source_columns_added:
+              arguments:
+                expected_columns: [raceid, driverid, lap, sample_index, recorded_at, speed_kph, throttle_pct, brake, gear, drs, _loaded_at]

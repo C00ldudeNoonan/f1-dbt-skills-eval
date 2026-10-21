@@ -1,0 +1,198 @@
+version: 2
+
+models:
+  - name: mart_driver_season_standings
+    description: >
+      Official Drivers' Championship standings, one row per driver per season, as
+      of the latest round that has results. Taken from the published standings
+      snapshot so totals follow each era's rules (dropped scores, shared drives,
+      half points, sprint points from 2021). Reconciled against the
+      known_world_champions seed. Drivers who never appear in the published
+      standings (for example only non-qualifications, or a lone zero-point
+      disqualification) have no row.
+    config:
+      tags: [standings]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, championship_position]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: championship_position
+        description: >
+          Official championship position. Null for a driver excluded from the
+          championship (Michael Schumacher, 1997).
+      - name: position_text
+        description: Published position text; 'D' marks an excluded driver.
+      - name: points
+        description: Official championship points, including sprint points from 2021.
+        data_tests: [not_null]
+      - name: wins
+        description: Grand Prix wins counted in the standings.
+        data_tests: [not_null]
+      - name: as_of_round
+        description: Latest completed round the standings reflect.
+      - name: as_of_race_id
+        description: race_id of as_of_round.
+      - name: is_season_complete
+        description: True when every race on the season calendar has results.
+
+  - name: mart_driver_standings_by_round
+    description: >
+      Official Drivers' Championship standings after every round, one row per
+      driver per round they appear in the published standings. Includes sprint
+      points from 2021 and each era's scoring rules. mart_driver_season_standings
+      is this model filtered to each season's latest completed round.
+    config:
+      tags: [standings]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, championship_position]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: championship_position
+        description: Official position after this round; null for an excluded driver.
+      - name: position_text
+        description: Published position text; 'D' marks an excluded driver.
+      - name: points
+        description: Cumulative official points after this round.
+        data_tests: [not_null]
+      - name: wins
+        description: Cumulative wins after this round.
+        data_tests: [not_null]
+
+  - name: mart_alt_points_standings
+    description: >
+      What-if Drivers' Championship: each season re-scored under every system in
+      the points_systems seed (today only current_2010: 25-18-15-12-10-8-6-4-2-1).
+      Grand Prix results only, classified finishers scored by position_order,
+      every entry scores separately, no dropped scores. Grain is points_system ×
+      season × driver, covering every driver with a Grand Prix result that
+      season; filter on points_system for one row per driver per season. To add
+      a system, add rows to seeds/points_systems.csv; no SQL change needed.
+    config:
+      tags: [standings]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, season, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, season, alt_position]
+    columns:
+      - name: points_system
+        description: Key into the points_systems seed.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('points_systems')
+                field: points_system
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: alt_points
+        description: Points under this system.
+        data_tests: [not_null]
+      - name: alt_position
+        description: >
+          Rank by alt_points desc, then countback (wins, 2nds, ... 10ths), then
+          lowest driver_id. Always unique within a season and system.
+        data_tests: [not_null]
+      - name: alt_wins
+        description: Grand Prix wins (classified position_order 1) in the season.
+
+unit_tests:
+  - name: mart_alt_points_standings_scoring_and_countback
+    description: >
+      Classified finishers score by position_order; unclassified entries and
+      positions outside the table score 0; ties go to countback, then driver_id.
+    model: mart_alt_points_standings
+    given:
+      - input: ref('points_systems')
+        rows:
+          - {points_system: test, position: 1, points: 10}
+          - {points_system: test, position: 2, points: 6}
+          - {points_system: test, position: 3, points: 4}
+      - input: ref('fct_results')
+        rows:
+          # Driver 1: two 2nds = 12. Drivers 2 and 3: one win each = 10 (driver 2's
+          # unclassified entry scores nothing), full countback tie, so driver_id decides.
+          # Drivers 4 and 5 score 0; driver 4's 4th place wins the countback.
+          - {season: 2000, race_id: 1, driver_id: 1, position_order: 2, is_classified: true}
+          - {season: 2000, race_id: 2, driver_id: 1, position_order: 2, is_classified: true}
+          - {season: 2000, race_id: 1, driver_id: 2, position_order: 1, is_classified: true}
+          - {season: 2000, race_id: 2, driver_id: 2, position_order: 3, is_classified: false}
+          - {season: 2000, race_id: 2, driver_id: 3, position_order: 1, is_classified: true}
+          - {season: 2000, race_id: 1, driver_id: 4, position_order: 4, is_classified: true}
+          - {season: 2000, race_id: 1, driver_id: 5, position_order: 5, is_classified: true}
+    expect:
+      rows:
+        - {points_system: test, season: 2000, driver_id: 1, alt_points: 12, alt_position: 1}
+        - {points_system: test, season: 2000, driver_id: 2, alt_points: 10, alt_position: 2}
+        - {points_system: test, season: 2000, driver_id: 3, alt_points: 10, alt_position: 3}
+        - {points_system: test, season: 2000, driver_id: 4, alt_points: 0, alt_position: 4}
+        - {points_system: test, season: 2000, driver_id: 5, alt_points: 0, alt_position: 5}
+
+  - name: mart_alt_points_standings_countback_order
+    description: >
+      Equal points are split by countback: more wins first (season 2000), then,
+      with equal wins, more 2nd places (season 2001).
+    model: mart_alt_points_standings
+    given:
+      - input: ref('points_systems')
+        rows:
+          - {points_system: test, position: 1, points: 10}
+          - {points_system: test, position: 2, points: 6}
+          - {points_system: test, position: 3, points: 3}
+          - {points_system: test, position: 4, points: 2}
+      - input: ref('fct_results')
+        rows:
+          # 2000: driver 1 = 1st + 4th = 12, driver 2 = 2nd + 2nd = 12. Driver 1 has a win.
+          - {season: 2000, race_id: 1, driver_id: 2, position_order: 2, is_classified: true}
+          - {season: 2000, race_id: 2, driver_id: 2, position_order: 2, is_classified: true}
+          - {season: 2000, race_id: 1, driver_id: 1, position_order: 1, is_classified: true}
+          - {season: 2000, race_id: 2, driver_id: 1, position_order: 4, is_classified: true}
+          # 2001: driver 4 = 2nd + 3rd + 3rd = 12, driver 3 = 2nd + 2nd = 12. No wins; driver 3 has more 2nds.
+          - {season: 2001, race_id: 3, driver_id: 4, position_order: 2, is_classified: true}
+          - {season: 2001, race_id: 4, driver_id: 4, position_order: 3, is_classified: true}
+          - {season: 2001, race_id: 5, driver_id: 4, position_order: 3, is_classified: true}
+          - {season: 2001, race_id: 4, driver_id: 3, position_order: 2, is_classified: true}
+          - {season: 2001, race_id: 5, driver_id: 3, position_order: 2, is_classified: true}
+    expect:
+      rows:
+        - {season: 2000, driver_id: 1, alt_points: 12, alt_position: 1}
+        - {season: 2000, driver_id: 2, alt_points: 12, alt_position: 2}
+        - {season: 2001, driver_id: 3, alt_points: 12, alt_position: 1}
+        - {season: 2001, driver_id: 4, alt_points: 12, alt_position: 2}

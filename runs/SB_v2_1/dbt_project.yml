@@ -1,0 +1,30 @@
+name: f1
+version: '1.0.0'
+profile: f1
+require-dbt-version: ">=2.0.0"
+
+model-paths: [models]
+macro-paths: [macros]
+test-paths: [tests]
+seed-paths: [seeds]
+on-run-start:
+  - "{{ check_source_schema() }}"
+
+clean-targets: [target, dbt_packages]
+
+models:
+  f1:
+    +on_schema_change: sync_all_columns
+    +access: protected   # only models explicitly marked public are interfaces for other projects
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+
+seeds:
+  f1:
+    +schema: reference

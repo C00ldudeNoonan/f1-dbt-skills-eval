@@ -1,0 +1,10 @@
+version: 2
+
+groups:
+  - name: f1_analytics
+    owner:
+      name: F1 Analytics Engineering
+    description: >
+      Owns every model in this project. Only models marked access: public
+      (fct_results, dim_drivers) are supported interfaces for other projects;
+      everything else is protected and may change without notice.

@@ -1,0 +1,101 @@
+version: 2
+
+unit_tests:
+  - name: orphan_driver_ids_found_when_driver_record_missing
+    description: A result for a driver with no drivers record is reported as an orphan.
+    model: int_orphan_driver_ids
+    given:
+      - input: ref('stg_f1__results')
+        rows:
+          - {driver_id: 1, race_id: 10}
+          - {driver_id: 999, race_id: 10}
+          - {driver_id: 999, race_id: 11}
+      - input: ref('stg_f1__sprint_results')
+        rows: []
+      - input: ref('stg_f1__qualifying')
+        rows: []
+      - input: ref('stg_f1__driver_standings')
+        rows: []
+      - input: ref('stg_f1__pit_stops')
+        rows: []
+      - input: ref('stg_f1__lap_times')
+        rows: []
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: alonso}
+    expect:
+      rows:
+        - {driver_id: 999, result_rows: 2, sprint_result_rows: 0, qualifying_rows: 0, standings_rows: 0, pit_stop_rows: 0, lap_rows: 0}
+
+  - name: championship_counts_only_complete_seasons
+    description: >
+      Driver 1 is champion in 2023 (complete) and leads 2024 (not complete). Only the 2023 title
+      counts. Driver 2 finished second in 2023, so has no title.
+    model: int_dim_drivers
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: verstappen, forename: Max, surname: Verstappen, nationality: Dutch, date_of_birth: '1997-09-30', permanent_number: 1, driver_code: VER}
+          - {driver_id: 2, driver_ref: perez, forename: Sergio, surname: Perez, nationality: Mexican, date_of_birth: '1990-01-26', permanent_number: 11, driver_code: PER}
+      - input: ref('int_orphan_driver_ids')
+        rows: []
+      - input: ref('fct_results')
+        rows: []
+      - input: ref('fct_session_results')
+        rows: []
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2023, driver_id: 1, championship_position: 1, is_season_complete: true}
+          - {season: 2024, driver_id: 1, championship_position: 1, is_season_complete: false}
+          - {season: 2023, driver_id: 2, championship_position: 2, is_season_complete: true}
+    expect:
+      rows:
+        - {driver_id: 1, world_championships: 1}
+        - {driver_id: 2, world_championships: 0}
+
+  - name: int_dim_drivers_placeholder_for_orphan_driver
+    description: >
+      A driver with results but no drivers record gets a placeholder row with career counts from
+      those results. A real driver keeps the feed values and current_number.
+    model: int_dim_drivers
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: alonso, forename: Fernando, surname: Alonso, nationality: Spanish, date_of_birth: '1981-07-29', permanent_number: 14, driver_code: ALO}
+          - {driver_id: 2, driver_ref: rookie, forename: Real, surname: Rookie, nationality: Dutch, date_of_birth: '2005-01-01', permanent_number: null, driver_code: null}
+      - input: ref('int_orphan_driver_ids')
+        rows:
+          - {driver_id: 999, result_rows: 2}
+      - input: ref('fct_results')
+        rows:
+          - {result_id: 1, race_id: 10, driver_id: 1, is_win: true, is_podium: true}
+          - {result_id: 2, race_id: 10, driver_id: 999, is_win: false, is_podium: false}
+          - {result_id: 3, race_id: 11, driver_id: 999, is_win: false, is_podium: true}
+      - input: ref('fct_session_results')
+        rows:
+          - {session_type: sprint, source_result_id: 7, driver_id: 1, finish_position: 1}
+          - {session_type: sprint, source_result_id: 8, driver_id: 2, finish_position: 2}
+      - input: ref('mart_driver_season_standings')
+        rows: []
+    expect:
+      rows:
+        - {driver_id: 1, driver_ref: alonso, first_name: Fernando, last_name: Alonso, full_name: Fernando Alonso, nationality: Spanish, date_of_birth: '1981-07-29', current_number: 14, driver_code: ALO, is_placeholder: false, career_starts: 1, career_wins: 1, career_podiums: 1, career_sprint_wins: 1, world_championships: 0}
+        - {driver_id: 2, driver_ref: rookie, first_name: Real, last_name: Rookie, full_name: Real Rookie, nationality: Dutch, date_of_birth: '2005-01-01', current_number: null, driver_code: null, is_placeholder: false, career_starts: 0, career_wins: 0, career_podiums: 0, career_sprint_wins: 0, world_championships: 0}
+        - {driver_id: 999, driver_ref: unknown_999, first_name: null, last_name: null, full_name: null, nationality: null, date_of_birth: null, current_number: null, driver_code: null, is_placeholder: true, career_starts: 2, career_wins: 0, career_podiums: 1, career_sprint_wins: 0, world_championships: 0}
+
+  - name: fastest_lap_time_parses_to_milliseconds
+    description: >
+      Fastest-lap text m:ss.mmm becomes milliseconds (1:32.123 is 92123). A missing value (\\N or
+      empty) becomes null.
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'RESULTS')
+        rows:
+          - {RESULTID: '1', RACEID: '10', DRIVERID: '1', CONSTRUCTORID: '6', NUMBER: '1', GRID: '1', POSITION: '1', POSITIONTEXT: '1', POSITION_ORDER: '1', POINTS: '25', LAPS: '57', MILLISECONDS: '5400000', FASTESTLAP: '57', RANK: '1', FASTESTLAPTIME: '1:32.123', FASTESTLAPSPEED: '210.5', STATUSID: '1'}
+          - {RESULTID: '2', RACEID: '10', DRIVERID: '2', CONSTRUCTORID: '6', NUMBER: '2', GRID: '2', POSITION: '2', POSITIONTEXT: '2', POSITION_ORDER: '2', POINTS: '18', LAPS: '57', MILLISECONDS: '5401000', FASTESTLAP: '50', RANK: '2', FASTESTLAPTIME: '1:33.000', FASTESTLAPSPEED: '209.0', STATUSID: '1'}
+          - {RESULTID: '3', RACEID: '10', DRIVERID: '3', CONSTRUCTORID: '7', NUMBER: '3', GRID: '3', POSITION: '\\N', POSITIONTEXT: 'R', POSITION_ORDER: '3', POINTS: '0', LAPS: '12', MILLISECONDS: '\\N', FASTESTLAP: '\\N', RANK: '\\N', FASTESTLAPTIME: '\\N', FASTESTLAPSPEED: '\\N', STATUSID: '3'}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 92123}
+        - {result_id: 2, fastest_lap_time_ms: 93000}
+        - {result_id: 3, fastest_lap_time_ms: null}

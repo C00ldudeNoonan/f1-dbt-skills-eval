@@ -1,0 +1,28 @@
+version: 2
+
+unit_tests:
+  - name: test_fastest_lap_time_parsed_to_integer_ms
+    description: >
+      fastestLapTime arrives as text 'm:ss.fff'. It must become integer
+      milliseconds, tolerating stray whitespace, sub-minute laps without a
+      minutes part, multi-minute laps, and the Ergast null marker.
+    model: stg_ergast__results
+    given:
+      - input: source('ergast', 'results')
+        rows:
+          - {resultid: '1', fastestlaptime: '1:23.456'}
+          - {resultid: '2', fastestlaptime: '59.123'}
+          - {resultid: '3', fastestlaptime: '\N'}
+          - {resultid: '4', fastestlaptime: ' 1:05.007 '}
+          - {resultid: '5', fastestlaptime: '10:00.000'}
+          - {resultid: '6', fastestlaptime: '1:00.001'}
+          - {resultid: '7', fastestlaptime: ''}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 83456}
+        - {result_id: 2, fastest_lap_time_ms: 59123}
+        - {result_id: 3, fastest_lap_time_ms: null}
+        - {result_id: 4, fastest_lap_time_ms: 65007}
+        - {result_id: 5, fastest_lap_time_ms: 600000}
+        - {result_id: 6, fastest_lap_time_ms: 60001}
+        - {result_id: 7, fastest_lap_time_ms: null}

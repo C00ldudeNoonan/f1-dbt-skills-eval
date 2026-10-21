@@ -1,0 +1,301 @@
+version: 2
+
+# fct_results and dim_drivers are PUBLIC interfaces consumed by other dbt
+# projects: contracts are enforced, access is public, and any breaking change
+# (removing, renaming or retyping a column) ships as a new model version.
+
+models:
+  - name: fct_results
+    description: >
+      One row per Grand Prix result entry, 1950 to the latest completed round.
+      Sprint races are excluded (see fct_session_results). In 1950-1964 shared drives mean a driver can
+      appear more than once in a race and two drivers can share a finishing
+      position (both credited, as in the official record).
+    config:
+      access: public
+      contract:
+        enforced: true
+    columns:
+      - name: result_id
+        data_type: integer
+        description: Ergast result identifier.
+        constraints:
+          - type: not_null
+          - type: primary_key
+            # informational in Snowflake; uniqueness is enforced by the unique test
+            warn_unenforced: false
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_type: integer
+        constraints: [{type: not_null}]
+        data_tests: [not_null]
+      - name: season
+        data_type: integer
+        constraints: [{type: not_null}]
+        data_tests: [not_null]
+      - name: round
+        data_type: integer
+        constraints: [{type: not_null}]
+        data_tests: [not_null]
+      - name: race_date
+        data_type: date
+        constraints: [{type: not_null}]
+        data_tests: [not_null]
+      - name: race_name
+        data_type: varchar
+      - name: circuit_id
+        data_type: integer
+      - name: driver_id
+        data_type: integer
+        constraints: [{type: not_null}]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        data_type: integer
+        constraints: [{type: not_null}]
+        data_tests: [not_null]
+      - name: constructor_name
+        data_type: varchar
+        data_tests: [not_null]
+      - name: car_number
+        data_type: integer
+      - name: grid
+        data_type: integer
+        description: Starting grid slot. 0 = pit lane start or did not start.
+        data_tests:
+          - not_null
+          - accepted_range:
+              arguments:
+                min_value: 0
+      - name: finish_position
+        data_type: integer
+        description: Official classified finishing position; null when not classified (retired, DSQ, DNQ, etc.).
+        data_tests:
+          - accepted_range:
+              arguments:
+                min_value: 1
+      - name: position_text
+        data_type: varchar
+        description: "Ergast position text: a number, or R (retired), D (disqualified), E (excluded), W (withdrew), F (failed to qualify), N (not classified)."
+      - name: position_order
+        data_type: integer
+        description: >
+          Ergast's ordering of all entries in the race, populated for every row.
+          A sort key, not an official position: it can differ from
+          finish_position (e.g. 1983 Brazil, where 2nd place was left vacant after
+          a disqualification).
+        data_tests: [not_null]
+      - name: points
+        data_type: number(10, 2)
+        description: Championship points scored in this Grand Prix (before any dropped-score rules).
+        data_tests: [not_null]
+      - name: laps
+        data_type: integer
+        data_tests: [not_null]
+      - name: status
+        data_type: varchar
+        description: Finishing status, e.g. Finished, +1 Lap, Engine, Disqualified.
+        data_tests: [not_null]
+      - name: is_win
+        data_type: boolean
+        description: Classified first.
+        data_tests: [not_null]
+      - name: is_podium
+        data_type: boolean
+        description: Classified in the top three.
+        data_tests: [not_null]
+      - name: race_time_ms
+        data_type: integer
+        description: Total race time in milliseconds (finishers on the lead lap only).
+      - name: fastest_lap_number
+        data_type: integer
+      - name: fastest_lap_rank
+        data_type: integer
+      - name: fastest_lap_time_ms
+        data_type: integer
+        description: The entry's fastest lap in integer milliseconds. Null before 2004, when Ergast does not record it.
+        data_tests:
+          - accepted_range:
+              arguments:
+                min_value: 30000
+                max_value: 600000
+
+  - name: fct_session_results
+    description: >
+      One row per entry, classified or not, across every points-scoring
+      session: Grand Prix races (session_type 'race') and sprints ('sprint').
+      The race rows match fct_results one to one.
+    columns:
+      - name: session_result_id
+        description: Surrogate key, session_type || '-' || source_result_id.
+        data_tests: [unique, not_null]
+      - name: session_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: source_result_id
+        description: resultId from the source table (results for races, sprint_results for sprints). Not unique across session types.
+        data_tests: [not_null]
+      - name: race_id
+        description: The race weekend (a sprint shares its Grand Prix's race_id).
+        data_tests: [not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: finish_position
+        description: Classified finishing position; null when not classified.
+        data_tests:
+          - accepted_range:
+              arguments:
+                min_value: 1
+      - name: points
+        data_tests: [not_null]
+      - name: is_win
+        data_tests: [not_null]
+  - name: dim_drivers
+    description: >
+      One row per driver with career totals. Versioned public interface:
+      v2 (latest) has first_name / last_name. v1 (deprecated 2027-01-01) has
+      forename / surname / full_name. Pin a version with
+      ref('f1_analytics', 'dim_drivers', v=1); an unpinned ref resolves to the latest.
+    latest_version: 2
+    config:
+      access: public
+      contract:
+        enforced: true
+    columns:
+      - &driver_id
+        name: driver_id
+        data_type: integer
+        constraints:
+          - type: not_null
+          - type: primary_key
+            # informational in Snowflake; uniqueness is enforced by the unique test
+            warn_unenforced: false
+        data_tests: [unique, not_null]
+      - &driver_ref
+        name: driver_ref
+        data_type: varchar
+        description: Ergast's stable text key for the driver, e.g. 'hamilton'.
+        data_tests: [unique, not_null]
+      - &driver_code
+        name: driver_code
+        data_type: varchar
+        description: Three-letter timing code (e.g. HAM). Null for most pre-2000s drivers.
+      - &current_number
+        name: current_number
+        data_type: integer
+        description: >
+          The driver's current permanent car number (introduced 2014); null if
+          they have none. For past numbers see stg_ergast__driver_history.
+        data_tests:
+          - accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 99
+      - name: first_name
+        data_type: varchar
+        description: Given name as recorded by Ergast (e.g. "Juan" for Juan Manuel Fangio).
+        data_tests: [not_null]
+      - name: last_name
+        data_type: varchar
+        description: Family name as recorded by Ergast.
+        data_tests: [not_null]
+      - &nationality
+        name: nationality
+        data_type: varchar
+        data_tests: [not_null]
+      - &date_of_birth
+        name: date_of_birth
+        data_type: date
+      - &career_starts
+        name: career_starts
+        data_type: integer
+        description: Distinct Grands Prix entered (any results row, including DNQ/DNS). Sprints excluded.
+        data_tests: [not_null]
+      - &career_wins
+        name: career_wins
+        data_type: integer
+        description: Distinct Grands Prix won (shared-drive wins count for each driver). Sprint wins are not included.
+        data_tests: [not_null]
+      - &career_sprint_wins
+        name: career_sprint_wins
+        data_type: integer
+        description: Sprint race wins (sprints began in 2021).
+        data_tests: [not_null]
+      - &career_podiums
+        name: career_podiums
+        data_type: integer
+        description: Distinct Grands Prix finished in the top three.
+        data_tests: [not_null]
+      - &career_points_scored
+        name: career_points_scored
+        data_type: number(10, 2)
+        description: Sum of Grand Prix points as scored (before dropped-score rules; sprints excluded).
+      - &world_championships
+        name: world_championships
+        data_type: integer
+        description: >
+          Drivers' titles. A season only counts once it is complete, i.e. every
+          race on that season's calendar has results; the in-progress season
+          never contributes.
+        data_tests: [not_null]
+      - &first_race_date
+        name: first_race_date
+        data_type: date
+      - &last_race_date
+        name: last_race_date
+        data_type: date
+    versions:
+      - v: 2
+      - v: 1
+        deprecation_date: 2027-01-01
+        description: >
+          DEPRECATED (2027-01-01). Use v2, which replaces forename / surname /
+          full_name with first_name / last_name. Built into the original
+          DIM_DRIVERS relation for existing readers.
+        config:
+          alias: dim_drivers
+        # Explicit list (not include/exclude) so v1 keeps its original column order.
+        columns:
+          - include: none
+          - *driver_id
+          - *driver_ref
+          - *driver_code
+          - *current_number
+          - name: forename
+            data_type: varchar
+            data_tests: [not_null]
+          - name: surname
+            data_type: varchar
+            data_tests: [not_null]
+          - name: full_name
+            data_type: varchar
+            description: forename || ' ' || surname, as recorded by Ergast (e.g. "Juan Fangio").
+            data_tests: [not_null]
+          - *nationality
+          - *date_of_birth
+          - *career_starts
+          - *career_wins
+          - *career_sprint_wins
+          - *career_podiums
+          - *career_points_scored
+          - *world_championships
+          - *first_race_date
+          - *last_race_date

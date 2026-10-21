@@ -1,0 +1,29 @@
+version: 2
+
+models:
+  - name: dim_constructors
+    description: One row per constructor (team entry name, for example Ferrari or Red Bull).
+    config:
+      tags: [core]
+    # dbt Semantic Layer: the "constructors" semantic model.
+    semantic_model:
+      enabled: true
+      name: constructors
+    columns:
+      - name: constructor_id
+        entity:
+          type: primary
+          name: constructor
+        data_tests: [unique, not_null]
+      - name: constructor_ref
+        description: Stable Ergast text key, for example red_bull.
+        dimension:
+          type: categorical
+        data_tests: [unique, not_null]
+      - name: constructor_name
+        dimension:
+          type: categorical
+        data_tests: [not_null]
+      - name: nationality
+        dimension:
+          type: categorical

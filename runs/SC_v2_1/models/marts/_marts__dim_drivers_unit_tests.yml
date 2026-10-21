@@ -1,0 +1,30 @@
+version: 2
+
+unit_tests:
+  - name: dim_drivers_v2_has_first_and_last_name
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('int_f1__driver_profiles')
+        rows:
+          - {driver_id: 1, driver_ref: max, full_name: Max V, first_name: Max, last_name: V, is_placeholder: false}
+          - {driver_id: 999, driver_ref: unknown_999, full_name: Unknown driver (999), first_name: Unknown, last_name: driver (999), is_placeholder: true}
+    expect:
+      rows:
+        - {driver_id: 1, first_name: Max, last_name: V, is_placeholder: false}
+        - {driver_id: 999, first_name: Unknown, last_name: driver (999), is_placeholder: true}
+
+  - name: dim_drivers_v1_keeps_full_name
+    model: dim_drivers
+    versions:
+      include: [1]
+    given:
+      - input: ref('int_f1__driver_profiles')
+        rows:
+          - {driver_id: 1, driver_ref: max, full_name: Max V, first_name: Max, last_name: V, is_placeholder: false}
+          - {driver_id: 999, driver_ref: unknown_999, full_name: Unknown driver (999), first_name: Unknown, last_name: driver (999), is_placeholder: true}
+    expect:
+      rows:
+        - {driver_id: 1, full_name: Max V, is_placeholder: false}
+        - {driver_id: 999, full_name: Unknown driver (999), is_placeholder: true}

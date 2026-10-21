@@ -1,0 +1,28 @@
+version: 2
+
+seeds:
+  - name: points_systems
+    description: >
+      Points awarded by finishing order, one row per system and position. A system applies to
+      seasons from first_season to last_season inclusive. Add a system by adding rows here
+      (a data change, no SQL change). Positions with no row score nothing. Ranks are
+      positions 1 to 10 in the points table; a system that scores beyond 10 needs its own
+      rows.
+    config:
+      column_types:
+        first_season: integer
+        last_season: integer
+        position_order: integer
+        points: integer
+    columns:
+      - name: points_system
+        data_tests: [not_null]
+      - name: position_order
+        data_tests:
+          - not_null
+      - name: points
+        data_tests: [not_null]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, first_season, position_order]

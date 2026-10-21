@@ -1,0 +1,114 @@
+version: 2
+
+models:
+  - name: mart_driver_teammate_performance
+    description: >
+      Which drivers consistently beat the other driver in the same car (see docs/leadership_answers.md).
+      One row per driver with at least one qualifying teammate comparison. Gaps are percentages of the
+      teammate's time; negative = faster than teammates. Verdict requires >= 40 qualifying sessions, >= 2
+      different teammates and >= 4 season-teammate clusters, and the cluster-robust 95% interval must
+      exclude zero in qualifying, the jointly solved rating must exceed 0.10%, and race pace must not
+      contradict it. "Faster than teammates" is not "overperforms the car": a driver can beat teammates in a
+      poor car or lose to a great one in a strong car.
+    columns:
+      - name: driver_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: quali_sessions
+        data_tests: [not_null]
+      - name: quali_gap_pct
+        description: Mean qualifying gap to teammates in percent (negative = faster).
+      - name: quali_ci_low_pct
+      - name: quali_ci_high_pct
+      - name: quali_rating_pct
+        description: Jointly solved qualifying rating (negative = faster than the average driver), comparable only within the single large connected group of drivers.
+      - name: pace_gap_pct
+        description: Mean race-pace gap to teammates in percent (negative = faster); 1996 onwards, null if no pace comparisons.
+      - name: quali_head_to_head_share
+        description: Share of shared qualifying sessions the driver was ahead.
+      - name: verdict
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [consistently_faster_than_teammates, consistently_slower_than_teammates, inconclusive, insufficient_data]
+
+  - name: int_teammate_qualifying_gaps
+    description: Ordered teammate pairs per race with both qualifying times; gap_pct is symmetric (a vs b = -(b vs a)). Gaps beyond +/-5% are dropped.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, teammate_id, constructor_id]
+    columns:
+      - name: gap_pct
+        data_tests: [not_null]
+
+  - name: int_teammate_pace_gaps
+    description: Ordered teammate pairs per race with >= 10 green laps each; gap_pct of the median green lap. Gaps beyond +/-5% are dropped.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, teammate_id, constructor_id]
+    columns:
+      - name: gap_pct
+        data_tests: [not_null]
+
+  - name: int_driver_quali_ratings
+    description: Jointly solved qualifying rating per driver (see macro speed_ratings).
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: rating_pct
+        data_tests: [not_null]
+
+  - name: int_driver_pace_ratings
+    description: Jointly solved race-pace rating per driver (see macro speed_ratings).
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: rating_pct
+        data_tests: [not_null]
+
+  - name: int_pit_stops_enriched
+    description: >
+      Pit stops with race, circuit and constructor. duration_s is the pit LANE time the feed records (entry to
+      exit), not the stationary time of the tyre change. is_included is false for stops over 60 s.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: circuit_id
+        data_tests: [not_null]
+      - name: duration_s
+        data_tests: [not_null]
+
+  - name: mart_pit_stop_season_trend
+    description: >
+      Season-by-season pit lane times on a like-for-like basis: raw median plus a circuit-adjusted index
+      (1.00 = a typical stop at that circuit over all seasons; circuits with >= 6 seasons of stops only).
+      Pit lane time, not stationary time; stops over 60 s excluded.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: stops
+        data_tests: [not_null]
+      - name: circuit_adjusted_index
+        data_tests: [not_null]
+      - name: stops_per_race
+        description: Falls sharply over the period as tyre rules changed; strategy, not stop speed.
+
+  - name: mart_pit_stop_trend_summary
+    description: >
+      One row: regression of circuit-relative pit lane time on season (slope in percent of the circuit
+      baseline per year, naive t statistic) and a circuit-by-circuit sign count. See docs/leadership_answers.md.
+    columns:
+      - name: stops
+        data_tests: [not_null]
+      - name: slope_pct_per_year
+        description: Change in circuit-relative pit lane time per year over 2011-2024 (percent of circuit baseline; negative = faster).
+        data_tests: [not_null]
+      - name: slope_pct_per_year_2014_on
+        description: Same, 2014-2024 only (the level shifted in 2014, so the full-period slope mixes a step with a trend).

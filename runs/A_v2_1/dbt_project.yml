@@ -1,0 +1,70 @@
+name: f1
+version: "1.0.0"
+config-version: 2
+profile: f1
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+clean-targets: ["target", "dbt_packages", "logs"]
+
+vars:
+  # Pit stops longer than this are red-flag stoppages, not service stops.
+  pit_stop_max_seconds: 60
+  # Laps slower than this multiple of the race's fastest lap are not green-flag laps.
+  green_lap_max_ratio: 1.3
+  # How many of the most recently loaded races fct_lap_times reloads on every
+  # incremental run, to pick up corrected lap times from the timing provider.
+  lap_correction_window_races: 2
+  # Date formats the raw text dates may use, tried in order (see macro to_date).
+  raw_date_formats: ['YYYY-MM-DD', 'DD/MM/YYYY']
+  # Vendor B cross-check feed (see models/marts/vendor_b).
+  # First season compared; later seasons are included as Vendor B delivers them.
+  vendor_b_first_season: 2018
+  vendor_b_session_date_tolerance_days: 2
+  vendor_b_driver_min_score: 2
+  vendor_b_driver_min_margin: 1
+  # Telemetry incremental loads: each run re-reads raw rows loaded within this
+  # many hours before the table's high-water mark, to catch loads that commit
+  # out of order. Raising it only costs a little more scan.
+  telemetry_lookback_hours: 3
+  # Tests on the 20M-row telemetry fact only look at rows loaded this recently.
+  telemetry_test_window_days: 14
+  # Driver-vs-car analysis (models/marts/analysis).
+  # Same-car gaps larger than this (%) are treated as non-representative
+  # (crash, mechanical problem, mixed conditions) and excluded.
+  teammate_gap_max_pct: 3
+  # Minimum green-flag laps for a driver's race pace to count in a race.
+  teammate_race_min_green_laps: 10
+  # Minimum comparisons before a driver can appear on the trusted list.
+  trusted_min_qualifying_comparisons: 50
+  trusted_min_race_comparisons: 30
+  # Pit stop trend: circuits need at least this many seasons of pit data to
+  # provide a baseline.
+  pit_trend_min_circuit_seasons: 3
+  # mart_alt_points_standings countback: compare finishes from 1st down to this position.
+  alt_points_countback_depth: 10
+
+models:
+  f1:
+    # Every model belongs to our team's group. Access defaults to protected;
+    # only the published interfaces (fct_results, dim_drivers) are public.
+    +group: f1_analytics
+    +access: protected
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+
+seeds:
+  f1:
+    +schema: reference

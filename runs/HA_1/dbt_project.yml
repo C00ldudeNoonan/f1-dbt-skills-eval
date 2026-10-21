@@ -1,0 +1,31 @@
+name: f1_analytics
+version: "1.0.0"
+config-version: 2
+
+profile: f1
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+analysis-paths: ["analyses"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - target
+  - dbt_packages
+
+vars:
+  raw_schema: F1_RAW_HA_1
+
+models:
+  f1_analytics:
+    +materialized: table
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: marts

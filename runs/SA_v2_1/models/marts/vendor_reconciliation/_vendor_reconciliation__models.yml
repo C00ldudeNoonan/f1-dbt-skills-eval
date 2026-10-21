@@ -1,0 +1,74 @@
+version: 2
+
+models:
+  - name: dim_session_crosswalk
+    description: >
+      One row per Vendor B session mapped to a primary-feed race_id (see the model header for the rules).
+      A session that cannot be mapped to exactly one race has a null race_id and fails the build.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, session_type]
+    columns:
+      - name: session_key
+        data_tests: [unique, not_null]
+      - name: session_type
+        data_tests:
+          - not_null
+          - accepted_values: {arguments: {values: [race, sprint]}}
+      - name: race_id
+        description: Primary-feed race. Null means the session could not be matched.
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__races'), field: race_id}}
+      - name: season
+      - name: match_method
+        data_tests:
+          - accepted_values: {arguments: {values: [override, race_date, sprint_meeting_and_date]}}
+
+  - name: dim_driver_crosswalk
+    description: >
+      One row per Vendor B driver mapped to a primary-feed driver_id (see the model header for the matching
+      tiers). Unmatched or ambiguous drivers have a null driver_id and fail the build.
+    columns:
+      - name: driver_key
+        data_tests: [unique, not_null]
+      - name: driver_id
+        description: Primary-feed driver. Null means unmatched or ambiguous.
+        data_tests:
+          - not_null
+          - unique
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: match_method
+        data_tests:
+          - accepted_values:
+              arguments: {values: [override, exact_name, surname_and_code, code_and_number, surname_prefix, results_fingerprint]}
+      - name: results_agreement
+        description: Share of the vendor driver's classified entries that equal the mapped driver's (position and points). A low value flags a doubtful name match.
+
+  - name: mart_vendor_result_discrepancies
+    description: >
+      One row per entry per discrepancy between Vendor B and the primary feed (system of record) for the
+      seasons Vendor B covers. Types: points, position, missing_in_vendor_b, missing_in_vendor_a.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, session_type, driver_id, discrepancy_type]
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: session_type
+        data_tests:
+          - not_null
+          - accepted_values: {arguments: {values: [race, sprint]}}
+      - name: driver_id
+        data_tests: [not_null]
+      - name: discrepancy_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments: {values: [points, position, missing_in_vendor_b, missing_in_vendor_a]}
+      - name: vendor_a_value
+        description: Primary-feed value as text (points or finishing position).
+      - name: vendor_b_value
+        description: Vendor B value as text (points, or position / DNF / DSQ).

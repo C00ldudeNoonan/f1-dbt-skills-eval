@@ -1,0 +1,34 @@
+version: 2
+
+unit_tests:
+  - name: int_drivers_resolved_counts_championships_only_in_complete_seasons
+    description: >
+      A title in a complete season counts. A leader in an incomplete season does not, so the title isn't counted until
+      the season is complete. Driver 999 has no driver record and gets a placeholder that still counts its results.
+    model: int_drivers_resolved
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: 'hamilton', driver_number: 44, forename: 'Lewis', surname: 'Hamilton', nationality: 'British', date_of_birth: '1985-01-07'}
+          - {driver_id: 2, driver_ref: 'rosberg', driver_number: 6, forename: 'Nico', surname: 'Rosberg', nationality: 'German', date_of_birth: '1985-06-27'}
+      - input: ref('int_orphan_drivers')
+        rows:
+          - {driver_id: 999}
+      - input: ref('fct_results')
+        rows:
+          - {race_id: 10, driver_id: 1, is_win: false, is_podium: false}
+          - {race_id: 11, driver_id: 1, is_win: true, is_podium: true}
+          - {race_id: 10, driver_id: 999, is_win: false, is_podium: false}
+          - {race_id: 11, driver_id: 999, is_win: true, is_podium: true}
+      - input: ref('fct_session_results')
+        rows:
+          - {session_type: 'sprint', driver_id: 1, is_win: true}
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2014, driver_id: 1, championship_position: 1, is_season_complete: true}
+          - {season: 2024, driver_id: 2, championship_position: 1, is_season_complete: false}
+    expect:
+      rows:
+        - {driver_id: 1, world_championships: 1, career_starts: 2, career_wins: 1, career_podiums: 1, career_sprint_wins: 1, is_placeholder: false}
+        - {driver_id: 2, world_championships: 0, career_starts: 0, career_wins: 0, career_podiums: 0, career_sprint_wins: 0, is_placeholder: false}
+        - {driver_id: 999, world_championships: 0, career_starts: 2, career_wins: 1, career_podiums: 1, career_sprint_wins: 0, is_placeholder: true}

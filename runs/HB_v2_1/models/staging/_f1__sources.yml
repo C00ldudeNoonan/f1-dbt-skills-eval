@@ -1,0 +1,130 @@
+version: 2
+
+sources:
+  - name: f1_raw
+    description: >
+      Ergast/Kaggle Formula 1 data (1950 to 2024 seasons), loaded as text straight
+      from the CSV files. Every value is a string and missing values are the
+      literal `\N`. This schema is read-only: never write to it from this project.
+    database: "{{ var('raw_database') }}"
+    schema: "{{ var('raw_schema') }}"
+    tables:
+      - name: car_telemetry
+        identifier: CAR_TELEMETRY
+        description: >
+          Car telemetry, about 4 samples per second per car, from 2022. Keyed by race, driver, lap
+          and sample index. _LOADED_AT is when a sample landed in the warehouse, and it can be weeks
+          after the race. Always filter incremental reads on _LOADED_AT, never RECORDED_AT.
+        columns:
+          - name: _loaded_at
+            data_tests:
+              - not_null
+      - name: circuits
+        identifier: CIRCUITS
+        columns:
+          - name: circuitid
+            data_tests:
+              - unique
+              - not_null
+      - name: constructors
+        identifier: CONSTRUCTORS
+        description: >
+          One row per constructor. The 2026-10-21 feed carried an exact copy of Ferrari's row.
+          Staging dedupes exact copies. tests/warn_raw_duplicate_copies.sql reports them.
+        columns:
+          - name: constructorid
+            data_tests:
+              - not_null
+      - name: constructor_results
+        identifier: CONSTRUCTOR_RESULTS
+        description: Not used yet. Declared so lineage is complete.
+      - name: constructor_standings
+        identifier: CONSTRUCTOR_STANDINGS
+        description: Not used yet. Declared so lineage is complete.
+      - name: drivers
+        identifier: DRIVERS
+        columns:
+          - name: driverid
+            data_tests:
+              - unique
+              - not_null
+      - name: driver_standings
+        identifier: DRIVER_STANDINGS
+        description: >
+          Driver championship snapshot after every race. Includes sprint points from 2021. The
+          2026-10-21 feed loaded race 1142 twice under two ids. Staging keeps one copy per race
+          and driver.
+        columns:
+          - name: driverstandingsid
+            data_tests:
+              - not_null
+      - name: lap_times
+        identifier: LAP_TIMING
+        description: >
+          One row per driver per lap. MILLISECONDS is the lap duration. The vendor renamed
+          LAP_TIMES to LAP_TIMING in the 2026-10-21 pipeline migration.
+      - name: pit_stops
+        identifier: PIT_STOPS
+        description: >
+          One row per pit stop from 2011 onwards. MILLISECONDS is authoritative. The DURATION
+          column was dropped in the 2026-10-21 migration and is not used.
+      - name: qualifying
+        identifier: QUALIFYING
+        columns:
+          - name: qualifyid
+            data_tests:
+              - unique
+              - not_null
+      - name: races
+        identifier: RACES
+        columns:
+          - name: raceid
+            data_tests:
+              - unique
+              - not_null
+      - name: results
+        identifier: RESULTS
+        description: >
+          Grand Prix results only. Sprint results live in SPRINT_RESULTS. POSITIONORDER was
+          renamed POSITION_ORDER in the 2026-10-21 migration.
+        columns:
+          - name: resultid
+            data_tests:
+              - unique
+              - not_null
+      - name: seasons
+        identifier: SEASONS
+        columns:
+          - name: year
+            data_tests:
+              - unique
+              - not_null
+      - name: sprint_results
+        identifier: SPRINT_RESULTS
+        description: Not used by the marts. Sprints are excluded from fct_results by design.
+      - name: status
+        identifier: STATUS
+        columns:
+          - name: statusid
+            data_tests:
+              - unique
+              - not_null
+
+  - name: vendor_b
+    description: >
+      Second vendor feed, covering 2018 to 2024, loaded into the same raw schema as the primary
+      feed. Its ids are its own. It shares no ids with the primary feed, so it is matched through
+      crosswalk models rather than by key.
+    database: "{{ var('raw_database') }}"
+    schema: "{{ var('raw_schema') }}"
+    tables:
+      - name: vb_drivers
+        identifier: VB_DRIVERS
+        description: One row per Vendor B driver. Full name is written as SURNAME Given.
+      - name: vb_sessions
+        identifier: VB_SESSIONS
+        description: One row per Vendor B session (race or sprint). Meeting name is the city.
+      - name: vb_results
+        identifier: VB_RESULTS
+        description: One row per driver per Vendor B session. Position is a number or DNF or DSQ.
+

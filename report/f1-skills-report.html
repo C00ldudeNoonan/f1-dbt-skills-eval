@@ -1,0 +1,275 @@
+<title>Do dbt Skills Matter?</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: single reading column (~72ch) with full-width chart/table panels; timing-screen accents */
+:root {
+  --bg: #f6f7f8; --surface: #ffffff; --fg: #121417; --fg-2: #4a5058; --muted: #737a83;
+  --rule: #dfe2e6; --grid: #eceef1; --accent: #c1121f;
+  --arm-none: #2a78d6; --arm-available: #eb6834; --arm-forced: #1baf7a;
+  --good: #1f7a3d; --warn: #9a6200; --bad: #b42318; --chip: #eef0f3;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #131518; --surface: #1b1e22; --fg: #eef0f2; --fg-2: #b9bec5; --muted: #8b929b;
+  --rule: #2c3036; --grid: #24282d; --accent: #ef4b55;
+  --arm-none: #3987e5; --arm-available: #d95926; --arm-forced: #199e70;
+  --good: #4cc47a; --warn: #e0a83a; --bad: #f2716a; --chip: #262a30; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #131518; --surface: #1b1e22; --fg: #eef0f2; --fg-2: #b9bec5; --muted: #8b929b;
+  --rule: #2c3036; --grid: #24282d; --accent: #ef4b55;
+  --arm-none: #3987e5; --arm-available: #d95926; --arm-forced: #199e70;
+  --good: #4cc47a; --warn: #e0a83a; --bad: #f2716a; --chip: #262a30; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 var(--body); margin: 0 }
+.wrap { max-width: 980px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 40px 72px; display: grid; gap: 48px }
+.prose { max-width: 70ch }
+h1, h2, h3 { font-family: var(--display); line-height: 1.1; text-wrap: balance; margin: 0 }
+h1 { font-size: clamp(2.4rem, 6vw, 3.6rem); font-weight: 700; letter-spacing: .005em }
+h2 { font-size: 1.9rem; font-weight: 600; padding-top: 10px; border-top: 3px solid var(--fg) }
+h3 { font-size: 1.3rem; font-weight: 600; margin-top: 8px }
+p { margin: 0 } section { display: grid; gap: 18px }
+.eyebrow { font: 600 .78rem/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent) }
+.lede { font-size: 1.2rem; color: var(--fg-2); max-width: 62ch }
+.meta { font: .85rem var(--mono); color: var(--muted) }
+.answer { background: var(--surface); border-left: 4px solid var(--accent); padding: 20px 22px; display: grid; gap: 10px }
+.answer strong { font-weight: 700 }
+ul.findings { margin: 0; padding-left: 1.1em; display: grid; gap: 10px }
+ul.findings li::marker { color: var(--accent) }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 14px; display: grid; gap: 10px; min-width: 0 }
+.panel-head { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: baseline; justify-content: space-between }
+.panel-title { font: 600 1.15rem/1.2 var(--display) }
+.panel-sub { font-size: .9rem; color: var(--fg-2) }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .88rem; color: var(--fg-2) }
+.legend span { display: inline-flex; align-items: center; gap: 6px }
+.sw { width: 11px; height: 11px; border-radius: 50%; display: inline-block }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px }
+svg { display: block; width: 100%; height: auto; overflow: visible }
+svg text { fill: var(--fg-2); font: 12px var(--body) }
+svg .axis { fill: var(--muted); font: 11px var(--mono) }
+svg .rowlab { fill: var(--fg); font: 600 13px var(--body) }
+svg .val { fill: var(--fg); font: 600 11px var(--mono) }
+.scroll { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; font-variant-numeric: tabular-nums }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap }
+th { font: 600 .74rem/1.2 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+td.num, th.num { text-align: right; font-family: var(--mono) }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 99px; background: var(--chip); font: 600 .78rem var(--mono) }
+.pill.good { color: var(--good) } .pill.warn { color: var(--warn) } .pill.bad { color: var(--bad) }
+.arm { display: inline-flex; align-items: center; gap: 6px }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; display: grid; gap: 6px; align-content: start }
+.card .k { font: 600 .74rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+.card .h { font: 600 1.15rem/1.25 var(--display) }
+.card p { font-size: .95rem; color: var(--fg-2) }
+.tip { position: fixed; pointer-events: none; background: var(--fg); color: var(--bg); font: 12px/1.4 var(--body); padding: 7px 9px; border-radius: 4px; max-width: 260px; z-index: 5 }
+code { font: .88em var(--mono); background: var(--chip); padding: 1px 5px; border-radius: 3px }
+.foot { font-size: .88rem; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 14px }
+a { color: inherit; text-decoration-color: var(--accent); text-underline-offset: 3px }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+@media (max-width: 520px) { body { font-size: 16px } th, td { padding: 6px 7px } }
+</style>
+
+<div class="wrap">
+
+<header style="display:grid; gap:14px">
+  <div class="eyebrow">Experiment report · F1 dbt project · 17 agent runs</div>
+  <h1>Do dbt skills matter?</h1>
+  <p class="lede">We had Opus, Sonnet, and Haiku build and maintain a Formula 1 dbt project on Snowflake from scratch, with and without the dbt agent skills, through up to 12 tickets each. Every model was graded against an answer key after the harness injected new data, broke the vendor feed, and planted bugs.</p>
+  <p class="meta">Oct 20–21, 2026 · dbt v2.0.6 on Snowflake · Claude app (Code tab), Auto mode · dbt-agent-skills @ ef57108</p>
+</header>
+
+<section>
+  <div class="answer">
+    <p class="eyebrow">Short answer</p>
+    <p><strong>For correctness, no. For code quality, a little, and less as the model gets stronger.</strong> Every model built correct projects without skills. Of the 6 runs that missed answer-key checks, 5 had skills available or forced. What caused misses was a single early mistake that later tickets never fixed, not a lack of dbt knowledge.</p>
+    <p>Skills did nudge blind code-review scores up on the 7-ticket suite (every skills arm beat its model's no-skills run), but the effect shrank on the harder 12-ticket suite and sits near the reviewer's own run-to-run noise (about 0.2 points). Agents also rarely opened the skills unless told to: runs with skills available read 0–4 skill files across an entire suite, mostly for the Semantic Layer and for contracts and versioning.</p>
+  </div>
+</section>
+
+<section>
+  <h2>What we found</h2>
+  <ul class="findings prose">
+    <li><strong>Correctness was high everywhere.</strong> 11 of 17 runs passed every answer-key check across every ticket. The lowest score (Sonnet with skills available, 61% on the 12-ticket suite) came from restoring a stale backup during a bug fix, which silently reverted 215 corrected lap times and cascaded into four models.</li>
+    <li><strong>Forcing skills made small models busier, not more correct.</strong> Haiku with skills forced used about 1.6× the output tokens and 1.5× the dbt calls of Haiku without skills on the first suite, and it was the only first-suite run to miss checks: it read "career starts" as races started instead of the specified "Grands Prix entered".</li>
+    <li><strong>Model size mattered more than skills.</strong> On the first suite, Opus code scored 4.5–4.6 while Sonnet and Haiku scored 3.5–4.0. On the harder suite the gap closed: every model wrote production-grade projects (3.9–4.7).</li>
+    <li><strong>The most common real defect was a brittle test, evenly split across arms.</strong> Nine runs (three in each arm) wrote a test that hard-codes today's answers (a list of world champions ending in 2023, or fixed career totals). When the harness delivered the final 2024 race, those tests failed the build even though the data was right.</li>
+    <li><strong>Hard engineering tickets were solved almost universally.</strong> All 9 runs on the harder suite passed slim CI, matched all 41 drivers and 167 sessions of an unfamiliar second vendor feed, and found the hidden duplicate standings rows nobody asked them about.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Correctness</h2>
+  <p class="prose">Share of answer-key checks passed, summed over every ticket in the suite. Each check compares a required model, row by row, with an answer key computed from clean data, after the harness has injected new data and rebuilt the project without a full refresh.</p>
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">7-ticket suite (v1)</div><div class="panel-sub">43 checks per run</div></div>
+      <div class="legend" data-legend></div>
+      <svg id="c-pct-v1" role="img" aria-label="Checks passed by model and skills arm, v1 suite"></svg>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">12-ticket suite (v2)</div><div class="panel-sub">154 checks per run</div></div>
+      <div class="legend" data-legend></div>
+      <svg id="c-pct-v2" role="img" aria-label="Checks passed by model and skills arm, v2 suite"></svg>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Code quality</h2>
+  <p class="prose">Mean score from a blind code review (1–5 across 8 dimensions, plus open-ended analysis on the 12-ticket suite). A fresh Opus session reviewed an anonymized copy of each project with skills, <code>CLAUDE.md</code>, and their git history removed. Reviewing the same project twice gave 4.00 and 4.22, so differences under about 0.2 are noise.</p>
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">7-ticket suite (v1)</div><div class="panel-sub">mean rubric score</div></div>
+      <div class="legend" data-legend></div>
+      <svg id="c-judge-v1" role="img" aria-label="Code review score by model and skills arm, v1 suite"></svg>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">12-ticket suite (v2)</div><div class="panel-sub">mean rubric score</div></div>
+      <div class="legend" data-legend></div>
+      <svg id="c-judge-v2" role="img" aria-label="Code review score by model and skills arm, v2 suite"></svg>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Effort</h2>
+  <p class="prose">Output tokens summed over every ticket in the suite. Skills didn't save effort; the forced arm usually cost the most.</p>
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">7-ticket suite (v1)</div><div class="panel-sub">thousands of output tokens</div></div>
+      <div class="legend" data-legend></div>
+      <svg id="c-out-v1" role="img" aria-label="Output tokens by model and skills arm, v1 suite"></svg>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">12-ticket suite (v2)</div><div class="panel-sub">thousands of output tokens</div></div>
+      <div class="legend" data-legend></div>
+      <svg id="c-out-v2" role="img" aria-label="Output tokens by model and skills arm, v2 suite"></svg>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Every run</h2>
+  <div class="panel scroll">
+    <table id="runs">
+      <thead><tr><th>Run</th><th>Suite</th><th>Model</th><th>Skills</th><th class="num">Checks</th><th class="num">Review</th><th class="num">Out tokens</th><th class="num">dbt calls</th><th class="num">Skill reads</th><th class="num">Failed rebuilds</th><th class="num">Telemetry scan</th><th>Read others' notes</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <p class="meta">Telemetry scan: bytes scanned by telemetry queries in one routine rebuild, as a multiple of the raw table's size (tests included). Skill reads: skill files opened or invoked over the whole suite.</p>
+</section>
+
+<section>
+  <h2>Ticket by ticket</h2>
+  <div class="cards">
+    <div class="card"><div class="k">Greenfield build</div><div class="h">Every trap caught</div><p>All runs handled the literal <code>\N</code> nulls, lap times stored as text, red-flag pit stops, and pre-1991 dropped scores (official standings, not summed points). One miss: Haiku with skills forced misread a column definition.</p></div>
+    <div class="card"><div class="k">Incremental + corrections</div><div class="h">Lookback windows everywhere</div><p>Every run reprocessed the two most recent races so reissued lap times flowed through without a full refresh.</p></div>
+    <div class="card"><div class="k">Late-arriving drivers</div><div class="h">Two runs skipped the placeholder</div><p>All kept the reserve driver's result. Sonnet with skills available and Haiku with skills forced didn't add the placeholder row to <code>dim_drivers</code> that the ticket asked for.</p></div>
+    <div class="card"><div class="k">Vendor drift</div><div class="h">Fixed, sometimes slowly</div><p>Every run recovered from renamed columns, a renamed table, and <code>DD/MM/YYYY</code> dates. Two runs added drift guards that made builds 10× slower before they noticed.</p></div>
+    <div class="card"><div class="k">Planted bugs</div><div class="h">Hidden bug found by all</div><p>All found the duplicated Ferrari row and, unprompted, the resent standings rows, and added upstream uniqueness tests. One restored a stale backup while fixing it.</p></div>
+    <div class="card"><div class="k">Second vendor feed</div><div class="h">Automatic matching</div><p>All 9 matched every driver (accents, "Alex" Albon) and every session, including the two 2020 races at Spielberg, using dates.</p></div>
+    <div class="card"><div class="k">Telemetry at scale</div><div class="h">Right watermark, varied cost</div><p>8 of 9 runs keyed incrementals on load time and landed the 3-week-late samples correctly. Routine-rebuild scan cost ranged from 0.36× to 12×, mostly driven by full-table tests.</p></div>
+    <div class="card"><div class="k">Slim CI</div><div class="h">9 of 9 pass</div><p>Every <code>ci.sh</code> built exactly the edited model, its downstream models, and new models into the CI schema, deferring the rest to prod.</p></div>
+    <div class="card"><div class="k">Vague leadership asks</div><div class="h">Defensible, with pushback</div><p>Nearly every run measured drivers against teammates rather than raw wins, and noted pit-stop data only starts in 2011. Reviewers scored this 4–5 everywhere.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>How much to trust this</h2>
+  <ul class="findings prose">
+    <li><strong>One run per cell.</strong> Each model × arm × suite combination ran once. Treat gaps between individual runs as hints; the pattern across 17 runs is what holds up.</li>
+    <li><strong>Cross-run contamination.</strong> The app gives sessions a shared notes folder, and agents used it to trade data findings. 8 runs read other runs' notes, mostly during the first ticket of the 12-ticket suite. We locked the folder once we found it. The table flags each affected run.</li>
+    <li><strong>Prompts were sent as session messages.</strong> Agents could tell tickets came from another session, not a person. Two runs needed a human approval for a prod build the app's auto-mode check blocked; these are logged as environment interventions, not nudges. Two runs got one "continue" nudge each.</li>
+    <li><strong>Harness fixes mid-run.</strong> Three grader bugs were found and fixed while runs were in flight: an ambiguous podium definition, a telemetry cost query that missed staging views, and a CI probe that read a file some scripts overwrite. Affected tickets were regraded; no agent saw any grade.</li>
+    <li><strong>Semantic Layer wasn't executed.</strong> <code>dbt sl</code> needs a dbt platform connection, so the metrics ticket is graded on definitions only.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>What to try next</h2>
+  <ul class="findings prose">
+    <li>Run 3 or more seeds per cell on the 12-ticket suite with the notes folder locked from the start, to get a real variance estimate.</li>
+    <li>Test skills that target the observed failure modes: one on writing future-proof tests, and one on verifying a restore before trusting it.</li>
+    <li>Add the Wizard arms (Wizard as shipped, and Wizard driving Opus) so the comparison covers harness, not just skills.</li>
+  </ul>
+</section>
+
+<p class="foot">Harness, answer keys, and raw grades: <code>~/dbt-skill-eval</code> (dashboard in <code>dashboard/</code>, per-run grades in <code>results/</code>). Answer keys were validated against known history: Hamilton and Schumacher's 7 titles, Senna's 1988 title on best-11 scoring, Verstappen's 19 wins in 2023.</p>
+</div>
+
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const DATA = [{"run": "A_1", "suite": "v1", "model": "Opus", "skills": "none", "pct": 100.0, "checks": "43/43", "judge": 4.5, "out": 106962, "dbt": 40, "wall": 41, "reads": 0, "rebuild_fail": 1, "notes": 0, "tel": null, "ci": null}, {"run": "B_1", "suite": "v1", "model": "Opus", "skills": "available", "pct": 100.0, "checks": "43/43", "judge": 4.62, "out": 109258, "dbt": 36, "wall": 38, "reads": 1, "rebuild_fail": 1, "notes": 0, "tel": null, "ci": null}, {"run": "HA_1", "suite": "v1", "model": "Haiku", "skills": "none", "pct": 100.0, "checks": "43/43", "judge": 3.5, "out": 132784, "dbt": 64, "wall": 27, "reads": 0, "rebuild_fail": 0, "notes": 0, "tel": null, "ci": null}, {"run": "HB_1", "suite": "v1", "model": "Haiku", "skills": "available", "pct": 100.0, "checks": "43/43", "judge": 3.88, "out": 146930, "dbt": 67, "wall": 104, "reads": 0, "rebuild_fail": 0, "notes": 0, "tel": null, "ci": null}, {"run": "HC_1", "suite": "v1", "model": "Haiku", "skills": "forced", "pct": 81.4, "checks": "35/43", "judge": 4.0, "out": 209988, "dbt": 97, "wall": 52, "reads": 11, "rebuild_fail": 0, "notes": 1, "tel": null, "ci": null}, {"run": "SA_1", "suite": "v1", "model": "Sonnet", "skills": "none", "pct": 100.0, "checks": "43/43", "judge": 3.62, "out": 47310, "dbt": 24, "wall": 17, "reads": 0, "rebuild_fail": 0, "notes": 0, "tel": null, "ci": null}, {"run": "SB_1", "suite": "v1", "model": "Sonnet", "skills": "available", "pct": 100.0, "checks": "43/43", "judge": 4.0, "out": 61321, "dbt": 28, "wall": 22, "reads": 3, "rebuild_fail": 0, "notes": 0, "tel": null, "ci": null}, {"run": "SC_1", "suite": "v1", "model": "Sonnet", "skills": "forced", "pct": 100.0, "checks": "43/43", "judge": 3.75, "out": 89286, "dbt": 55, "wall": 35, "reads": 4, "rebuild_fail": 1, "notes": 1, "tel": null, "ci": null}, {"run": "A_v2_1", "suite": "v2", "model": "Opus", "skills": "none", "pct": 100.0, "checks": "154/154", "judge": 4.56, "out": 315142, "dbt": 91, "wall": 136, "reads": 0, "rebuild_fail": 1, "notes": 0, "tel": 1.485, "ci": true}, {"run": "B_v2_1", "suite": "v2", "model": "Opus", "skills": "available", "pct": 100.0, "checks": "154/154", "judge": 4.67, "out": 296603, "dbt": 130, "wall": 129, "reads": 4, "rebuild_fail": 1, "notes": 0, "tel": 5.301, "ci": true}, {"run": "C_v2_1", "suite": "v2", "model": "Opus", "skills": "forced", "pct": 92.2, "checks": "142/154", "judge": 4.56, "out": 360980, "dbt": 88, "wall": 180, "reads": 13, "rebuild_fail": 0, "notes": 2, "tel": 0.358, "ci": true}, {"run": "HA_v2_1", "suite": "v2", "model": "Haiku", "skills": "none", "pct": 100.0, "checks": "154/154", "judge": 4.11, "out": 457937, "dbt": 193, "wall": 213, "reads": 0, "rebuild_fail": 1, "notes": 0, "tel": 1.86, "ci": true}, {"run": "HB_v2_1", "suite": "v2", "model": "Haiku", "skills": "available", "pct": 96.8, "checks": "149/154", "judge": 4.56, "out": 455959, "dbt": 189, "wall": 117, "reads": 3, "rebuild_fail": 0, "notes": 2, "tel": 2.559, "ci": true}, {"run": "HC_v2_1", "suite": "v2", "model": "Haiku", "skills": "forced", "pct": 99.4, "checks": "153/154", "judge": 3.89, "out": 481588, "dbt": 63, "wall": 246, "reads": 6, "rebuild_fail": 2, "notes": 5, "tel": 5.523, "ci": true}, {"run": "SA_v2_1", "suite": "v2", "model": "Sonnet", "skills": "none", "pct": 91.6, "checks": "141/154", "judge": 4.56, "out": 250273, "dbt": 87, "wall": 113, "reads": 0, "rebuild_fail": 1, "notes": 2, "tel": 12.121, "ci": true}, {"run": "SB_v2_1", "suite": "v2", "model": "Sonnet", "skills": "available", "pct": 61.0, "checks": "94/154", "judge": 4.22, "out": 259054, "dbt": 74, "wall": 147, "reads": 3, "rebuild_fail": 2, "notes": 2, "tel": 1.305, "ci": true}, {"run": "SC_v2_1", "suite": "v2", "model": "Sonnet", "skills": "forced", "pct": 100.0, "checks": "154/154", "judge": 4.22, "out": 250624, "dbt": 82, "wall": 109, "reads": 9, "rebuild_fail": 1, "notes": 2, "tel": 2.927, "ci": true}];
+const MODELS = ["Opus", "Sonnet", "Haiku"];
+const ARMS = ["none", "available", "forced"];
+const ARM_LABEL = { none: "No skills", available: "Skills available", forced: "Skills forced" };
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const tip = document.getElementById("tip");
+
+document.querySelectorAll("[data-legend]").forEach(el => {
+  el.innerHTML = ARMS.map(a => `<span><i class="sw" style="background:var(--arm-${a})"></i>${ARM_LABEL[a]}</span>`).join("");
+});
+
+// Dot plot: one row per model, one sub-row per arm, so tied values never hide each other.
+function dotPlot(id, suite, key, lo, hi, ticks, fmt) {
+  const svg = document.getElementById(id);
+  const W = 440, left = 70, right = 46, sub = 17, gap = 14, top = 6;
+  const rows = MODELS.map(m => ({ m, pts: ARMS.map(a => DATA.find(d => d.suite === suite && d.model === m && d.skills === a)).filter(Boolean) }));
+  const H = top + rows.reduce((h, r) => h + r.pts.length * sub + gap, 0) + 22;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const x = v => left + (Math.min(Math.max(v, lo), hi) - lo) / (hi - lo) * (W - left - right);
+  let out = "";
+  ticks.forEach(t => {
+    out += `<line x1="${x(t)}" x2="${x(t)}" y1="${top}" y2="${H - 22}" stroke="var(--grid)" stroke-width="1"/>`;
+    out += `<text class="axis" x="${x(t)}" y="${H - 6}" text-anchor="middle">${fmt(t)}</text>`;
+  });
+  let y = top;
+  rows.forEach(r => {
+    const h = r.pts.length * sub;
+    out += `<text class="rowlab" x="0" y="${y + h / 2 + 4}">${r.m}</text>`;
+    r.pts.forEach((d, i) => {
+      const cy = y + i * sub + sub / 2, v = d[key];
+      out += `<line x1="${x(lo)}" x2="${x(v)}" y1="${cy}" y2="${cy}" stroke="var(--arm-${d.skills})" stroke-opacity=".35" stroke-width="2"/>`;
+      out += `<circle cx="${x(v)}" cy="${cy}" r="5.5" fill="var(--arm-${d.skills})" stroke="var(--surface)" stroke-width="2"/>`;
+      out += `<text class="val" x="${x(v) + 10}" y="${cy + 4}">${fmt(v)}</text>`;
+      out += `<rect x="${left}" y="${cy - sub / 2}" width="${W - left}" height="${sub}" fill="transparent" data-run="${d.run}" data-v="${fmt(v)}"/>`;
+    });
+    y += h + gap;
+  });
+  svg.innerHTML = out;
+  svg.querySelectorAll("rect[data-run]").forEach(rc => {
+    const d = DATA.find(z => z.run === rc.dataset.run);
+    rc.addEventListener("mousemove", e => {
+      tip.hidden = false;
+      tip.innerHTML = `<b>${d.model} · ${ARM_LABEL[d.skills]}</b> (${d.run})<br>${rc.dataset.v} · checks ${d.checks} · review ${d.judge ?? "–"}`;
+      tip.style.left = Math.min(e.clientX + 12, innerWidth - 270) + "px"; tip.style.top = (e.clientY + 12) + "px";
+    });
+    rc.addEventListener("mouseleave", () => tip.hidden = true);
+  });
+}
+const pct = v => Math.round(v) + "%", one = v => v.toFixed(2), k = v => Math.round(v / 1000) + "k";
+dotPlot("c-pct-v1", "v1", "pct", 50, 100, [50, 60, 70, 80, 90, 100], pct);
+dotPlot("c-pct-v2", "v2", "pct", 50, 100, [50, 60, 70, 80, 90, 100], pct);
+dotPlot("c-judge-v1", "v1", "judge", 3, 5, [3, 3.5, 4, 4.5, 5], v => v % 1 ? v.toFixed(2) : String(v));
+dotPlot("c-judge-v2", "v2", "judge", 3, 5, [3, 3.5, 4, 4.5, 5], v => v % 1 ? v.toFixed(2) : String(v));
+dotPlot("c-out-v1", "v1", "out", 0, 250000, [0, 50000, 100000, 150000, 200000, 250000], k);
+dotPlot("c-out-v2", "v2", "out", 0, 500000, [0, 100000, 200000, 300000, 400000, 500000], k);
+
+const tb = document.querySelector("#runs tbody");
+const order = (a, b) => a.suite.localeCompare(b.suite) || MODELS.indexOf(a.model) - MODELS.indexOf(b.model) || ARMS.indexOf(a.skills) - ARMS.indexOf(b.skills);
+tb.innerHTML = [...DATA].sort(order).map(d => {
+  const cls = d.pct === 100 ? "good" : d.pct >= 90 ? "warn" : "bad";
+  return `<tr><td><code>${d.run}</code></td><td>${d.suite}</td><td>${d.model}</td>
+    <td><span class="arm"><i class="sw" style="background:var(--arm-${d.skills})"></i>${ARM_LABEL[d.skills]}</span></td>
+    <td class="num"><span class="pill ${cls}">${d.checks}</span></td><td class="num">${d.judge?.toFixed(2) ?? "–"}</td>
+    <td class="num">${d.out.toLocaleString()}</td><td class="num">${d.dbt}</td><td class="num">${d.reads}</td>
+    <td class="num">${d.rebuild_fail}</td><td class="num">${d.tel == null ? "–" : d.tel.toFixed(2) + "×"}</td>
+    <td>${d.notes ? `<span class="pill warn">${d.notes} note${d.notes > 1 ? "s" : ""}</span>` : "–"}</td></tr>`;
+}).join("");
+</script>

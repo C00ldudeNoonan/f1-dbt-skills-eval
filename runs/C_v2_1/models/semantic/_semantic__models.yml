@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: time_spine_daily
+    description: >
+      Daily time spine for the dbt Semantic Layer, from 1950-01-01 to the end
+      of next year. MetricFlow uses it to group metrics by `metric_time` at
+      day, week, month, quarter or year granularity.
+    config:
+      group: f1_analytics
+      access: protected
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: Calendar day.
+        granularity: day
+        data_tests: [unique, not_null]

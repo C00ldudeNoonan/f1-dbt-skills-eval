@@ -1,0 +1,144 @@
+version: 2
+
+models:
+  - name: dim_session_crosswalk
+    description: >
+      One row per Vendor B session, mapped to our race_id and session type.
+      The match is automatic: same season and type, a date within one day,
+      the same circuit (meeting name = our circuit location, ignoring accents
+      and case), and the closest start time. `vendor_b_session_overrides`
+      rows win. The build fails if any session is unmatched or two sessions
+      map to the same race and type.
+    config:
+      group: f1_analytics
+      access: protected
+    data_tests:
+      - unique_combination_of_columns:
+          name: vendor_b_sessions_map_one_to_one
+          arguments:
+            combination_of_columns: [race_id, session_type]
+    columns:
+      - name: session_key
+        description: Vendor B session id.
+        data_tests: [unique, not_null]
+      - name: race_id
+        description: Our race_id. Null only if the session couldn't be matched, which fails the build.
+        data_tests:
+          - not_null:
+              name: vendor_b_session_unmatched
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: session_type
+        description: "'race' or 'sprint'."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: season
+        description: Season of the session.
+      - name: meeting_name
+        description: Vendor B's meeting name (the circuit location).
+      - name: session_date
+        description: UTC date of the session.
+      - name: match_method
+        description: "'automatic', 'override' (from the seed) or 'unmatched'."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['automatic', 'override']
+      - name: start_difference_minutes
+        description: Minutes between the two feeds' start times for automatic matches (0 means identical). Compared at date level when either feed has no time.
+
+  - name: dim_driver_crosswalk
+    description: >
+      One row per Vendor B driver, mapped to our driver_id. Candidates are our
+      drivers who share at least one session with the Vendor B driver. They're
+      ranked by an identity score (one point each for the same code, surname,
+      forename and racing number, comparing names without accents or case),
+      then by agreement (shared sessions with the same grid slot or the same
+      finishing position). The best candidate is accepted only with at least one
+      identity point, agreement in at least half the Vendor B driver's sessions,
+      and a strict lead over the runner-up. `vendor_b_driver_overrides` rows
+      win. The build fails if any driver is unmatched or two Vendor B drivers
+      map to one of ours.
+    config:
+      group: f1_analytics
+      access: protected
+    columns:
+      - name: driver_key
+        description: Vendor B driver id.
+        data_tests: [unique, not_null]
+      - name: driver_id
+        description: Our driver_id. Null only if no confident match exists, which fails the build.
+        data_tests:
+          - not_null:
+              name: vendor_b_driver_unmatched
+          - unique:
+              name: vendor_b_drivers_map_one_to_one
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: vendor_full_name
+        description: Vendor B's name for the driver ('SURNAME Forename').
+      - name: vendor_driver_code
+        description: Vendor B's three-letter abbreviation.
+      - name: match_method
+        description: "'automatic', 'override' (from the seed) or 'unmatched'."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['automatic', 'override']
+      - name: identity_score
+        description: Identity points (0-4) of the best candidate. Useful for reviewing weak matches.
+      - name: agreeing_sessions
+        description: Shared sessions where the best candidate agrees on grid slot or finishing position.
+      - name: vendor_sessions
+        description: Sessions the Vendor B driver appears in.
+      - name: best_candidate_driver_id
+        description: The top-ranked candidate, even when it wasn't accepted. Shows what to put in an override.
+
+  - name: mart_vendor_result_discrepancies
+    description: >
+      Every disagreement between our primary feed (the system of record) and
+      Vendor B on Grand Prix and sprint results, for the seasons Vendor B
+      covers (2018-2024 today). One row per entry per discrepancy type.
+      Entries missing from one feed, different points, or different classified
+      finishing positions. An entry unclassified in both feeds (for example
+      'R' in ours and 'DNF' in Vendor B) isn't a position discrepancy.
+    config:
+      group: f1_analytics
+      access: protected
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, session_type, driver_id, discrepancy_type]
+    columns:
+      - name: race_id
+        description: "{{ doc('col_race_id') }}"
+        data_tests: [not_null]
+      - name: session_type
+        description: "'race' or 'sprint'."
+        data_tests: [not_null]
+      - name: driver_id
+        description: "{{ doc('col_driver_id') }}"
+        data_tests: [not_null]
+      - name: discrepancy_type
+        description: "'points', 'position', 'missing_in_vendor_b' or 'missing_in_vendor_a'."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['points', 'position', 'missing_in_vendor_b', 'missing_in_vendor_a']
+      - name: vendor_a_value
+        description: >
+          Our feed's value, as text: points, or the position (a number when
+          classified, otherwise our classification code such as R or D). Null
+          for missing_in_vendor_a.
+      - name: vendor_b_value
+        description: >
+          Vendor B's value, as text: points, or the position (a number or
+          DNF / DSQ). Null for missing_in_vendor_b.

@@ -1,0 +1,611 @@
+version: 2
+
+models:
+  - name: fct_results
+    description: >
+      PUBLIC INTERFACE (contract enforced). One row per Grand Prix result entry
+      (sprints excluded; see fct_session_results). Before 1979 a driver can have
+      more than one entry in a race (shared drives and second cars), so
+      result_id is the grain, not race and driver.
+    config:
+      tags: [core]
+      access: public
+      contract:
+        enforced: true
+    # dbt Semantic Layer: the "results" semantic model. Grand Prix results only.
+    semantic_model:
+      enabled: true
+      name: results
+    agg_time_dimension: race_date
+    constraints:
+      # Snowflake records but does not enforce primary keys; uniqueness is
+      # enforced by the unique test on the column instead.
+      - type: primary_key
+        columns: [result_id]
+        warn_unenforced: false
+    columns:
+      - name: result_id
+        data_type: integer
+        entity:
+          type: primary
+          name: result
+        description: Ergast result identifier. Grain of the table.
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - name: race_id
+        data_type: integer
+        entity:
+          type: foreign
+          name: race
+        constraints: [{type: not_null}]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: season
+        data_type: integer
+        dimension:
+          type: categorical
+        constraints: [{type: not_null}]
+      - name: round
+        data_type: integer
+        dimension:
+          type: categorical
+        constraints: [{type: not_null}]
+      - name: race_date
+        data_type: date
+        granularity: day
+        dimension:
+          type: time
+        constraints: [{type: not_null}]
+      - name: race_name
+        data_type: varchar
+        dimension:
+          type: categorical
+      - name: circuit_id
+        data_type: integer
+      - name: driver_id
+        data_type: integer
+        entity:
+          type: foreign
+          name: driver
+        description: >
+          Always present in dim_drivers: a driver whose record hasn't arrived yet
+          has a placeholder row there.
+        constraints: [{type: not_null}]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        data_type: integer
+        entity:
+          type: foreign
+          name: constructor
+        constraints: [{type: not_null}]
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_constructors')
+                field: constructor_id
+      - name: constructor_name
+        data_type: varchar
+        description: Constructor name as entered for the race.
+        constraints: [{type: not_null}]
+      - name: car_number
+        data_type: integer
+      - name: grid
+        data_type: integer
+        description: Starting grid slot. 0 means started from the pit lane or no grid slot.
+      - name: finish_position
+        data_type: integer
+        description: >
+          Classified finishing position. Null when not classified (retired,
+          disqualified, excluded, withdrew, failed to qualify, not classified).
+      - name: position_text
+        data_type: varchar
+        description: Raw classification text (number, or R/D/E/W/F/N).
+      - name: position_order
+        data_type: integer
+        description: Ergast ordering of every entry in the race, classified or not.
+        constraints: [{type: not_null}]
+      - name: points
+        data_type: number(8, 2)
+        description: Championship points awarded for this Grand Prix result.
+        constraints: [{type: not_null}]
+      - name: laps
+        data_type: integer
+        description: Laps completed.
+      - name: status_id
+        data_type: integer
+      - name: status
+        data_type: varchar
+        dimension:
+          type: categorical
+        description: Finishing status, for example Finished, +1 Lap, Engine.
+        constraints: [{type: not_null}]
+      - name: is_classified
+        data_type: boolean
+        dimension:
+          type: categorical
+        description: True when finish_position is not null.
+        constraints: [{type: not_null}]
+      - name: is_win
+        data_type: boolean
+        description: True when finish_position is 1. Shared drives credit every driver.
+        constraints: [{type: not_null}]
+      - name: is_podium
+        data_type: boolean
+        description: True when finish_position is 1, 2 or 3.
+        constraints: [{type: not_null}]
+      - name: race_time_ms
+        data_type: integer
+        description: Total race time in milliseconds (classified finishers on the lead lap).
+      - name: fastest_lap_number
+        data_type: integer
+      - name: fastest_lap_rank
+        data_type: integer
+      - name: fastest_lap_time_ms
+        data_type: integer
+        description: The entry's fastest race lap in integer milliseconds (2004 onwards).
+      - name: fastest_lap_speed_kph
+        data_type: number(8, 3)
+    data_tests:
+      - expression_is_true:
+          arguments:
+            expression: "not is_win or is_podium"
+      - expression_is_true:
+          arguments:
+            expression: "finish_position is null or finish_position >= 1"
+    metrics:
+      - name: race_starts
+        label: Race starts
+        description: Count of Grand Prix result entries (every entry, including non-starters and DNQs).
+        type: simple
+        agg: count
+        expr: result_id
+      - name: wins
+        label: Wins
+        description: Grand Prix wins (finish_position 1). A shared drive credits each driver.
+        type: simple
+        agg: sum_boolean
+        expr: is_win
+      - name: podiums
+        label: Podiums
+        description: Grand Prix podium finishes (finish_position 1-3).
+        type: simple
+        agg: sum_boolean
+        expr: is_podium
+      - name: championship_points
+        label: Championship points
+        description: >
+          Sum of Grand Prix points as awarded per result. Excludes sprint points
+          and era-specific dropped scores, so season totals can differ from the
+          official standings (mart_driver_season_standings has those).
+        type: simple
+        agg: sum
+        expr: points
+      - name: podium_rate
+        label: Podium rate
+        description: podiums / race_starts.
+        type: ratio
+        numerator: podiums
+        denominator: race_starts
+      - name: points_per_start
+        label: Points per start
+        description: championship_points / race_starts.
+        type: ratio
+        numerator: championship_points
+        denominator: race_starts
+
+  - name: dim_drivers
+    description: >
+      PUBLIC INTERFACE (contract enforced, versioned). One row per driver with
+      career totals from Grand Prix results. Includes a placeholder row
+      (is_placeholder = true) for any driver_id that appears in results before
+      its DRIVERS record arrives; it takes the real values on the next run.
+      Number and code history lives in the snp_drivers snapshot.
+      ref('dim_drivers') resolves to the latest version (2). Version 1 is
+      deprecated from 2027-01-01.
+    latest_version: 2
+    config:
+      tags: [core]
+      access: public
+      contract:
+        enforced: true
+      # dbt Fusion publishes a view pointing at the latest version. Version 1
+      # keeps the original DIM_DRIVERS name until it is retired, so the pointer
+      # is published as DIM_DRIVERS_LATEST (currently: select * from DIM_DRIVERS_V2).
+      latest_version_pointer:
+        alias: dim_drivers_latest
+    # dbt Semantic Layer: the "drivers" semantic model, built on the latest
+    # version. Column-level entity/dimension annotations aren't read inside a
+    # version block, so they are declared here with explicit expressions.
+    semantic_model:
+      enabled: true
+      name: drivers
+    derived_semantics:
+      entities:
+        - name: driver
+          type: primary
+          expr: driver_id
+      dimensions:
+        - name: driver_ref
+          type: categorical
+          expr: driver_ref
+        - name: first_name
+          type: categorical
+          expr: first_name
+        - name: last_name
+          type: categorical
+          expr: last_name
+        - name: nationality
+          type: categorical
+          expr: nationality
+        - name: driver_code
+          type: categorical
+          expr: driver_code
+        - name: is_placeholder
+          type: categorical
+          expr: is_placeholder
+    constraints:
+      # Snowflake records but does not enforce primary keys; uniqueness is
+      # enforced by the unique test on the column instead.
+      - type: primary_key
+        columns: [driver_id]
+        warn_unenforced: false
+    data_tests:
+      - expression_is_true:
+          arguments:
+            expression: "career_wins <= career_podiums and career_podiums <= career_starts"
+    # Each version lists its columns explicitly so the published column order
+    # is exactly as written (include/exclude would append new columns last).
+    versions:
+      - v: 2
+        columns:
+          - name: driver_id
+            data_type: integer
+            constraints: [{type: not_null}]
+            data_tests: [unique]
+          - name: is_placeholder
+            data_type: boolean
+            description: True when the driver's record has not arrived in DRIVERS yet.
+            constraints: [{type: not_null}]
+          - name: driver_ref
+            data_type: varchar
+            description: >
+              Stable Ergast text key, for example max_verstappen.
+              'unknown_driver_<id>' for placeholders.
+            constraints: [{type: not_null}]
+            data_tests: [unique]
+          - name: driver_code
+            data_type: varchar
+            description: Three-letter timing code, for example VER. Null for early drivers and placeholders.
+          - name: current_number
+            data_type: integer
+            description: Current permanent car number. Null if the driver has none (or is a placeholder).
+          - name: first_name
+            data_type: varchar
+            description: Given name. 'Unknown' for placeholders.
+            constraints: [{type: not_null}]
+          - name: last_name
+            data_type: varchar
+            description: Family name. 'Driver <driver_id>' for placeholders.
+            constraints: [{type: not_null}]
+          - name: nationality
+            data_type: varchar
+          - name: date_of_birth
+            data_type: date
+          - name: first_season
+            data_type: integer
+            description: First season with a Grand Prix result.
+          - name: last_season
+            data_type: integer
+            description: Latest season with a Grand Prix result.
+          - name: career_starts
+            data_type: integer
+            description: Distinct Grands Prix entered (any result row, including non-qualification).
+            constraints: [{type: not_null}]
+          - name: career_wins
+            data_type: integer
+            description: Distinct Grands Prix won (sprints excluded). Shared drives count for each driver.
+            constraints: [{type: not_null}]
+          - name: career_sprint_wins
+            data_type: integer
+            description: Sprint races won (2021 onwards).
+            constraints: [{type: not_null}]
+          - name: career_podiums
+            data_type: integer
+            description: Distinct Grands Prix with a top-three classified finish.
+            constraints: [{type: not_null}]
+          - name: career_points
+            data_type: number(10, 2)
+            description: Sum of Grand Prix points as awarded (no dropped scores, no sprints).
+            constraints: [{type: not_null}]
+          - name: world_championships
+            data_type: integer
+            description: >
+              Drivers' titles. A season only counts once it is complete, meaning every
+              race on that season's calendar has results.
+            constraints: [{type: not_null}]
+          - name: url
+            data_type: varchar
+      - v: 1
+        deprecation_date: 2027-01-01
+        description: >
+          DEPRECATED from 2027-01-01; migrate to version 2. Same rows as version
+          2, with forename, surname and full_name instead of first_name and
+          last_name. Built at the original DIM_DRIVERS relation, with the
+          original column order, so direct table readers keep working until it
+          is removed.
+        config:
+          alias: dim_drivers
+        columns:
+          - name: driver_id
+            data_type: integer
+            constraints: [{type: not_null}]
+            data_tests: [unique]
+          - name: is_placeholder
+            data_type: boolean
+            description: True when the driver's record has not arrived in DRIVERS yet.
+            constraints: [{type: not_null}]
+          - name: driver_ref
+            data_type: varchar
+            description: >
+              Stable Ergast text key, for example max_verstappen.
+              'unknown_driver_<id>' for placeholders.
+            constraints: [{type: not_null}]
+            data_tests: [unique]
+          - name: driver_code
+            data_type: varchar
+            description: Three-letter timing code, for example VER. Null for early drivers and placeholders.
+          - name: current_number
+            data_type: integer
+            description: Current permanent car number. Null if the driver has none (or is a placeholder).
+          - name: forename
+            data_type: varchar
+            description: Given name. Null for placeholders.
+          - name: surname
+            data_type: varchar
+            description: Family name. Null for placeholders.
+          - name: full_name
+            data_type: varchar
+            description: Forename and surname. 'Unknown driver <driver_id>' for placeholders.
+            constraints: [{type: not_null}]
+          - name: nationality
+            data_type: varchar
+          - name: date_of_birth
+            data_type: date
+          - name: first_season
+            data_type: integer
+            description: First season with a Grand Prix result.
+          - name: last_season
+            data_type: integer
+            description: Latest season with a Grand Prix result.
+          - name: career_starts
+            data_type: integer
+            description: Distinct Grands Prix entered (any result row, including non-qualification).
+            constraints: [{type: not_null}]
+          - name: career_wins
+            data_type: integer
+            description: Distinct Grands Prix won (sprints excluded). Shared drives count for each driver.
+            constraints: [{type: not_null}]
+          - name: career_sprint_wins
+            data_type: integer
+            description: Sprint races won (2021 onwards).
+            constraints: [{type: not_null}]
+          - name: career_podiums
+            data_type: integer
+            description: Distinct Grands Prix with a top-three classified finish.
+            constraints: [{type: not_null}]
+          - name: career_points
+            data_type: number(10, 2)
+            description: Sum of Grand Prix points as awarded (no dropped scores, no sprints).
+            constraints: [{type: not_null}]
+          - name: world_championships
+            data_type: integer
+            description: >
+              Drivers' titles. A season only counts once it is complete, meaning every
+              race on that season's calendar has results.
+            constraints: [{type: not_null}]
+          - name: url
+            data_type: varchar
+
+  - name: fct_session_results
+    description: >
+      One row per result entry across both Grand Prix ('race') and sprint
+      ('sprint') sessions. source_result_id is the id from the source table;
+      race and sprint ids can overlap, so the key is (session_type,
+      source_result_id), also given as session_result_key.
+    config:
+      tags: [core]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [session_type, source_result_id]
+    columns:
+      - name: session_result_key
+        description: session_type || '-' || source_result_id.
+        data_tests: [unique, not_null]
+      - name: session_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: source_result_id
+        description: result_id from RESULTS or SPRINT_RESULTS.
+        data_tests: [not_null]
+      - name: race_id
+        description: The Grand Prix weekend the session belongs to.
+        data_tests: [not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: session_date
+        description: Date of the Grand Prix or of the sprint.
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: finish_position
+        description: Classified position; null when not classified.
+      - name: position_order
+        data_tests: [not_null]
+      - name: points
+        description: Points awarded for this session.
+        data_tests: [not_null]
+
+  - name: fct_qualifying
+    description: >
+      One row per qualifying entry. Session times are null when no time was set.
+      Before 2006 qualifying was a single session, recorded in q1_ms.
+    config:
+      tags: [core]
+    columns:
+      - name: qualify_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: constructor_id
+        description: Constructor recorded on the qualifying entry.
+        data_tests: [not_null]
+      - name: q1_ms
+        description: Q1 (or single-session) time in milliseconds.
+      - name: q2_ms
+        description: Q2 time in milliseconds.
+      - name: q3_ms
+        description: Q3 time in milliseconds.
+      - name: best_time_ms
+        description: Fastest of q1_ms, q2_ms and q3_ms. Null when none was set.
+      - name: pole_time_ms
+        description: Fastest best_time_ms in the race.
+      - name: gap_to_pole_ms
+        description: best_time_ms minus pole_time_ms. 0 for the pole sitter.
+      - name: gap_to_pole_pct
+        description: gap_to_pole_ms as a percentage of pole_time_ms (0.512 means 0.512%).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+      - expression_is_true:
+          arguments:
+            expression: "gap_to_pole_ms is null or gap_to_pole_ms >= 0"
+      - expression_is_true:
+          arguments:
+            expression: "best_time_ms is null = (q1_ms is null and q2_ms is null and q3_ms is null)"
+
+unit_tests:
+  - name: dim_drivers_placeholder_for_late_arriving_driver
+    description: >
+      A result for a driver_id missing from DRIVERS yields a placeholder row with
+      career stats; known drivers keep their real values.
+    model: int_drivers__profile
+    given:
+      - input: ref('int_drivers__spine')
+        rows:
+          - {driver_id: 1, is_placeholder: false}
+          - {driver_id: 999, is_placeholder: true}
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: hamilton, full_name: Lewis Hamilton, permanent_number: 44}
+      - input: ref('fct_results')
+        rows:
+          - {driver_id: 1, race_id: 10, season: 2024, is_win: true, is_podium: true, points: 25}
+          - {driver_id: 999, race_id: 10, season: 2024, is_win: false, is_podium: false, points: 0}
+      - input: ref('mart_driver_season_standings')
+        rows: []
+      - input: ref('fct_session_results')
+        rows:
+          - {driver_id: 1, race_id: 10, session_type: sprint, is_win: true}
+          - {driver_id: 1, race_id: 10, session_type: race, is_win: true}
+    expect:
+      rows:
+        - {driver_id: 1, is_placeholder: false, driver_ref: hamilton, full_name: Lewis Hamilton, current_number: 44, career_starts: 1, career_wins: 1, career_sprint_wins: 1}
+        - {driver_id: 999, is_placeholder: true, driver_ref: unknown_driver_999, full_name: Unknown driver 999, current_number: null, career_starts: 1, career_wins: 0, career_sprint_wins: 0}
+
+  - name: fct_qualifying_best_time_and_gap
+    description: Best time ignores missing sessions; gap is measured to the fastest best time.
+    model: fct_qualifying
+    given:
+      - input: ref('stg_ergast__qualifying')
+        rows:
+          - {qualify_id: 1, race_id: 10, driver_id: 1, constructor_id: 1, qualifying_position: 1, q1_ms: 80000, q2_ms: 79500, q3_ms: 79000}
+          - {qualify_id: 2, race_id: 10, driver_id: 2, constructor_id: 1, qualifying_position: 2, q1_ms: 80200, q2_ms: 79404, q3_ms: null}
+          - {qualify_id: 3, race_id: 10, driver_id: 3, constructor_id: 2, qualifying_position: 3, q1_ms: null, q2_ms: null, q3_ms: null}
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 10, season: 2020, round: 1}
+    expect:
+      rows:
+        - {qualify_id: 1, best_time_ms: 79000, gap_to_pole_ms: 0, gap_to_pole_pct: 0}
+        - {qualify_id: 2, best_time_ms: 79404, gap_to_pole_ms: 404, gap_to_pole_pct: 0.511392}
+        - {qualify_id: 3, best_time_ms: null, gap_to_pole_ms: null, gap_to_pole_pct: null}
+
+  - name: fct_results_classification_flags
+    description: Win and podium flags follow finish_position; unclassified entries get neither.
+    model: fct_results
+    given:
+      - input: ref('stg_ergast__results')
+        rows:
+          - {result_id: 1, race_id: 10, driver_id: 1, constructor_id: 1, status_id: 1, finish_position: 1, position_order: 1}
+          - {result_id: 2, race_id: 10, driver_id: 2, constructor_id: 1, status_id: 1, finish_position: 3, position_order: 3}
+          - {result_id: 3, race_id: 10, driver_id: 3, constructor_id: 1, status_id: 1, finish_position: null, position_order: 2}
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 10, season: 2020, round: 1}
+      - input: ref('stg_ergast__constructors')
+        rows:
+          - {constructor_id: 1, constructor_name: Test}
+      - input: ref('stg_ergast__status')
+        rows:
+          - {status_id: 1, status: Finished}
+    expect:
+      rows:
+        - {result_id: 1, is_win: true, is_podium: true, is_classified: true}
+        - {result_id: 2, is_win: false, is_podium: true, is_classified: true}
+        - {result_id: 3, is_win: false, is_podium: false, is_classified: false}
+
+  - name: dim_drivers_v2_placeholder_names
+    description: >
+      Version 2 splits names into first_name/last_name; a late-arriving driver's
+      placeholder gets 'Unknown' / 'Driver <id>' instead of nulls.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('int_drivers__profile')
+        rows:
+          - {driver_id: 1, is_placeholder: false, driver_ref: hamilton, forename: Lewis, surname: Hamilton, full_name: Lewis Hamilton}
+          - {driver_id: 9001, is_placeholder: true, driver_ref: unknown_driver_9001, forename: null, surname: null, full_name: Unknown driver 9001}
+    expect:
+      rows:
+        - {driver_id: 1, first_name: Lewis, last_name: Hamilton}
+        - {driver_id: 9001, first_name: Unknown, last_name: Driver 9001}
+
+  - name: dim_drivers_v1_placeholder_names
+    description: >
+      Version 1 keeps forename/surname/full_name; a late-arriving driver's
+      placeholder keeps full_name 'Unknown driver <id>' with null forename and surname.
+    model: dim_drivers
+    versions:
+      include: [1]
+    given:
+      - input: ref('int_drivers__profile')
+        rows:
+          - {driver_id: 1, is_placeholder: false, driver_ref: hamilton, forename: Lewis, surname: Hamilton, full_name: Lewis Hamilton}
+          - {driver_id: 9001, is_placeholder: true, driver_ref: unknown_driver_9001, forename: null, surname: null, full_name: Unknown driver 9001}
+    expect:
+      rows:
+        - {driver_id: 1, forename: Lewis, surname: Hamilton, full_name: Lewis Hamilton}
+        - {driver_id: 9001, forename: null, surname: null, full_name: Unknown driver 9001}

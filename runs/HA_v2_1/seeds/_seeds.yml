@@ -1,0 +1,26 @@
+version: 2
+
+seeds:
+  - name: known_world_champions
+    description: >
+      World Drivers' Champion for each completed season 1950 to 2024, from published
+      history. Used to check that the standings mart reproduces official results.
+      Not a source of truth for the warehouse; it is a reference for testing only.
+    columns:
+      - name: season
+        tests: [unique, not_null]
+      - name: driver_ref
+        tests: [not_null]
+
+  - name: points_systems
+    description: >
+      Points awarded by finishing position under each points system, one row per system
+      and position. To add a system (for example 1991 to 2002, 10-6-4-3-2-1), add its rows
+      here. mart_alt_points_standings picks it up on the next build; no SQL changes.
+    columns:
+      - name: points_system
+        tests: [not_null]
+      - name: position
+        tests: [not_null]
+      - name: points
+        tests: [not_null]

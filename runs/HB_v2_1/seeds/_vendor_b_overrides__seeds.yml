@@ -1,0 +1,18 @@
+version: 2
+
+seeds:
+  - name: vendor_b_driver_overrides
+    description: >
+      Manual matches for Vendor B drivers that the automatic rules cannot decide (an ambiguous
+      name, or a name that differs in both feeds). Empty by design. Each row needs a reason.
+    config:
+      column_types:
+        driver_id: integer
+  - name: vendor_b_session_overrides
+    description: >
+      Manual matches for Vendor B sessions the automatic rules cannot decide. Empty by design.
+      Each row needs a reason.
+    config:
+      column_types:
+        session_key: bigint
+        race_id: integer

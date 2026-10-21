@@ -1,0 +1,22 @@
+models:
+  - name: stg_vendor_b__drivers
+    description: Vendor B drivers with FULL_NAME split into surname and forename.
+    columns:
+      - name: driver_key
+        data_tests: [unique, not_null]
+      - name: surname
+        data_tests: [not_null]
+      - name: forename
+        data_tests: [not_null]
+  - name: stg_vendor_b__sessions
+    description: Vendor B sessions, session_type lower-cased ('race' / 'sprint').
+    columns:
+      - name: session_key
+        data_tests: [unique, not_null]
+      - name: session_date
+        data_tests: [not_null]
+  - name: stg_vendor_b__results
+    description: Vendor B results; finish_position null when not classified (DNF/DSQ).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {combination_of_columns: [session_key, driver_key]}

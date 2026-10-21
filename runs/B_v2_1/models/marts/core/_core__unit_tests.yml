@@ -1,0 +1,107 @@
+unit_tests:
+  - name: qualifying_best_time_and_gap_handle_missing_sessions
+    description: best_time_ms ignores null sessions; gap is measured to the fastest best time in the race.
+    model: fct_qualifying
+    given:
+      - input: ref('stg_ergast__qualifying')
+        rows:
+          - {qualify_id: 1, race_id: 10, driver_id: 1, constructor_id: 1, qualifying_position: 1, q1_ms: 81000, q2_ms: 80500, q3_ms: 80000}
+          - {qualify_id: 2, race_id: 10, driver_id: 2, constructor_id: 1, qualifying_position: 2, q1_ms: 80600, q2_ms: null, q3_ms: null}
+          - {qualify_id: 3, race_id: 10, driver_id: 3, constructor_id: 2, qualifying_position: 3, q1_ms: null, q2_ms: null, q3_ms: null}
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 10, season: 2020, round: 1}
+    expect:
+      rows:
+        - {qualify_id: 1, best_time_ms: 80000, gap_to_pole_ms: 0, gap_to_pole_pct: 0}
+        - {qualify_id: 2, best_time_ms: 80600, gap_to_pole_ms: 600, gap_to_pole_pct: 0.75}
+        - {qualify_id: 3, best_time_ms: null, gap_to_pole_ms: null, gap_to_pole_pct: null}
+
+  - name: late_arriving_driver_gets_placeholder_with_career_stats
+    description: >
+      Driver 99 has a race result but no `drivers` record yet. They still get a
+      dim row with placeholder names and real career stats. Driver 1 is complete.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('int_driver_ids')
+        rows:
+          - {driver_id: 1, has_driver_record: true}
+          - {driver_id: 99, has_driver_record: false}
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: hamilton, forename: Lewis, surname: Hamilton, full_name: Lewis Hamilton, permanent_number: 44}
+      - input: ref('snp_drivers')
+        rows:
+          - {driver_id: 1, permanent_number: 44, dbt_valid_to: null}
+      - input: ref('fct_results')
+        rows:
+          - {driver_id: 1, race_id: 1, is_win: true, is_podium: true, race_date: '2024-03-02'}
+          - {driver_id: 99, race_id: 1, is_win: false, is_podium: true, race_date: '2024-03-02'}
+      - input: ref('fct_session_results')
+        rows:
+          - {driver_id: 1, session_type: sprint, is_win: true}
+          - {driver_id: 1, session_type: race, is_win: true}
+      - input: ref('mart_driver_season_standings')
+        rows: []
+    expect:
+      rows:
+        - {driver_id: 1, driver_ref: hamilton, first_name: Lewis, last_name: Hamilton, current_number: 44, career_starts: 1, career_wins: 1, career_sprint_wins: 1, career_podiums: 1, is_placeholder: false}
+        - {driver_id: 99, driver_ref: unknown_driver_99, first_name: Unknown, last_name: Driver 99, current_number: null, career_starts: 1, career_wins: 0, career_sprint_wins: 0, career_podiums: 1, is_placeholder: true}
+
+  - name: dim_drivers_v1_keeps_full_name_contract
+    description: >
+      Deprecated v1 is derived from v2 and must keep its original shape:
+      full_name for real drivers, and for placeholders full_name
+      'Unknown driver <id>' with null forename and surname.
+    model: dim_drivers
+    versions:
+      include: [1]
+    given:
+      - input: ref('dim_drivers', v=2)
+        rows:
+          - {driver_id: 1, driver_ref: hamilton, first_name: Lewis, last_name: Hamilton, is_placeholder: false}
+          - {driver_id: 99, driver_ref: unknown_driver_99, first_name: Unknown, last_name: Driver 99, is_placeholder: true}
+    expect:
+      rows:
+        - {driver_id: 1, forename: Lewis, surname: Hamilton, full_name: Lewis Hamilton, is_placeholder: false}
+        - {driver_id: 99, forename: null, surname: null, full_name: Unknown driver 99, is_placeholder: true}
+
+  - name: championships_only_count_completed_seasons
+    description: >
+      Driver 1 leads two seasons, but 2024 is still in progress
+      (is_season_complete false), so only the 2023 title counts. Driver 2 was
+      champion of a completed season. Driver 3 never finished first.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('int_driver_ids')
+        rows:
+          - {driver_id: 1, has_driver_record: true}
+          - {driver_id: 2, has_driver_record: true}
+          - {driver_id: 3, has_driver_record: true}
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: a, forename: A, surname: One}
+          - {driver_id: 2, driver_ref: b, forename: B, surname: Two}
+          - {driver_id: 3, driver_ref: c, forename: C, surname: Three}
+      - input: ref('snp_drivers')
+        rows: []
+      - input: ref('fct_results')
+        rows: []
+      - input: ref('fct_session_results')
+        rows: []
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2023, driver_id: 1, championship_position: 1, is_season_complete: true}
+          - {season: 2023, driver_id: 2, championship_position: 2, is_season_complete: true}
+          - {season: 2024, driver_id: 1, championship_position: 1, is_season_complete: false}
+          - {season: 2024, driver_id: 3, championship_position: 2, is_season_complete: false}
+          - {season: 2022, driver_id: 2, championship_position: 1, is_season_complete: true}
+    expect:
+      rows:
+        - {driver_id: 1, world_championships: 1}
+        - {driver_id: 2, world_championships: 1}
+        - {driver_id: 3, world_championships: 0}

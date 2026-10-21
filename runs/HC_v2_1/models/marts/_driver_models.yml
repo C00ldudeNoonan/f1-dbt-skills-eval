@@ -1,0 +1,92 @@
+version: 2
+
+models:
+  - name: int_teammate_comparisons
+    description: >
+      One row per driver per teammate comparison in a race, for race finish and qualifying. positions_gained is positive
+      when the driver finished or qualified ahead of the teammate.
+    columns:
+      - name: measure
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['race_finish', 'qualifying']
+      - name: positions_gained
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - measure
+              - race_id
+              - driver_id
+              - teammate_id
+
+  - name: mart_driver_season_overperformance
+    description: Each driver's average positions gained over their teammate, per season and measure.
+    columns:
+      - name: is_reliable
+        data_tests:
+          - not_null
+      - name: comparisons
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - measure
+              - season
+              - driver_id
+
+  - name: mart_driver_overperformance
+    description: >
+      The career list of drivers who beat their teammate most, per measure and era. Use the '1994 onward' era for the
+      headline; 'all seasons' includes the small-field 1950s and 1960s. Only eligible drivers are ranked (at least four
+      reliable seasons). Rank 1 has the highest lower 95% bound, so a clear and consistent advantage ranks above a large one
+      that depends on one season.
+    columns:
+      - name: era
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['all seasons', '1994 onward']
+      - name: measure
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['race_finish', 'qualifying']
+      - name: driver_id
+        data_tests:
+          - not_null
+      - name: reliable_seasons
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+      - name: lower_95
+        description: Null unless the driver is eligible (an interval needs at least two seasons to have a spread).
+        data_tests:
+          - not_null:
+              config:
+                where: "is_eligible"
+      - name: upper_95
+        data_tests:
+          - not_null:
+              config:
+                where: "is_eligible"
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - era
+              - measure
+              - driver_id
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "lower_95 <= mean_positions_gained and mean_positions_gained <= upper_95"
+          config:
+            where: "is_eligible"

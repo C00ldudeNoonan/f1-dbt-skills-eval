@@ -1,0 +1,93 @@
+models:
+  - name: dim_session_crosswalk
+    description: >
+      One row per Vendor B session mapped to our race_id and session_type.
+      Matched automatically on season + session type + date (race_date for a
+      Grand Prix, sprint_date for a sprint); circuit location is checked and
+      breaks ties. seeds/vendor_b_session_overrides.csv takes precedence. The
+      build fails if any session is unmatched.
+    columns:
+      - name: session_key
+        data_tests: [unique, not_null]
+      - name: race_id
+        description: Our race. Null only when matching failed, which fails the build.
+        data_tests:
+          - not_null:
+              config:
+                error_if: ">0"
+          - relationships:
+              arguments:
+                to: ref('dim_races')
+                field: race_id
+      - name: session_type
+        data_tests:
+          - accepted_values:
+              arguments: {values: ['race', 'sprint']}
+      - name: match_method
+        description: "'date' (automatic), 'override' (seed), or 'unmatched'."
+        data_tests:
+          - accepted_values:
+              arguments: {values: ['date', 'override']}
+      - name: location_agrees
+        description: Our circuit location equals Vendor B's meeting name (accent/case-insensitive). Null for overrides.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {combination_of_columns: [race_id, session_type]}
+
+  - name: dim_driver_crosswalk
+    description: >
+      One row per Vendor B driver mapped to our driver_id. Candidates are our
+      drivers with entries in the same sessions; the unique best identity score
+      (surname 3, code 2, number 1, forename 1; at least 4, at least half of
+      the sessions shared) wins. seeds/vendor_b_driver_overrides.csv takes
+      precedence. The build fails if any driver is unmatched or if two Vendor B
+      drivers map to the same driver_id.
+    columns:
+      - name: driver_key
+        data_tests: [unique, not_null]
+      - name: driver_id
+        description: Our driver. Null only when matching failed, which fails the build.
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: match_method
+        description: "'scored' (automatic), 'override' (seed), or 'unmatched'."
+        data_tests:
+          - accepted_values:
+              arguments: {values: ['scored', 'override']}
+      - name: match_score
+        description: Identity score of the accepted automatic match (max 7).
+      - name: shared_sessions
+        description: Sessions where both the Vendor B driver and the matched driver have an entry.
+      - name: vb_sessions
+        description: Sessions the Vendor B driver appears in.
+
+  - name: mart_vendor_result_discrepancies
+    description: >
+      One row per entry per discrepancy where Vendor B disagrees with our
+      primary feed on Grand Prix or sprint results, for every season Vendor B
+      covers. Our feed remains the system of record. discrepancy_type is
+      'points', 'position' (classified finishing position; unclassified in both
+      is not a discrepancy), 'missing_in_vendor_b' or 'missing_in_vendor_a'.
+      vendor_a_value / vendor_b_value are text: the position text (number, or
+      R/D/N/W... for us, DNF/DSQ for Vendor B), or the points.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {combination_of_columns: [race_id, session_type, driver_id, discrepancy_type]}
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: session_type
+        data_tests:
+          - accepted_values:
+              arguments: {values: ['race', 'sprint']}
+      - name: driver_id
+        data_tests: [not_null]
+      - name: discrepancy_type
+        data_tests:
+          - accepted_values:
+              arguments: {values: ['points', 'position', 'missing_in_vendor_b', 'missing_in_vendor_a']}

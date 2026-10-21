@@ -1,0 +1,22 @@
+version: 2
+
+seeds:
+  - name: raw_schema_contract
+    description: >
+      Expected shape of the vendor's raw F1 schema (ANALYTICS_DEV.F1_RAW_HC_1): every table and column
+      as of the post-migration load, with `required` set for each column this project reads. The
+      raw-schema tests compare the live schema against this list. When the vendor changes shape,
+      update this seed after the staging models are fixed, so the change is reviewed.
+    columns:
+      - name: table_name
+        description: Raw table name (upper case, as the vendor loads it).
+        data_tests:
+          - not_null
+      - name: column_name
+        description: Raw column name (upper case).
+        data_tests:
+          - not_null
+      - name: required
+        description: True when a model in this project reads the column.
+        data_tests:
+          - not_null

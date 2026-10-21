@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: audit_orphan_driver_results
+    description: >
+      Live list of Grand Prix results whose driver record has not arrived in
+      DRIVERS yet. These results are kept in fct_results and downstream marts,
+      and the driver appears in dim_drivers as a placeholder. `select count(*)`
+      gives the current orphan count; the warn-level test below also reports it
+      on every build.
+    config:
+      tags: [audit]
+    data_tests:
+      - expression_is_true:
+          name: warn_orphan_driver_results_exist
+          arguments:
+            expression: "false"
+          config:
+            severity: warn
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: driver_id
+        data_tests: [not_null]
+
+  - name: audit_raw_schema_drift
+    description: >
+      Live list of differences between the raw schema and
+      seeds/raw_schema_contract.csv (missing/unexpected tables and columns,
+      moved columns). Empty when the vendor layout matches. The source tests
+      on each raw table enforce the same contract.
+    config:
+      tags: [audit]
+    data_tests:
+      - expression_is_true:
+          name: warn_raw_schema_drift_exists
+          arguments:
+            expression: "false"
+          config:
+            severity: warn
+
+  - name: audit_raw_duplicates
+    description: >
+      Live duplicate report per raw table, by natural key: extra_rows (rows
+      beyond one per key, which staging collapses) and conflicting_versions
+      (keys whose copies disagree). Both are 0 on a healthy feed.
+    config:
+      tags: [audit]
+    data_tests:
+      - expression_is_true:
+          name: warn_raw_duplicates_exist
+          arguments:
+            expression: "extra_rows = 0 and conflicting_versions = 0"
+          config:
+            severity: warn
+    columns:
+      - name: table_name
+        data_tests: [unique, not_null]

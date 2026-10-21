@@ -1,0 +1,1292 @@
+version: 2
+
+sources:
+  - name: f1_raw
+    description: >
+      Ergast/Kaggle Formula 1 data delivered by the vendor into Snowflake. Every
+      column is text. Nulls are the literal string `\N`, or an empty string in
+      some columns. Read-only: never write to this schema. Every table carries a
+      vendor contract: tests that its expected columns exist, that it has no unknown
+      columns (warning), and that every parsed column matches its agreed text
+      format. They run before staging, so a vendor change stops the build at
+      the source with a named failure instead of changing numbers downstream.
+      Duplicate rows on a table's natural key are reported as warnings
+      (`source_duplicates_<table>`) and removed in staging. Duplicates whose
+      copies disagree fail the build (`source_conflicting_duplicates_<table>`).
+    database: ANALYTICS_DEV
+    schema: F1_RAW_C_v2_1
+    quoting:
+      database: false
+      schema: false
+      identifier: false
+    tables:
+      - name: circuits
+        description: "One row per circuit."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_circuits
+              arguments:
+                combination_of_columns: [circuitid]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_circuits
+              arguments:
+                key_columns: [circuitid]
+          - source_columns_match:
+              name: source_contract_circuits_columns_present
+              arguments:
+                expected_columns: [circuitid, circuitref, name, location, country, lat, lng, alt, url]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_circuits_no_unexpected_columns
+              arguments:
+                expected_columns: [circuitid, circuitref, name, location, country, lat, lng, alt, url]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: circuitid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_circuits_circuitid_format
+                  arguments:
+                    format: integer
+          - name: circuitref
+            data_tests:
+              - matches_format:
+                  name: source_contract_circuits_circuitref_format
+                  arguments:
+                    format: text
+          - name: name
+            data_tests:
+              - matches_format:
+                  name: source_contract_circuits_name_format
+                  arguments:
+                    format: text
+          - name: location
+            data_tests:
+              - matches_format:
+                  name: source_contract_circuits_location_format
+                  arguments:
+                    format: text
+          - name: country
+            data_tests:
+              - matches_format:
+                  name: source_contract_circuits_country_format
+                  arguments:
+                    format: text
+          - name: lat
+            data_tests:
+              - matches_format:
+                  name: source_contract_circuits_lat_format
+                  arguments:
+                    format: decimal
+          - name: lng
+            data_tests:
+              - matches_format:
+                  name: source_contract_circuits_lng_format
+                  arguments:
+                    format: decimal
+          - name: alt
+            data_tests:
+              - matches_format:
+                  name: source_contract_circuits_alt_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: url
+            data_tests:
+              - matches_format:
+                  name: source_contract_circuits_url_format
+                  arguments:
+                    format: text
+      - name: constructors
+        description: "One row per constructor (team entry name). Renamed teams get new ids, e.g. Manor Marussia vs Marussia."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_constructors
+              arguments:
+                combination_of_columns: [constructorid]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_constructors
+              arguments:
+                key_columns: [constructorid]
+          - source_columns_match:
+              name: source_contract_constructors_columns_present
+              arguments:
+                expected_columns: [constructorid, constructorref, name, nationality, url]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_constructors_no_unexpected_columns
+              arguments:
+                expected_columns: [constructorid, constructorref, name, nationality, url]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: constructorid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_constructors_constructorid_format
+                  arguments:
+                    format: integer
+          - name: constructorref
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructors_constructorref_format
+                  arguments:
+                    format: text
+          - name: name
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructors_name_format
+                  arguments:
+                    format: text
+          - name: nationality
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructors_nationality_format
+                  arguments:
+                    format: text
+          - name: url
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructors_url_format
+                  arguments:
+                    format: text
+      - name: constructor_results
+        description: "One row per constructor per Grand Prix with the points the team scored."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_constructor_results
+              arguments:
+                combination_of_columns: [raceid, constructorid]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_constructor_results
+              arguments:
+                key_columns: [raceid, constructorid]
+                ignore_columns: [constructorresultsid]
+          - source_columns_match:
+              name: source_contract_constructor_results_columns_present
+              arguments:
+                expected_columns: [constructorresultsid, raceid, constructorid, points, status]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_constructor_results_no_unexpected_columns
+              arguments:
+                expected_columns: [constructorresultsid, raceid, constructorid, points, status]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: constructorresultsid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_constructor_results_constructorresultsid_format
+                  arguments:
+                    format: integer
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructor_results_raceid_format
+                  arguments:
+                    format: integer
+          - name: constructorid
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructor_results_constructorid_format
+                  arguments:
+                    format: integer
+          - name: points
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructor_results_points_format
+                  arguments:
+                    format: decimal
+          - name: status
+      - name: constructor_standings
+        description: "Constructors' championship snapshot after every Grand Prix."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_constructor_standings
+              arguments:
+                combination_of_columns: [raceid, constructorid]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_constructor_standings
+              arguments:
+                key_columns: [raceid, constructorid]
+                ignore_columns: [constructorstandingsid]
+          - source_columns_match:
+              name: source_contract_constructor_standings_columns_present
+              arguments:
+                expected_columns: [constructorstandingsid, raceid, constructorid, points, position, positiontext, wins]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_constructor_standings_no_unexpected_columns
+              arguments:
+                expected_columns: [constructorstandingsid, raceid, constructorid, points, position, positiontext, wins]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: constructorstandingsid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_constructor_standings_constructorstandingsid_format
+                  arguments:
+                    format: integer
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructor_standings_raceid_format
+                  arguments:
+                    format: integer
+          - name: constructorid
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructor_standings_constructorid_format
+                  arguments:
+                    format: integer
+          - name: points
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructor_standings_points_format
+                  arguments:
+                    format: decimal
+          - name: position
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructor_standings_position_format
+                  arguments:
+                    format: integer
+          - name: positiontext
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructor_standings_positiontext_format
+                  arguments:
+                    format: standings_position
+          - name: wins
+            data_tests:
+              - matches_format:
+                  name: source_contract_constructor_standings_wins_format
+                  arguments:
+                    format: integer
+      - name: drivers
+        description: "One row per driver."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_drivers
+              arguments:
+                combination_of_columns: [driverid]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_drivers
+              arguments:
+                key_columns: [driverid]
+          - source_columns_match:
+              name: source_contract_drivers_columns_present
+              arguments:
+                expected_columns: [driverid, driverref, number, code, forename, surname, dob, nationality, url]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_drivers_no_unexpected_columns
+              arguments:
+                expected_columns: [driverid, driverref, number, code, forename, surname, dob, nationality, url]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: driverid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_drivers_driverid_format
+                  arguments:
+                    format: integer
+          - name: driverref
+            data_tests:
+              - matches_format:
+                  name: source_contract_drivers_driverref_format
+                  arguments:
+                    format: text
+          - name: number
+            data_tests:
+              - matches_format:
+                  name: source_contract_drivers_number_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: code
+            data_tests:
+              - matches_format:
+                  name: source_contract_drivers_code_format
+                  arguments:
+                    format: driver_code
+                    nullable: true
+          - name: forename
+            data_tests:
+              - matches_format:
+                  name: source_contract_drivers_forename_format
+                  arguments:
+                    format: text
+          - name: surname
+            data_tests:
+              - matches_format:
+                  name: source_contract_drivers_surname_format
+                  arguments:
+                    format: text
+          - name: dob
+            data_tests:
+              - matches_format:
+                  name: source_contract_drivers_dob_format
+                  arguments:
+                    format: iso_date
+          - name: nationality
+            data_tests:
+              - matches_format:
+                  name: source_contract_drivers_nationality_format
+                  arguments:
+                    format: text
+          - name: url
+            description: Wikipedia URL. Null for some recently added drivers.
+      - name: driver_standings
+        description: "Drivers' championship snapshot after every Grand Prix, including sprint points and historical dropped-score rules."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_driver_standings
+              arguments:
+                combination_of_columns: [raceid, driverid]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_driver_standings
+              arguments:
+                key_columns: [raceid, driverid]
+                ignore_columns: [driverstandingsid]
+          - source_columns_match:
+              name: source_contract_driver_standings_columns_present
+              arguments:
+                expected_columns: [driverstandingsid, raceid, driverid, points, position, positiontext, wins]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_driver_standings_no_unexpected_columns
+              arguments:
+                expected_columns: [driverstandingsid, raceid, driverid, points, position, positiontext, wins]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: driverstandingsid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_driver_standings_driverstandingsid_format
+                  arguments:
+                    format: integer
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  name: source_contract_driver_standings_raceid_format
+                  arguments:
+                    format: integer
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  name: source_contract_driver_standings_driverid_format
+                  arguments:
+                    format: integer
+          - name: points
+            data_tests:
+              - matches_format:
+                  name: source_contract_driver_standings_points_format
+                  arguments:
+                    format: decimal
+          - name: position
+            data_tests:
+              - matches_format:
+                  name: source_contract_driver_standings_position_format
+                  arguments:
+                    format: integer
+          - name: positiontext
+            data_tests:
+              - matches_format:
+                  name: source_contract_driver_standings_positiontext_format
+                  arguments:
+                    format: standings_position
+          - name: wins
+            data_tests:
+              - matches_format:
+                  name: source_contract_driver_standings_wins_format
+                  arguments:
+                    format: integer
+      - name: lap_timing
+        description: "One row per driver per lap. Available from 1996. Called LAP_TIMES before the vendor's October 2026 pipeline migration."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_lap_timing
+              arguments:
+                combination_of_columns: [raceid, driverid, lap]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_lap_timing
+              arguments:
+                key_columns: [raceid, driverid, lap]
+          - source_columns_match:
+              name: source_contract_lap_timing_columns_present
+              arguments:
+                expected_columns: [raceid, driverid, lap, position, time, milliseconds]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_lap_timing_no_unexpected_columns
+              arguments:
+                expected_columns: [raceid, driverid, lap, position, time, milliseconds]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  name: source_contract_lap_timing_raceid_format
+                  arguments:
+                    format: integer
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  name: source_contract_lap_timing_driverid_format
+                  arguments:
+                    format: integer
+          - name: lap
+            data_tests:
+              - matches_format:
+                  name: source_contract_lap_timing_lap_format
+                  arguments:
+                    format: integer
+          - name: position
+            data_tests:
+              - matches_format:
+                  name: source_contract_lap_timing_position_format
+                  arguments:
+                    format: integer
+          - name: time
+            data_tests:
+              - matches_format:
+                  name: source_contract_lap_timing_time_format
+                  arguments:
+                    format: lap_time
+          - name: milliseconds
+            data_tests:
+              - matches_format:
+                  name: source_contract_lap_timing_milliseconds_format
+                  arguments:
+                    format: integer
+      - name: pit_stops
+        description: "One row per pit stop. Available from 2011. The text DURATION column was dropped in the October 2026 migration; MILLISECONDS carries the same value."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_pit_stops
+              arguments:
+                combination_of_columns: [raceid, driverid, stop]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_pit_stops
+              arguments:
+                key_columns: [raceid, driverid, stop]
+          - source_columns_match:
+              name: source_contract_pit_stops_columns_present
+              arguments:
+                expected_columns: [raceid, driverid, stop, lap, time, milliseconds]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_pit_stops_no_unexpected_columns
+              arguments:
+                expected_columns: [raceid, driverid, stop, lap, time, milliseconds]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  name: source_contract_pit_stops_raceid_format
+                  arguments:
+                    format: integer
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  name: source_contract_pit_stops_driverid_format
+                  arguments:
+                    format: integer
+          - name: stop
+            data_tests:
+              - matches_format:
+                  name: source_contract_pit_stops_stop_format
+                  arguments:
+                    format: integer
+          - name: lap
+            data_tests:
+              - matches_format:
+                  name: source_contract_pit_stops_lap_format
+                  arguments:
+                    format: integer
+          - name: time
+            data_tests:
+              - matches_format:
+                  name: source_contract_pit_stops_time_format
+                  arguments:
+                    format: clock_time
+          - name: milliseconds
+            data_tests:
+              - matches_format:
+                  name: source_contract_pit_stops_milliseconds_format
+                  arguments:
+                    format: integer
+      - name: qualifying
+        description: "One row per driver per qualifying session (single-session years carry only q1). Available from 1994; sparse before 2003. Missing session times are empty strings since the October 2026 migration (previously \\N)."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_qualifying
+              arguments:
+                combination_of_columns: [raceid, driverid]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_qualifying
+              arguments:
+                key_columns: [raceid, driverid]
+                ignore_columns: [qualifyid]
+          - source_columns_match:
+              name: source_contract_qualifying_columns_present
+              arguments:
+                expected_columns: [qualifyid, raceid, driverid, constructorid, number, position, q1, q2, q3]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_qualifying_no_unexpected_columns
+              arguments:
+                expected_columns: [qualifyid, raceid, driverid, constructorid, number, position, q1, q2, q3]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: qualifyid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_qualifying_qualifyid_format
+                  arguments:
+                    format: integer
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  name: source_contract_qualifying_raceid_format
+                  arguments:
+                    format: integer
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  name: source_contract_qualifying_driverid_format
+                  arguments:
+                    format: integer
+          - name: constructorid
+            data_tests:
+              - matches_format:
+                  name: source_contract_qualifying_constructorid_format
+                  arguments:
+                    format: integer
+          - name: number
+            data_tests:
+              - matches_format:
+                  name: source_contract_qualifying_number_format
+                  arguments:
+                    format: integer
+          - name: position
+            data_tests:
+              - matches_format:
+                  name: source_contract_qualifying_position_format
+                  arguments:
+                    format: integer
+          - name: q1
+            data_tests:
+              - matches_format:
+                  name: source_contract_qualifying_q1_format
+                  arguments:
+                    format: lap_time
+                    nullable: true
+          - name: q2
+            data_tests:
+              - matches_format:
+                  name: source_contract_qualifying_q2_format
+                  arguments:
+                    format: lap_time
+                    nullable: true
+          - name: q3
+            data_tests:
+              - matches_format:
+                  name: source_contract_qualifying_q3_format
+                  arguments:
+                    format: lap_time
+                    nullable: true
+      - name: races
+        description: "One row per championship Grand Prix on the calendar, including rounds that have not been run yet. DATE is DD/MM/YYYY since the October 2026 migration (session dates are still YYYY-MM-DD)."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_races
+              arguments:
+                combination_of_columns: [raceid]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_races
+              arguments:
+                key_columns: [raceid]
+          - source_columns_match:
+              name: source_contract_races_columns_present
+              arguments:
+                expected_columns: [raceid, year, round, circuitid, name, date, time, url, fp1_date, fp1_time, fp2_date, fp2_time, fp3_date, fp3_time, quali_date, quali_time, sprint_date, sprint_time]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_races_no_unexpected_columns
+              arguments:
+                expected_columns: [raceid, year, round, circuitid, name, date, time, url, fp1_date, fp1_time, fp2_date, fp2_time, fp3_date, fp3_time, quali_date, quali_time, sprint_date, sprint_time]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: raceid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_races_raceid_format
+                  arguments:
+                    format: integer
+          - name: year
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_year_format
+                  arguments:
+                    format: integer
+          - name: round
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_round_format
+                  arguments:
+                    format: integer
+          - name: circuitid
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_circuitid_format
+                  arguments:
+                    format: integer
+          - name: name
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_name_format
+                  arguments:
+                    format: text
+          - name: date
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_date_format
+                  arguments:
+                    format: dmy_date
+          - name: time
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_time_format
+                  arguments:
+                    format: clock_time
+                    nullable: true
+          - name: url
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_url_format
+                  arguments:
+                    format: text
+          - name: fp1_date
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_fp1_date_format
+                  arguments:
+                    format: iso_date
+                    nullable: true
+          - name: fp1_time
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_fp1_time_format
+                  arguments:
+                    format: clock_time
+                    nullable: true
+          - name: fp2_date
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_fp2_date_format
+                  arguments:
+                    format: iso_date
+                    nullable: true
+          - name: fp2_time
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_fp2_time_format
+                  arguments:
+                    format: clock_time
+                    nullable: true
+          - name: fp3_date
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_fp3_date_format
+                  arguments:
+                    format: iso_date
+                    nullable: true
+          - name: fp3_time
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_fp3_time_format
+                  arguments:
+                    format: clock_time
+                    nullable: true
+          - name: quali_date
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_quali_date_format
+                  arguments:
+                    format: iso_date
+                    nullable: true
+          - name: quali_time
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_quali_time_format
+                  arguments:
+                    format: clock_time
+                    nullable: true
+          - name: sprint_date
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_sprint_date_format
+                  arguments:
+                    format: iso_date
+                    nullable: true
+          - name: sprint_time
+            data_tests:
+              - matches_format:
+                  name: source_contract_races_sprint_time_format
+                  arguments:
+                    format: clock_time
+                    nullable: true
+      - name: results
+        description: "One row per car per Grand Prix (sprints are in sprint_results). Before 1979 a driver can have several rows in one race when cars were shared. POSITIONORDER was renamed POSITION_ORDER in the October 2026 migration."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_results
+              arguments:
+                combination_of_columns: [raceid, driverid, position_order]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_results
+              arguments:
+                key_columns: [raceid, driverid, position_order]
+                ignore_columns: [resultid]
+          - source_columns_match:
+              name: source_contract_results_columns_present
+              arguments:
+                expected_columns: [resultid, raceid, driverid, constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, rank, fastestlaptime, fastestlapspeed, statusid]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_results_no_unexpected_columns
+              arguments:
+                expected_columns: [resultid, raceid, driverid, constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, rank, fastestlaptime, fastestlapspeed, statusid]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: resultid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_results_resultid_format
+                  arguments:
+                    format: integer
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_raceid_format
+                  arguments:
+                    format: integer
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_driverid_format
+                  arguments:
+                    format: integer
+          - name: constructorid
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_constructorid_format
+                  arguments:
+                    format: integer
+          - name: number
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_number_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: grid
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_grid_format
+                  arguments:
+                    format: integer
+          - name: position
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_position_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: positiontext
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_positiontext_format
+                  arguments:
+                    format: classification
+          - name: position_order
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_position_order_format
+                  arguments:
+                    format: integer
+          - name: points
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_points_format
+                  arguments:
+                    format: decimal
+          - name: laps
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_laps_format
+                  arguments:
+                    format: integer
+          - name: time
+          - name: milliseconds
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_milliseconds_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: fastestlap
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_fastestlap_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: rank
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_rank_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: fastestlaptime
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_fastestlaptime_format
+                  arguments:
+                    format: lap_time
+                    nullable: true
+          - name: fastestlapspeed
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_fastestlapspeed_format
+                  arguments:
+                    format: decimal
+                    nullable: true
+          - name: statusid
+            data_tests:
+              - matches_format:
+                  name: source_contract_results_statusid_format
+                  arguments:
+                    format: integer
+      - name: seasons
+        description: "One row per championship season."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_seasons
+              arguments:
+                combination_of_columns: [year]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_seasons
+              arguments:
+                key_columns: [year]
+          - source_columns_match:
+              name: source_contract_seasons_columns_present
+              arguments:
+                expected_columns: [year, url]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_seasons_no_unexpected_columns
+              arguments:
+                expected_columns: [year, url]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: year
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_seasons_year_format
+                  arguments:
+                    format: integer
+          - name: url
+            data_tests:
+              - matches_format:
+                  name: source_contract_seasons_url_format
+                  arguments:
+                    format: text
+      - name: sprint_results
+        description: "One row per car per sprint race (2021 onwards). POSITIONORDER was renamed POSITION_ORDER in the October 2026 migration."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_sprint_results
+              arguments:
+                combination_of_columns: [raceid, driverid, position_order]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_sprint_results
+              arguments:
+                key_columns: [raceid, driverid, position_order]
+                ignore_columns: [resultid]
+          - source_columns_match:
+              name: source_contract_sprint_results_columns_present
+              arguments:
+                expected_columns: [resultid, raceid, driverid, constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, fastestlaptime, statusid]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_sprint_results_no_unexpected_columns
+              arguments:
+                expected_columns: [resultid, raceid, driverid, constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, fastestlaptime, statusid]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: resultid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_sprint_results_resultid_format
+                  arguments:
+                    format: integer
+          - name: raceid
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_raceid_format
+                  arguments:
+                    format: integer
+          - name: driverid
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_driverid_format
+                  arguments:
+                    format: integer
+          - name: constructorid
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_constructorid_format
+                  arguments:
+                    format: integer
+          - name: number
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_number_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: grid
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_grid_format
+                  arguments:
+                    format: integer
+          - name: position
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_position_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: positiontext
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_positiontext_format
+                  arguments:
+                    format: classification
+          - name: position_order
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_position_order_format
+                  arguments:
+                    format: integer
+          - name: points
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_points_format
+                  arguments:
+                    format: decimal
+          - name: laps
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_laps_format
+                  arguments:
+                    format: integer
+          - name: time
+          - name: milliseconds
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_milliseconds_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: fastestlap
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_fastestlap_format
+                  arguments:
+                    format: integer
+                    nullable: true
+          - name: fastestlaptime
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_fastestlaptime_format
+                  arguments:
+                    format: lap_time
+                    nullable: true
+          - name: statusid
+            data_tests:
+              - matches_format:
+                  name: source_contract_sprint_results_statusid_format
+                  arguments:
+                    format: integer
+      - name: status
+        description: "Lookup of finishing status codes."
+        data_tests:
+          - unique_combination_of_columns:
+              name: source_duplicates_status
+              arguments:
+                combination_of_columns: [statusid]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_status
+              arguments:
+                key_columns: [statusid]
+          - source_columns_match:
+              name: source_contract_status_columns_present
+              arguments:
+                expected_columns: [statusid, status]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_status_no_unexpected_columns
+              arguments:
+                expected_columns: [statusid, status]
+                mode: unexpected
+              config:
+                severity: warn
+        columns:
+          - name: statusid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+              - matches_format:
+                  name: source_contract_status_statusid_format
+                  arguments:
+                    format: integer
+          - name: status
+            data_tests:
+              - matches_format:
+                  name: source_contract_status_status_format
+                  arguments:
+                    format: text
+      - name: vb_drivers
+        description: "Vendor B (cross-check feed, 2018 onwards). One row per Vendor B driver. FULL_NAME is 'SURNAME Forename' with the surname in capitals and no accents. RACING_NUMBER is not unique (numbers are reused across seasons)."
+        data_tests:
+          - source_columns_match:
+              name: source_contract_vb_drivers_columns_present
+              arguments:
+                expected_columns: [driver_key, full_name, abbreviation, racing_number]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_vb_drivers_no_unexpected_columns
+              arguments:
+                expected_columns: [driver_key, full_name, abbreviation, racing_number]
+                mode: unexpected
+              config:
+                severity: warn
+          - unique_combination_of_columns:
+              name: source_duplicates_vb_drivers
+              arguments:
+                combination_of_columns: [driver_key]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_vb_drivers
+              arguments:
+                key_columns: [driver_key]
+        columns:
+          - name: driver_key
+            data_tests: [not_null]
+          - name: full_name
+            data_tests:
+              - matches_format:
+                  name: source_contract_vb_drivers_full_name_format
+                  arguments:
+                    format: vendor_b_full_name
+          - name: abbreviation
+            data_tests:
+              - matches_format:
+                  name: source_contract_vb_drivers_abbreviation_format
+                  arguments:
+                    format: driver_code
+      - name: vb_sessions
+        description: "Vendor B sessions: one row per Grand Prix ('Race') or sprint ('Sprint'). MEETING_NAME is the circuit location, not the Grand Prix name. DATE_START is the UTC start (YYYY-MM-DDTHH:MI:SSZ). For the 2021 sprints the time part is \\N."
+        data_tests:
+          - source_columns_match:
+              name: source_contract_vb_sessions_columns_present
+              arguments:
+                expected_columns: [session_key, session_type, meeting_name, year, date_start]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_vb_sessions_no_unexpected_columns
+              arguments:
+                expected_columns: [session_key, session_type, meeting_name, year, date_start]
+                mode: unexpected
+              config:
+                severity: warn
+          - unique_combination_of_columns:
+              name: source_duplicates_vb_sessions
+              arguments:
+                combination_of_columns: [session_key]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_vb_sessions
+              arguments:
+                key_columns: [session_key]
+        columns:
+          - name: session_key
+            data_tests: [not_null]
+          - name: session_type
+            data_tests:
+              - accepted_values:
+                  name: source_contract_vb_sessions_session_type_values
+                  arguments:
+                    values: ['Race', 'Sprint']
+          - name: date_start
+            data_tests:
+              - matches_format:
+                  name: source_contract_vb_sessions_date_start_format
+                  arguments:
+                    format: vendor_b_timestamp
+      - name: vb_results
+        description: "Vendor B results: one row per driver per session. POSITION is the classified finishing position, or DNF / DSQ for unclassified entries."
+        data_tests:
+          - source_columns_match:
+              name: source_contract_vb_results_columns_present
+              arguments:
+                expected_columns: [session_key, driver_key, team_name, grid_position, position, points]
+                mode: missing
+          - source_columns_match:
+              name: source_contract_vb_results_no_unexpected_columns
+              arguments:
+                expected_columns: [session_key, driver_key, team_name, grid_position, position, points]
+                mode: unexpected
+              config:
+                severity: warn
+          - unique_combination_of_columns:
+              name: source_duplicates_vb_results
+              arguments:
+                combination_of_columns: [session_key, driver_key]
+              config:
+                severity: warn
+          - duplicates_are_identical:
+              name: source_conflicting_duplicates_vb_results
+              arguments:
+                key_columns: [session_key, driver_key]
+        columns:
+          - name: session_key
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('f1_raw', 'vb_sessions')
+                    field: session_key
+          - name: driver_key
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('f1_raw', 'vb_drivers')
+                    field: driver_key
+          - name: position
+            data_tests:
+              - matches_format:
+                  name: source_contract_vb_results_position_format
+                  arguments:
+                    format: vendor_b_position
+          - name: points
+            data_tests: [not_null]

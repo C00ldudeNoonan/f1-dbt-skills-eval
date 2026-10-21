@@ -1,0 +1,52 @@
+version: 2
+
+seeds:
+  - name: official_world_champions
+    description: Published world champion per season (1950-2023), hand-checked; regression lock for standings.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [not_null]
+  - name: alt_points_systems
+    description: >
+      Points per classified finishing position for each what-if scoring system. To add a system, append
+      rows with a new `points_system` name (one row per scoring position); no SQL changes needed.
+    config:
+      column_types:
+        points_system: varchar
+        position_order: integer
+        points: number(12,2)
+    columns:
+      - name: points_system
+        data_tests: [not_null]
+      - name: position_order
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "points_system || '-' || position_order"}
+  - name: vendor_b_driver_overrides
+    description: >
+      Manual Vendor B driver -> our driver_id mappings, only for genuinely ambiguous cases the automatic
+      matching (name, then abbreviation) cannot resolve. Overrides win over automatic matches. Normally empty.
+    config:
+      column_types: {driver_key: varchar, driver_id: integer, reason: varchar}
+    columns:
+      - name: driver_key
+        data_tests: [unique, not_null]
+      - name: driver_id
+        data_tests: [not_null]
+  - name: vendor_b_session_overrides
+    description: >
+      Manual Vendor B session -> race mapping for sessions the automatic date matching cannot resolve.
+      Overrides win over automatic matches. Normally empty.
+    config:
+      column_types: {session_key: varchar, race_id: integer, session_type: varchar, reason: varchar}
+    columns:
+      - name: session_key
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests: [not_null]
+

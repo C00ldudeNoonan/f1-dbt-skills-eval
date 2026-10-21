@@ -1,0 +1,46 @@
+unit_tests:
+  - name: fct_telemetry_routine_run_reads_only_new_landings
+    description: >
+      A routine run reads only samples that landed after the newest loaded sample minus the
+      lookback. An old sample is not re-read. A late sample that lands now is read, even though
+      its recorded_at is from a previous race.
+    model: fct_telemetry
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: ref('stg_f1__car_telemetry')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 5, sample_index: 0, recorded_at: '2026-09-01 12:00:00', speed_kph: 300, throttle_pct: 100, brake: false, gear: 7, drs: 1, loaded_at: '2026-09-01 14:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 5, sample_index: 1, recorded_at: '2026-09-01 12:00:01', speed_kph: 301, throttle_pct: 100, brake: false, gear: 7, drs: 1, loaded_at: '2026-10-20 09:00:00'}
+      - input: this
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 5, sample_index: 0, recorded_at: '2026-09-01 12:00:00', speed_kph: 300, throttle_pct: 100, brake: false, gear: 7, drs: 1, loaded_at: '2026-09-01 14:00:00'}
+          - {race_id: 2, driver_id: 1, lap: 1, sample_index: 0, recorded_at: '2026-10-01 12:00:00', speed_kph: 250, throttle_pct: 90, brake: false, gear: 6, drs: 0, loaded_at: '2026-10-01 14:00:00'}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, lap: 5, sample_index: 1, speed_kph: 301, loaded_at: '2026-10-20 09:00:00'}
+
+  - name: mart_lap_telemetry_summary_recomputes_only_laps_with_new_samples
+    description: >
+      A late sample for lap 5 corrects lap 5's summary. Lap 6 received nothing new, so it is not
+      recomputed. Lap 5 recomputes from all four of its samples, not just the late one.
+    model: mart_lap_telemetry_summary
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: ref('fct_telemetry')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 5, sample_index: 0, recorded_at: '2026-10-01 12:00:00', speed_kph: 300, throttle_pct: 100, brake: false, gear: 7, drs: 1, loaded_at: '2026-10-01 14:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 5, sample_index: 1, recorded_at: '2026-10-01 12:00:01', speed_kph: 310, throttle_pct: 100, brake: true, gear: 7, drs: 1, loaded_at: '2026-10-01 14:00:01'}
+          - {race_id: 1, driver_id: 1, lap: 5, sample_index: 2, recorded_at: '2026-10-01 12:00:02', speed_kph: 290, throttle_pct: 50, brake: false, gear: 7, drs: 1, loaded_at: '2026-10-01 14:00:02'}
+          - {race_id: 1, driver_id: 1, lap: 5, sample_index: 3, recorded_at: '2026-10-01 12:00:03', speed_kph: 280, throttle_pct: 0, brake: false, gear: 6, drs: 0, loaded_at: '2026-10-20 09:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 6, sample_index: 0, recorded_at: '2026-09-01 12:00:00', speed_kph: 200, throttle_pct: 100, brake: false, gear: 5, drs: 0, loaded_at: '2026-09-01 14:00:00'}
+      - input: this
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 5, samples: 3, max_speed_kph: 310, avg_throttle_pct: 83.333, full_throttle_pct: 66.667, brake_samples: 1, last_loaded_at: '2026-10-01 14:00:02'}
+          - {race_id: 1, driver_id: 1, lap: 6, samples: 1, max_speed_kph: 200, avg_throttle_pct: 100, full_throttle_pct: 100, brake_samples: 0, last_loaded_at: '2026-09-01 14:00:00'}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, lap: 5, samples: 4, max_speed_kph: 310, avg_throttle_pct: 62.5, full_throttle_pct: 50.0, brake_samples: 1, last_loaded_at: '2026-10-20 09:00:00'}

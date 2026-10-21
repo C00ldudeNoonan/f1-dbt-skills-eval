@@ -1,0 +1,68 @@
+version: 2
+
+sources:
+  - name: f1_raw
+    description: >
+      The Ergast/Kaggle Formula 1 dataset as loaded from the source CSVs. Every column is
+      text, and missing values arrive as the literal string `\N` or as an empty string, depending on the table
+      (qualifying times switched from `\N` to empty strings in the 2026-10-21 migration). Staging treats both as NULL.
+      This schema is read-only: staging models are the only place that cleans it. Vendor changes are guarded by
+      macros/assert_raw_source_contract.sql, which runs before every build.
+      Coverage is 1950 through 2024. There are no 2025 or later seasons in this load.
+    database: "{{ var('raw_database') }}"
+    schema: "{{ var('raw_schema') }}"
+    tables:
+      - name: CIRCUITS
+        description: One row per circuit. Not used by the marts yet, kept for future circuit dimensions.
+      - name: CONSTRUCTORS
+        description: One row per constructor (team) across all seasons.
+      - name: CONSTRUCTOR_RESULTS
+        description: Constructor points per race. Not used by the marts yet.
+      - name: CONSTRUCTOR_STANDINGS
+        description: Constructor standings snapshot after each race. Not used by the marts yet.
+      - name: DRIVERS
+        description: One row per driver.
+      - name: DRIVER_STANDINGS
+        description: >
+          Driver championship standings snapshot after each race, as published by the
+          official series data. Points include sprint points from 2021 onwards and reflect
+          drop-score rules before 1991.
+      - name: LAP_TIMES
+        identifier: LAP_TIMING
+        description: >
+          One row per driver per lap. Coverage starts in 1996. The vendor renamed this table from LAP_TIMES to
+          LAP_TIMING in the 2026-10-21 migration. The logical name here stays LAP_TIMES so models do not change.
+      - name: PIT_STOPS
+        description: One row per pit stop. Coverage starts in 2011.
+      - name: QUALIFYING
+        description: One row per driver per qualifying session entry. Coverage starts in 1994.
+      - name: RACES
+        description: One row per Grand Prix on the calendar, including rounds that have no results loaded.
+      - name: RESULTS
+        description: One row per Grand Prix result entry. Sprint results are in SPRINT_RESULTS.
+      - name: CAR_TELEMETRY
+        description: >
+          Car telemetry samples from 2022, about four per second per car. _LOADED_AT is the load time and is the
+          incremental watermark. Samples can arrive weeks after the race.
+      - name: SEASONS
+        description: One row per season. Not used by the marts yet.
+      - name: SPRINT_RESULTS
+        description: One row per sprint result entry. Excluded from the Grand Prix models by design.
+      - name: STATUS
+        description: Lookup of finishing and retirement status text.
+
+  - name: vendor_b
+    description: >
+      Second Formula 1 feed, licensed to cross-check the primary feed for 2018 to 2024. It uses its own ids (DRV-prefixed
+      driver keys and session keys), so it is matched to our ids by the crosswalk models, not by key. Loaded into the same
+      raw schema as the primary feed.
+    database: "{{ var('raw_database') }}"
+    schema: "{{ var('raw_schema') }}"
+    tables:
+      - name: VB_DRIVERS
+        description: One row per Vendor B driver. Names are "SURNAME Given" with the surname in capitals.
+      - name: VB_SESSIONS
+        description: One row per Vendor B session. Session type is Race or Sprint. Meeting name is the circuit name.
+      - name: VB_RESULTS
+        description: One row per Vendor B result entry. Position is a number or DNF or DSQ.
+

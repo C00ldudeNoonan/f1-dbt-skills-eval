@@ -1,0 +1,616 @@
+version: 2
+
+models:
+  - name: fct_results
+    description: >
+      One row per Grand Prix result entry (sprints excluded; see
+      `stg_f1__sprint_results`). The grain is `result_id`, not race and driver:
+      before 1979 a driver can appear more than once in a race when cars were
+      shared, and two drivers can share a win.
+    semantic_model:
+      enabled: true
+      name: grand_prix_results
+    agg_time_dimension: race_date
+    config:
+      group: f1_analytics
+      access: public
+      contract:
+        enforced: true
+    data_tests:
+      - expression_is_true:
+          arguments:
+            expression: "not is_win or is_podium"
+      - expression_is_true:
+          arguments:
+            expression: "(finish_position is not null) = regexp_like(position_text, '^[0-9]+$')"
+    columns:
+      - name: result_id
+        entity:
+          type: primary
+          name: result
+        data_type: integer
+        description: Ergast result id. The grain of this table and stable across reloads.
+        constraints:
+          - type: not_null
+          - type: primary_key
+            warn_unenforced: false
+        data_tests: [unique]
+      - name: race_id
+        entity:
+          type: foreign
+          name: race
+        data_type: integer
+        description: "{{ doc('col_race_id') }}"
+        constraints:
+          - type: not_null
+      - name: season
+        dimension:
+          type: categorical
+          label: Season
+        data_type: integer
+        description: "{{ doc('col_season') }}"
+        constraints:
+          - type: not_null
+      - name: round
+        dimension:
+          type: categorical
+          label: Round
+        data_type: integer
+        description: Round number within the season.
+        constraints:
+          - type: not_null
+      - name: race_date
+        granularity: day
+        dimension:
+          type: time
+          label: Race date
+        data_type: date
+        description: Date of the Grand Prix.
+        constraints:
+          - type: not_null
+      - name: driver_id
+        entity:
+          type: foreign
+          name: driver
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        entity:
+          type: foreign
+          name: constructor
+        data_type: integer
+        description: "{{ doc('col_constructor_id') }}"
+        constraints:
+          - type: not_null
+      - name: constructor_name
+        dimension:
+          type: categorical
+          label: Constructor
+        data_type: varchar
+        description: Constructor name as entered that season (for example Red Bull, Manor Marussia).
+        data_tests: [not_null]
+      - name: car_number
+        data_type: integer
+        description: Race number on the car. Null for a few early entries.
+      - name: grid
+        data_type: integer
+        description: Starting grid slot. 0 means a pit lane start or that the car did not take the start.
+        constraints:
+          - type: not_null
+      - name: position_text
+        data_type: varchar
+        description: Classification as published. A number when classified, otherwise R (retired), D (disqualified), E (excluded), W (withdrew), F (failed to qualify) or N (not classified).
+        constraints:
+          - type: not_null
+      - name: finish_position
+        data_type: integer
+        description: "{{ doc('col_finish_position') }}"
+      - name: position_order
+        data_type: integer
+        description: "{{ doc('col_position_order') }}"
+        constraints:
+          - type: not_null
+      - name: points
+        data_type: number(8, 2)
+        description: Championship points scored in this Grand Prix (sprint points excluded). Shared drives can give fractional points.
+        constraints:
+          - type: not_null
+      - name: laps
+        data_type: integer
+        description: Laps completed.
+      - name: status
+        dimension:
+          type: categorical
+          label: Finishing status
+        data_type: varchar
+        description: Finishing status (Finished, +1 Lap, Engine, Accident, Did not qualify, ...).
+        data_tests: [not_null]
+      - name: is_win
+        data_type: boolean
+        description: True when `finish_position` is 1. A few 1950s races have two winners (shared car).
+        constraints:
+          - type: not_null
+      - name: is_podium
+        data_type: boolean
+        description: True when `finish_position` is 1, 2 or 3.
+        constraints:
+          - type: not_null
+      - name: race_time_ms
+        data_type: integer
+        description: Total race time in milliseconds. Only for classified finishers on the lead lap.
+      - name: fastest_lap_number
+        data_type: integer
+        description: Lap on which the driver set their fastest lap (2004 onwards).
+      - name: fastest_lap_rank
+        data_type: integer
+        description: Rank of the driver's fastest lap among all drivers in the race (2004 onwards).
+      - name: fastest_lap_time_ms
+        data_type: integer
+        description: Driver's fastest race lap in integer milliseconds (2004 onwards). Null when not recorded.
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "fastest_lap_time_ms is null or fastest_lap_time_ms between 40000 and 400000"
+
+    metrics:
+      - name: race_starts
+        label: Race starts
+        description: >
+          Number of Grand Prix result entries (rows in fct_results). Every entry
+          counts, including did-not-qualify and withdrawn entries, and a
+          shared-car driver can have two entries in one race. Not the same as
+          dim_drivers.career_starts, which counts distinct Grands Prix.
+        type: simple
+        agg: count
+        expr: result_id
+      - name: wins
+        label: Wins
+        description: Grand Prix wins (finish_position 1). Sprints are excluded. Shared-car wins count for each driver.
+        type: simple
+        agg: sum_boolean
+        expr: is_win
+      - name: podiums
+        label: Podiums
+        description: Grand Prix podium finishes (finish_position 1 to 3). Sprints are excluded.
+        type: simple
+        agg: sum_boolean
+        expr: is_podium
+      - name: championship_points
+        label: Championship points
+        description: >
+          Sum of Grand Prix points as scored in each race (sprint points
+          excluded). Before 1991, official championship totals dropped some
+          scores, so for a season this can exceed the official standings. Use
+          mart_driver_season_standings for official totals.
+        type: simple
+        agg: sum
+        expr: points
+      - name: podium_rate
+        label: Podium rate
+        description: podiums / race_starts.
+        type: ratio
+        numerator: podiums
+        denominator: race_starts
+      - name: points_per_start
+        label: Points per start
+        description: championship_points / race_starts.
+        type: ratio
+        numerator: championship_points
+        denominator: race_starts
+
+  - name: fct_qualifying
+    description: >
+      One row per qualifying entry (1994 onwards). Times are integer
+      milliseconds and null when the driver did not set one. Gaps are measured
+      to the fastest time anyone set in that race's qualifying, whatever the
+      session, not to the driver who started from pole.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+      - expression_is_true:
+          arguments:
+            expression: "best_time_ms is null or best_time_ms = least(coalesce(q1_ms, best_time_ms), coalesce(q2_ms, best_time_ms), coalesce(q3_ms, best_time_ms))"
+    columns:
+      - name: qualify_id
+        data_type: integer
+        description: Ergast qualifying entry id. The grain of this table.
+        constraints:
+          - type: not_null
+          - type: primary_key
+            warn_unenforced: false
+        data_tests: [unique]
+      - name: race_id
+        data_type: integer
+        description: "{{ doc('col_race_id') }}"
+        constraints:
+          - type: not_null
+      - name: season
+        data_type: integer
+        description: "{{ doc('col_season') }}"
+        constraints:
+          - type: not_null
+      - name: round
+        data_type: integer
+        description: Round number within the season.
+        constraints:
+          - type: not_null
+      - name: driver_id
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+      - name: constructor_id
+        data_type: integer
+        description: >
+          Constructor as recorded in qualifying (source value). 2015 Manor
+          Marussia entries are sometimes recorded under the old Marussia id here
+          while the race result uses the new one.
+        constraints:
+          - type: not_null
+      - name: qualifying_position
+        data_type: integer
+        description: Official qualifying classification (before grid penalties).
+        constraints:
+          - type: not_null
+      - name: q1_ms
+        data_type: integer
+        description: Q1 time in milliseconds (the only session before 2006).
+      - name: q2_ms
+        data_type: integer
+        description: Q2 time in milliseconds.
+      - name: q3_ms
+        data_type: integer
+        description: Q3 time in milliseconds.
+      - name: best_time_ms
+        data_type: integer
+        description: Fastest of q1_ms, q2_ms and q3_ms, ignoring nulls. Null if the driver set no time at all.
+      - name: gap_to_pole_ms
+        data_type: integer
+        description: best_time_ms minus the fastest best_time_ms in the race. 0 for the fastest driver.
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "gap_to_pole_ms is null or gap_to_pole_ms >= 0"
+      - name: gap_to_pole_pct
+        data_type: float
+        description: gap_to_pole_ms as a percentage of the pole time, unrounded (0.512 means 0.512% slower).
+
+  - name: dim_drivers
+    description: >
+      One row per driver, with career totals over Grand Prix results only
+      (sprints are not starts, wins or podiums). Includes a placeholder row
+      (`is_placeholder`) for any driver_id that fact data references before
+      the driver's record arrives, so no fact row is orphaned. Versioned
+      public interface: v2 (latest) replaces `full_name` with `first_name`
+      and `last_name`. v1 is deprecated on 2027-01-01. Both versions are built
+      from `int_f1__driver_profiles`, so they always carry the same rows.
+    semantic_model:
+      enabled: true
+      name: drivers
+    latest_version: 2
+    config:
+      group: f1_analytics
+      access: public
+      # Fusion creates a latest-version pointer view at the unsuffixed name by
+      # default. Here that name (DIM_DRIVERS) is pinned to v1 for the
+      # migration window, so the pointer is off. Otherwise it silently replaces
+      # the v1 table with a view of v2.
+      latest_version_pointer:
+        enabled: false
+      contract:
+        enforced: true
+    data_tests:
+      - expression_is_true:
+          arguments:
+            expression: "career_podiums >= career_wins"
+    columns:
+      - name: driver_id
+        entity:
+          type: primary
+          name: driver
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+          - type: primary_key
+            warn_unenforced: false
+        data_tests: [unique]
+      - name: driver_ref
+        dimension:
+          type: categorical
+          label: Driver
+        data_type: varchar
+        description: Stable, human-readable Ergast key (for example `max_verstappen`).
+        constraints:
+          - type: not_null
+        data_tests: [unique]
+      - name: driver_code
+        data_type: varchar
+        description: Three-letter timing code (for example VER). Null for most drivers before the 2000s.
+      - name: permanent_number
+        data_type: integer
+        description: Permanent race number. Only populated for drivers who raced in 2014 or later.
+      - name: current_number
+        data_type: integer
+        description: >
+          The driver's permanent car number as of the latest load. Null when
+          the driver has no permanent number (drivers before 2014, placeholders).
+          Raw drivers only keeps current values. Use `snp_drivers` for the number
+          a driver had at an earlier date.
+      - name: full_name
+        data_type: varchar
+        description: Forename and surname separated by a space. For placeholders, 'Unknown driver (id <driver_id>)'. Version 1 only; use first_name and last_name in version 2.
+        constraints:
+          - type: not_null
+      - name: forename
+        data_type: varchar
+        description: Given name as published by Ergast (accents preserved).
+      - name: surname
+        data_type: varchar
+        description: Family name as published by Ergast (accents preserved, e.g. Räikkönen).
+      - name: nationality
+        dimension:
+          type: categorical
+          label: Driver nationality
+        data_type: varchar
+        description: Ergast demonym (British, German, Argentine, ...), trimmed and standardised.
+      - name: date_of_birth
+        data_type: date
+        description: Driver's date of birth.
+      - name: career_starts
+        data_type: integer
+        description: >
+          Distinct Grands Prix entered: every race with at least one result row
+          for the driver, including did-not-qualify and withdrawn entries. A
+          shared-car race counts once.
+        constraints:
+          - type: not_null
+      - name: career_wins
+        data_type: integer
+        description: Grand Prix wins only (results with finish_position 1, including shared-car wins). Sprint wins are in career_sprint_wins.
+        constraints:
+          - type: not_null
+      - name: career_sprint_wins
+        data_type: integer
+        description: Sprint race wins (2021 onwards). Not included in career_wins, which counts Grand Prix wins only.
+        constraints:
+          - type: not_null
+      - name: career_podiums
+        data_type: integer
+        description: >
+          Grand Prix results with finish_position 1 to 3. Counts each
+          classification, so a driver with two shared-car podiums in one race
+          (Farina and Trintignant, 1955 Argentina) gets two, as official records do.
+        constraints:
+          - type: not_null
+      - name: world_championships
+        data_type: integer
+        description: >
+          Seasons the driver finished first in the drivers' championship. Only
+          completed seasons count (every race on the calendar has results), so a
+          season still running in the data does not add a title.
+        constraints:
+          - type: not_null
+      - name: first_race_date
+        data_type: date
+        description: Date of the driver's first Grand Prix entry.
+      - name: last_race_date
+        data_type: date
+        description: Date of the driver's most recent Grand Prix entry.
+      - name: is_placeholder
+        dimension:
+          type: categorical
+          label: Placeholder driver
+        data_type: boolean
+        description: >
+          True for a driver_id that fact data references but whose record
+          hasn't arrived in raw drivers yet (see `mon_late_arriving_drivers`).
+          Placeholder rows have `driver_ref` 'unknown_driver_<id>', a generic
+          `full_name` and null attributes. Career stats are still computed. The
+          row switches to the real values on the first run after the record arrives.
+        constraints:
+          - type: not_null
+
+    versions:
+      - v: 1
+        deprecation_date: 2027-01-01 00:00:00.00+00:00
+        config:
+          # Keeps the existing DIM_DRIVERS relation serving the v1 shape during
+          # the migration window, so anything that reads the table by name
+          # outside dbt doesn't break. v2 is built as DIM_DRIVERS_V2.
+          alias: dim_drivers
+      - v: 2
+        columns:
+          - include: all
+            exclude: [full_name]
+          - name: first_name
+            data_type: varchar
+            description: >
+              Driver's first (given) name, as published by Ergast with accents
+              preserved. For placeholder rows, 'Unknown'.
+            constraints:
+              - type: not_null
+          - name: last_name
+            data_type: varchar
+            description: >
+              Driver's last (family) name, as published by Ergast with accents
+              preserved. For placeholder rows, 'driver (id <driver_id>)', so
+              first_name || ' ' || last_name equals the v1 full_name for every row.
+            constraints:
+              - type: not_null
+
+  - name: fct_driver_race_pace
+    description: >
+      One row per driver per race that has lap data (1996 onwards) and at least
+      one green-flag lap. A green-flag lap is any lap except lap 1, a lap on
+      which the driver made a pit stop, the lap after a pit stop, and any lap
+      slower than 130% of the fastest lap anyone set in the race. Pit stop data
+      only starts in 2011, so for 1996-2010 the pit-lap rules cannot apply;
+      in practice the 130% rule removes most pit laps in those years.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: race_id
+        data_type: integer
+        description: "{{ doc('col_race_id') }}"
+        constraints:
+          - type: not_null
+      - name: driver_id
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+      - name: green_laps
+        data_type: integer
+        description: Number of green-flag laps the driver completed.
+        constraints:
+          - type: not_null
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "green_laps > 0"
+      - name: median_green_lap_ms
+        data_type: number(12, 1)
+        description: Median green-flag lap time in milliseconds. Ends in .5 when the driver has an even number of green laps.
+        constraints:
+          - type: not_null
+
+  - name: fct_session_results
+    description: >
+      One row per result entry across both Grand Prix and sprint sessions.
+      `session_type` is 'race' or 'sprint'. Sprints share their weekend's
+      race_id, season and round. `source_result_id` is the id from the source
+      table, so it is only unique within a session type. Use
+      `session_result_key` as the unique key. The 'race' rows are exactly
+      `fct_results`.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [session_type, source_result_id]
+    columns:
+      - name: session_result_key
+        data_type: varchar
+        description: Unique key, session_type and source_result_id joined with a dash (for example 'sprint-12').
+        constraints:
+          - type: not_null
+        data_tests: [unique]
+      - name: session_type
+        data_type: varchar
+        description: "'race' for a Grand Prix result, 'sprint' for a sprint result."
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: source_result_id
+        data_type: integer
+        description: resultId from the source table (results or sprint_results). Unique only within a session type.
+        constraints:
+          - type: not_null
+      - name: race_id
+        data_type: integer
+        description: "{{ doc('col_race_id') }}"
+        constraints:
+          - type: not_null
+      - name: season
+        data_type: integer
+        description: "{{ doc('col_season') }}"
+        constraints:
+          - type: not_null
+      - name: round
+        data_type: integer
+        description: Round number of the race weekend.
+        constraints:
+          - type: not_null
+      - name: race_date
+        data_type: date
+        description: Date of the Grand Prix of that weekend (also for sprints, which run the day before).
+        constraints:
+          - type: not_null
+      - name: driver_id
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        data_type: integer
+        description: "{{ doc('col_constructor_id') }}"
+        constraints:
+          - type: not_null
+      - name: constructor_name
+        data_type: varchar
+        description: Constructor name as entered that season.
+      - name: grid
+        data_type: integer
+        description: Starting grid slot for the session. 0 means a pit lane start or no start.
+      - name: position_text
+        data_type: varchar
+        description: Classification as published. A number when classified, otherwise a status code (R, D, E, W, F, N).
+        constraints:
+          - type: not_null
+      - name: finish_position
+        data_type: integer
+        description: "{{ doc('col_finish_position') }}"
+      - name: position_order
+        data_type: integer
+        description: "{{ doc('col_position_order') }}"
+        constraints:
+          - type: not_null
+      - name: points
+        data_type: number(8, 2)
+        description: Championship points scored in this session.
+        constraints:
+          - type: not_null
+      - name: laps
+        data_type: integer
+        description: Laps completed in the session.
+      - name: status
+        data_type: varchar
+        description: Finishing status.
+      - name: is_win
+        data_type: boolean
+        description: True when finish_position is 1.
+        constraints:
+          - type: not_null
+      - name: is_podium
+        data_type: boolean
+        description: True when finish_position is 1, 2 or 3.
+        constraints:
+          - type: not_null
+      - name: race_time_ms
+        data_type: integer
+        description: Total session time in milliseconds for classified finishers on the lead lap.
+      - name: fastest_lap_time_ms
+        data_type: integer
+        description: Driver's fastest lap of the session in integer milliseconds.

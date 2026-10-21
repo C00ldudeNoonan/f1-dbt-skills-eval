@@ -1,0 +1,28 @@
+version: 2
+
+unit_tests:
+  - name: test_season_complete_only_when_every_round_has_results
+    description: >
+      A season is complete only when every scheduled round has Grand Prix
+      results. 2023 has results for both rounds (complete); 2024 has results
+      for 2 of 3 rounds (in progress), so latest_completed_round is 2.
+    model: int_seasons__completion
+    given:
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 101, season: 2023, round: 1}
+          - {race_id: 102, season: 2023, round: 2}
+          - {race_id: 201, season: 2024, round: 1}
+          - {race_id: 202, season: 2024, round: 2}
+          - {race_id: 203, season: 2024, round: 3}
+      - input: ref('stg_ergast__results')
+        rows:
+          - {race_id: 101, result_id: 1}
+          - {race_id: 101, result_id: 2}
+          - {race_id: 102, result_id: 3}
+          - {race_id: 201, result_id: 4}
+          - {race_id: 202, result_id: 5}
+    expect:
+      rows:
+        - {season: 2023, scheduled_rounds: 2, completed_rounds: 2, latest_completed_round: 2, latest_completed_race_id: 102, is_complete: true}
+        - {season: 2024, scheduled_rounds: 3, completed_rounds: 2, latest_completed_round: 2, latest_completed_race_id: 202, is_complete: false}

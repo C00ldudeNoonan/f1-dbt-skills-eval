@@ -1,0 +1,124 @@
+version: 2
+
+sources:
+  - name: f1_raw
+    description: >
+      Raw Ergast/Kaggle Formula 1 tables, loaded exactly as they appeared in the CSV files.
+      Every column is TEXT and missing values are the literal string `\N`. Treat as read-only.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_HB_1
+    tables:
+      - name: races
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [raceid, year, round, circuitid, name, date, time, url, fp1_date, fp1_time, fp2_date, fp2_time, fp3_date, fp3_time, quali_date, quali_time, sprint_date, sprint_time]
+        description: One row per Grand Prix round (1950 onward). Includes rounds that have no results yet.
+        columns:
+          - name: raceid
+            data_tests:
+              - unique
+              - not_null
+      - name: results
+        # Vendor migration: POSITIONORDER was renamed to POSITION_ORDER.
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [resultid, raceid, driverid, constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, rank, fastestlaptime, fastestlapspeed, statusid]
+        description: One row per Grand Prix result entry. Early seasons contain a few drivers entered twice at one race, so (raceid, driverid) is not unique.
+        columns:
+          - name: resultid
+            data_tests:
+              - unique
+              - not_null
+      - name: sprint_results
+        # Vendor migration: POSITIONORDER was renamed to POSITION_ORDER.
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [resultid, raceid, driverid, constructorid, number, grid, position, positiontext, position_order, points, laps, time, milliseconds, fastestlap, fastestlaptime, statusid]
+        description: Sprint race results. Kept separate from `results` and excluded from the Grand Prix marts.
+      - name: drivers
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [driverid, driverref, number, code, forename, surname, dob, nationality, url]
+        description: One row per driver.
+        columns:
+          - name: driverid
+            data_tests:
+              - unique
+              - not_null
+      - name: constructors
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [constructorid, constructorref, name, nationality, url]
+        description: One row per constructor (team). Ergast has duplicate rows for some constructors (see tests/assert_raw_constructors_exact_duplicates.sql). Staging removes exact duplicates.
+        columns:
+          - name: constructorid
+            data_tests:
+              - unique:
+                  config:
+                    severity: warn
+              - not_null
+      - name: constructor_results
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [constructorresultsid, raceid, constructorid, points, status]
+        description: Constructor points per race. Not used in the marts.
+      - name: constructor_standings
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [constructorstandingsid, raceid, constructorid, points, position, positiontext, wins]
+        description: Official constructor standings after each race. Not used in the marts yet.
+      - name: driver_standings
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [driverstandingsid, raceid, driverid, points, position, positiontext, wins]
+        description: Official driver standings after each race. Includes sprint points from 2021 onward and reflects dropped scores in the older seasons.
+      - name: pit_stops
+        # Vendor migration: DURATION was dropped (MILLISECONDS is used).
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [raceid, driverid, stop, lap, time, milliseconds]
+        description: One row per pit stop, from 2011 onward. Includes red-flag stoppages of several minutes.
+      - name: lap_times
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [raceid, driverid, lap, position, time, milliseconds]
+        description: Lap-by-lap timing. Not used in the marts.
+      - name: qualifying
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [qualifyid, raceid, driverid, constructorid, number, position, q1, q2, q3]
+        description: Qualifying results. Not used in the marts.
+      - name: circuits
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [circuitid, circuitref, name, location, country, lat, lng, alt, url]
+        description: One row per circuit. Not used in the marts yet.
+      - name: seasons
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [year, url]
+        description: One row per season. Not used in the marts.
+      - name: status
+        data_tests:
+          - expected_columns:
+              arguments:
+                columns: [statusid, status]
+        description: Lookup of finishing status text (for example Finished, +1 Lap, Engine).
+        columns:
+          - name: statusid
+            data_tests:
+              - unique
+              - not_null

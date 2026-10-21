@@ -1,0 +1,20 @@
+models:
+  - name: audit_orphan_driver_results
+    description: >
+      One row per Grand Prix result whose driver has no record in `drivers` yet.
+      `select count(*)` gives the current number of orphan results. These results
+      are still in fct_results and every downstream model; dim_drivers carries a
+      placeholder row for each such driver until the record arrives.
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+
+  - name: audit_source_duplicates
+    description: >
+      One row per vendor table with raw row count, distinct natural keys and
+      redelivered_rows (copies staging dropped). Non-zero means the vendor
+      resent data; check that the copies were identical (the build fails if
+      they weren't) and raise it with the vendor.
+    columns:
+      - name: source_table
+        data_tests: [unique, not_null]

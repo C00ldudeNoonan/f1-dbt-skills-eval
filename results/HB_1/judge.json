@@ -1,0 +1,26 @@
+{
+  "scores": {
+    "layering": 3,
+    "naming": 4,
+    "testing": 4,
+    "quirks": 4,
+    "incremental_snapshot": 4,
+    "change_hygiene": 4,
+    "docs": 4,
+    "interfaces": 4,
+    "open_ended": null
+  },
+  "justifications": {
+    "layering": "Sources go through one staging model per table (`stg_f1__*`) and everything uses `ref`/`source`, but the layers run backwards in places: `models/intermediate/int_dim_drivers.sql` reads from marts (`fct_results`, `fct_session_results`, `mart_driver_season_standings`). The race-result logic (the `is_win` coalesce, the join to races) is also written twice, once in `fct_results.sql` and again in `fct_session_results.sql`, instead of one model building on the other.",
+    "naming": "Staging models and YAML follow the dbt-style pattern (`stg_f1__x`, `_f1__models.yml`, `_f1__sources.yml`, `_marts__models.yml`) and columns are renamed consistently (`finish_position`, `duration_ms`, `lap_time_ms`), but marts mix the `fct_`/`dim_` and `mart_` prefixes, and `stg_f1__lap_times` and `stg_f1__sprint_results` have no entry in `_f1__models.yml`, so a new teammate won't find them documented.",
+    "testing": "Keys are tested at staging, and the bugs from tickets 5 and 6 are caught: the `expected_columns` source contract (`macros/tests/expected_columns.sql`) stops vendor renames and drops, and the staging unique test on constructors plus `assert_fct_results_row_count_matches_source.sql` and `assert_pit_mart_reconciles_to_source.sql` stop duplicate rows from multiplying results. Business rules are checked against known history in `assert_known_world_champion_counts.sql` and `assert_standings_match_official_history.sql`. Gaps: sprint results, lap times and the pit-stop key (race, driver, stop) have no staging tests, and `constructor_id` has no relationships test.",
+    "quirks": "Most quirks are handled on purpose and explained in the README: `\\N` handling and trimming in `na_to_null`, both lap-time formats in `lap_time_to_ms` (unit-tested), red-flag stops over 60s excluded in `mart_constructor_season_pit_stops`, sprint and dropped-score points taken from the official standings rather than recomputed, shared drives handled by keying on `result_id` and counting distinct races for `career_starts`, and incomplete 2024 gated by `int_seasons.is_season_complete`. Empty strings are not turned into nulls, though, and late-arriving drivers are only covered by relationships tests, not by any explicit design.",
+    "incremental_snapshot": "`fct_lap_times.sql` uses delete+insert on `race_id` and re-processes every race dated within the two most recent loaded race dates, so it is idempotent, picks up reissued timing corrections and drops removed laps, with `on_schema_change='fail'`. Its weaknesses are that the lookback is tied to race dates rather than load time and that the uniqueness check is only a custom test. `snp_drivers.sql` uses the check strategy, which is justified because the source has no updated_at, and it states that history starts at the first run. However, it snapshots the raw text table rather than staging and does not handle hard deletes.",
+    "change_hygiene": "Later tickets were mostly refactored cleanly: season standings are now derived from `mart_driver_standings_by_round` and checked row for row against the old output, and driver logic moved into `int_dim_drivers` so both versions share it. Nothing is commented out or dead. Two loose ends are only documented, not fixed: the old `ANALYTICS_DEV.SNAPSHOTS.SNP_DRIVERS` table is left behind, and the `DIM_DRIVERS` physical table silently switched to v2, which breaks anyone querying it directly.",
+    "docs": "The README explains the why well (official standings vs recomputed points, the Ferrari incident, the schema-change runbook, the incremental reasoning), and the SQL header comments and mart column descriptions are clear. Staging models have only one-line descriptions with no column descriptions, and two staging models are not documented at all.",
+    "interfaces": "`fct_results` and `dim_drivers` are `access: public` with enforced contracts and explicit types, and `dim_drivers` has v1 and v2 with `deprecation_date: 2027-01-01` and the breaking change written up in the README. The unit tests (`fastest_lap_time_parses_to_integer_milliseconds`, `championship_counts_only_once_season_is_complete`) target real edge cases. On the minus side, the v2 YAML repeats v1 instead of using include/exclude, no alias keeps v1 at the old table name, and the other marts have no contracts.",
+    "open_ended": null
+  },
+  "biggest_strength": "Defensive build gates aimed at the failures that actually happened: the `expected_columns` source contracts, reconciliation tests that compare mart row counts to source, and tests against known championship history, all backed by a README that explains why each rule exists and records past incidents.",
+  "biggest_weakness": "The layering runs backwards in places: `int_dim_drivers` builds on marts, and race and sprint logic is written separately in `fct_results` and `fct_session_results`. Staging test and doc coverage is also uneven, with no tests or docs for sprint results, lap times or the pit-stop key."
+}

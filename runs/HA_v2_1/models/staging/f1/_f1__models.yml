@@ -1,0 +1,165 @@
+version: 2
+
+models:
+  - name: stg_f1__races
+    description: Grand Prix calendar. One row per race (race_id).
+    columns:
+      - name: race_id
+        tests: [unique, not_null]
+      - name: season
+        tests: [not_null]
+
+  - name: stg_f1__results
+    description: Grand Prix result entries with null sentinels cleaned and times parsed to milliseconds.
+    columns:
+      - name: result_id
+        tests: [unique, not_null]
+      - name: race_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: position_order
+        tests:
+          - not_null
+          - in_range:
+              arguments:
+                min_value: 1
+                max_value: 40
+      - name: points
+        tests:
+          - in_range:
+              arguments:
+                min_value: 0
+                max_value: 50
+      - name: laps
+        tests:
+          - in_range:
+              arguments:
+                min_value: 0
+                max_value: 250
+      - name: grid
+        tests:
+          - in_range:
+              arguments:
+                min_value: 0
+                max_value: 40
+      - name: constructor_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__constructors')
+                field: constructor_id
+      - name: status_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('stg_f1__status')
+                field: status_id
+
+  - name: stg_f1__sprint_results
+    description: Sprint result entries. Not used by the Grand Prix marts.
+    columns:
+      - name: sprint_result_id
+        tests: [unique, not_null]
+
+  - name: stg_f1__qualifying
+    description: Qualifying entries. Q1, Q2 and Q3 parsed to milliseconds (null when not set).
+    columns:
+      - name: qualify_id
+        tests: [unique, not_null]
+
+  - name: stg_f1__lap_times
+    description: One row per driver per lap, with lap time in milliseconds.
+    tests:
+      - unique_together:
+          arguments:
+            columns: [race_id, driver_id, lap]
+    columns:
+      - name: lap_time_ms
+        description: >
+          Recorded lap time. Upper bound is 3 hours, not 1, because red-flag laps are real
+          (2011 Canadian GP lap 25 is about 2 hours) and can exceed an hour.
+        tests:
+          - not_null
+          - in_range:
+              arguments:
+                min_value: 1000
+                max_value: 10800000
+
+  - name: stg_f1__pit_stops
+    description: One row per pit stop, with duration in milliseconds.
+    tests:
+      - unique_together:
+          arguments:
+            columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: duration_ms
+        tests:
+          - not_null
+          - in_range:
+              arguments:
+                min_value: 1000
+                max_value: 3600000
+
+  - name: stg_f1__driver_standings
+    description: Driver championship snapshot after each race.
+    tests:
+      - unique_together:
+          arguments:
+            columns: [race_id, driver_id]
+    columns:
+      - name: driver_standings_id
+        tests: [unique, not_null]
+
+  - name: stg_f1__constructor_standings
+    description: Constructor championship snapshot after each race.
+    tests:
+      - unique_together:
+          arguments:
+            columns: [race_id, constructor_id]
+    columns:
+      - name: constructor_standings_id
+        tests: [unique, not_null]
+
+  - name: stg_f1__constructor_results
+    description: Constructor points per race.
+    tests:
+      - unique_together:
+          arguments:
+            columns: [race_id, constructor_id]
+    columns:
+      - name: constructor_results_id
+        tests: [unique, not_null]
+
+  - name: stg_f1__drivers
+    description: Driver reference data.
+    columns:
+      - name: driver_id
+        tests: [unique, not_null]
+
+  - name: stg_f1__constructors
+    description: Constructor (team) reference data.
+    columns:
+      - name: constructor_id
+        tests: [unique, not_null]
+
+  - name: stg_f1__circuits
+    description: Circuit reference data.
+    columns:
+      - name: circuit_id
+        tests: [unique, not_null]
+
+  - name: stg_f1__seasons
+    description: One row per season.
+    columns:
+      - name: season
+        tests: [unique, not_null]
+
+  - name: stg_f1__status
+    description: Finishing status lookup.
+    columns:
+      - name: status_id
+        tests: [unique, not_null]

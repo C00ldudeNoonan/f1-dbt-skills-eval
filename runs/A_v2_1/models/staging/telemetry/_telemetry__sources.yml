@@ -1,0 +1,33 @@
+version: 2
+
+sources:
+  - name: telemetry
+    description: >
+      Car telemetry feed (2022 onwards, ~4 samples per second per car, ~20M
+      rows). Append-only; _LOADED_AT is when a row landed in the warehouse and
+      can be weeks after the race. Read incrementally by _LOADED_AT only.
+    database: ANALYTICS_DEV
+    schema: "{{ var('raw_schema', 'F1_RAW_A_v2_1') }}"
+    quoting:
+      database: false
+      schema: false
+      identifier: false
+    tables:
+      - name: car_telemetry
+        description: >
+          One row per telemetry sample. Natural key: (RACEID, DRIVERID, LAP,
+          SAMPLE_INDEX). Columns arrive typed. Guards here are metadata-only or
+          restricted to recent loads, so they never rescan the whole table.
+        config:
+          loaded_at_field: _loaded_at
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_car_telemetry__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_car_telemetry__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn

@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: int_season_completeness
+    description: >
+      One row per season. A season is complete only when every race on its calendar has at least
+      one result loaded. Only complete seasons can produce a world champion. The current data
+      flags any season that still has calendar races without results.
+    columns:
+      - name: season
+        description: Championship year.
+        data_tests:
+          - unique
+          - not_null
+      - name: is_season_complete
+        description: True when races_with_results equals races_on_calendar.
+        data_tests:
+          - not_null
+
+  - name: int_lap_green_flags
+    description: >
+      One row per driver per lap, with the green-flag rules as boolean columns. Pit flags come from
+      stg_f1__pit_stops, which covers 2011 onwards. For earlier races only the lap 1 and 130%
+      rules apply, so the green lap count can include in and out laps there.
+    columns:
+      - name: race_id
+        description: Grand Prix the lap belongs to.
+        data_tests:
+          - not_null
+      - name: driver_id
+        description: Driver who set the lap.
+        data_tests:
+          - not_null
+      - name: is_green_flag
+        description: True when none of the four exclusion rules apply to this lap.
+        data_tests:
+          - not_null

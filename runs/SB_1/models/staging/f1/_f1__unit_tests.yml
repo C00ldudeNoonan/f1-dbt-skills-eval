@@ -1,0 +1,27 @@
+unit_tests:
+  - name: test_stg_f1__results_cleans_nulls_and_parses_lap_time
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: '1', raceid: '10', driverid: '20', constructorid: '30', statusid: '1', grid: '0', position: '\N', position_order: '25', points: '0', laps: '\N', fastestlaptime: '\N'}
+          - {resultid: '2', raceid: '10', driverid: '21', constructorid: '30', statusid: '1', grid: '3', position: '2', position_order: '2', points: '18.5', laps: '57', fastestlaptime: '1:27.452'}
+    expect:
+      rows:
+        - {result_id: 1, finish_position: null, laps: null, fastest_lap_time_ms: null, grid: 0}
+        - {result_id: 2, grid: 3, finish_position: 2, laps: 57, fastest_lap_time_ms: 87452, points: 18.5}
+
+  - name: test_stg_f1__results_lap_time_edge_cases
+    description: Fastest lap strings become integer ms, including sub-minute, exact-minute and 2+ minute laps.
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', constructorid: '1', statusid: '1', grid: '1', position: '1', position_order: '1', points: '25', laps: '50', fastestlaptime: '0:59.999'}
+          - {resultid: '2', raceid: '1', driverid: '2', constructorid: '1', statusid: '1', grid: '2', position: '2', position_order: '2', points: '18', laps: '50', fastestlaptime: '1:00.000'}
+          - {resultid: '3', raceid: '1', driverid: '3', constructorid: '1', statusid: '1', grid: '3', position: '3', position_order: '3', points: '15', laps: '50', fastestlaptime: '2:05.050'}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 59999}
+        - {result_id: 2, fastest_lap_time_ms: 60000}
+        - {result_id: 3, fastest_lap_time_ms: 125050}

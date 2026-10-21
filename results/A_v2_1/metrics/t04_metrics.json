@@ -1,0 +1,12 @@
+{
+  "input_tokens": 1832654,
+  "output_tokens": 14378,
+  "tool_calls": 9,
+  "tool_errors": 0,
+  "dbt_invocations": 5,
+  "skills_used": [],
+  "assistant_turns": 10,
+  "wallclock_s": 314,
+  "nudges": 0,
+  "session_file": "~/.claude/projects/-Users-alexnoonan-f1-eval-workspaces-A-v2-1-project/22676f7e-7d22-4559-a112-20811e622df6.jsonl"
+}

@@ -1,0 +1,51 @@
+version: 2
+
+unit_tests:
+  - name: int_teammate_comparisons_pairs_drivers_in_the_same_car_and_race
+    description: >
+      Two drivers in the same car and race give a mirrored pair with opposite positions_gained. A driver who did not
+      finish is excluded from the race measure. A driver in another car is not paired.
+    model: int_teammate_comparisons
+    given:
+      - input: ref('fct_results')
+        rows:
+          - {race_id: 10, season: 2019, constructor_id: 1, driver_id: 1, finish_position: 2}
+          - {race_id: 10, season: 2019, constructor_id: 1, driver_id: 2, finish_position: 5}
+          - {race_id: 10, season: 2019, constructor_id: 1, driver_id: 3, finish_position: null}
+          - {race_id: 10, season: 2019, constructor_id: 9, driver_id: 4, finish_position: 1}
+      - input: ref('fct_qualifying')
+        rows:
+          - {race_id: 10, season: 2019, constructor_id: 1, driver_id: 1, qualifying_position: 3}
+          - {race_id: 10, season: 2019, constructor_id: 1, driver_id: 2, qualifying_position: 1}
+    expect:
+      rows:
+        - {measure: 'race_finish', driver_id: 1, teammate_id: 2, driver_position: 2, teammate_position: 5, positions_gained: 3}
+        - {measure: 'race_finish', driver_id: 2, teammate_id: 1, driver_position: 5, teammate_position: 2, positions_gained: -3}
+        - {measure: 'qualifying', driver_id: 1, teammate_id: 2, driver_position: 3, teammate_position: 1, positions_gained: -2}
+        - {measure: 'qualifying', driver_id: 2, teammate_id: 1, driver_position: 1, teammate_position: 3, positions_gained: 2}
+
+  - name: mart_driver_season_overperformance_requires_eight_comparisons
+    description: A season is reliable only with at least eight comparisons. Seven comparisons is not reliable.
+    model: mart_driver_season_overperformance
+    given:
+      - input: ref('int_teammate_comparisons')
+        rows:
+          - {measure: 'race_finish', race_id: 1, season: 2001, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 2, season: 2001, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 3, season: 2001, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 4, season: 2001, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 5, season: 2001, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 6, season: 2001, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 7, season: 2001, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 1, season: 2002, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 2, season: 2002, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 3, season: 2002, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 4, season: 2002, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 5, season: 2002, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 6, season: 2002, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 7, season: 2002, driver_id: 1, teammate_id: 2, positions_gained: 2}
+          - {measure: 'race_finish', race_id: 8, season: 2002, driver_id: 1, teammate_id: 2, positions_gained: 2}
+    expect:
+      rows:
+        - {measure: 'race_finish', season: 2001, driver_id: 1, comparisons: 7, is_reliable: false}
+        - {measure: 'race_finish', season: 2002, driver_id: 1, comparisons: 8, is_reliable: true}

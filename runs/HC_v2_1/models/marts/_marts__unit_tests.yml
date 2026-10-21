@@ -1,0 +1,169 @@
+version: 2
+
+unit_tests:
+  - name: fct_results_classifies_lapped_finishers_and_non_finishers
+    description: >
+      A numeric POSITIONTEXT rescues a lapped finisher whose POSITION is null (2005 Australia).
+      A letter code such as R leaves finish_position null. is_win and is_podium are false for non-finishers.
+    model: fct_results
+    given:
+      - input: ref('stg_f1__results')
+        rows:
+          - {result_id: 1, race_id: 10, driver_id: 1, constructor_id: 1, grid: 1, position: 1, position_text: '1', position_order: 1, points: 25, laps: 58, fastest_lap_time_ms: 87452, status_id: 1}
+          - {result_id: 2, race_id: 10, driver_id: 2, constructor_id: 2, grid: 5, position: null, position_text: 'R', position_order: 20, points: 0, laps: 12, fastest_lap_time_ms: null, status_id: 3}
+          - {result_id: 3, race_id: 10, driver_id: 3, constructor_id: 3, grid: 7, position: 3, position_text: '3', position_order: 3, points: 15, laps: 58, fastest_lap_time_ms: 88000, status_id: 1}
+          - {result_id: 4, race_id: 10, driver_id: 4, constructor_id: 3, grid: 9, position: null, position_text: '11', position_order: 11, points: 0, laps: 56, fastest_lap_time_ms: null, status_id: 12}
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 10, season: 2005, round: 4, race_date: '2005-03-20'}
+      - input: ref('stg_f1__constructors')
+        rows:
+          - {constructor_id: 1, constructor_name: 'Team A'}
+          - {constructor_id: 2, constructor_name: 'Team B'}
+          - {constructor_id: 3, constructor_name: 'Team C'}
+      - input: ref('stg_f1__status')
+        rows:
+          - {status_id: 1, status_name: 'Finished'}
+          - {status_id: 3, status_name: 'Accident'}
+          - {status_id: 12, status_name: '+2 Laps'}
+    expect:
+      rows:
+        - {result_id: 1, season: 2005, finish_position: 1, is_win: true, is_podium: true}
+        - {result_id: 2, season: 2005, finish_position: null, is_win: false, is_podium: false}
+        - {result_id: 3, season: 2005, finish_position: 3, is_win: false, is_podium: true}
+        - {result_id: 4, season: 2005, finish_position: 11, is_win: false, is_podium: false}
+
+  - name: fct_qualifying_takes_fastest_available_time_and_pole_gap
+    description: >
+      Best time is the fastest non-null session, even when a later session is slower.
+      A driver with no times has null best and gap values. The pole is the fastest best time in the race.
+    model: fct_qualifying
+    given:
+      - input: ref('stg_f1__qualifying')
+        rows:
+          - {qualify_id: 1, race_id: 10, driver_id: 1, constructor_id: 1, position: 1, q1_ms: 90000, q2_ms: 89000, q3_ms: 88500}
+          - {qualify_id: 2, race_id: 10, driver_id: 2, constructor_id: 2, position: 2, q1_ms: 90500, q2_ms: null, q3_ms: null}
+          - {qualify_id: 3, race_id: 10, driver_id: 3, constructor_id: 3, position: 20, q1_ms: null, q2_ms: null, q3_ms: null}
+          - {qualify_id: 4, race_id: 10, driver_id: 4, constructor_id: 4, position: 3, q1_ms: 91000, q2_ms: 92000, q3_ms: null}
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 10, season: 2005, round: 4}
+    expect:
+      rows:
+        - {qualify_id: 1, best_time_ms: 88500, pole_time_ms: 88500, gap_to_pole_ms: 0}
+        - {qualify_id: 2, best_time_ms: 90500, pole_time_ms: 88500, gap_to_pole_ms: 2000}
+        - {qualify_id: 3, best_time_ms: null, pole_time_ms: 88500, gap_to_pole_ms: null}
+        - {qualify_id: 4, best_time_ms: 91000, pole_time_ms: 88500, gap_to_pole_ms: 2500}
+
+  - name: fct_stints_splits_at_pit_laps_and_ends_on_last_lap
+    description: >
+      A stop on lap 3 ends stint 1 at lap 3, and stint 2 starts at lap 4. A stop on lap 6 starts stint 3 at lap 7.
+      The last stint ends on the driver's last recorded lap (8). A stop on the final lap leaves an empty
+      trailing stint, which is dropped (driver 9).
+    model: fct_stints
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 10, season: 2005, round: 4, race_date: '2005-03-20'}
+      - input: ref('stg_f1__pit_stops')
+        rows:
+          - {race_id: 10, driver_id: 1, stop_number: 1, lap_number: 3, stop_duration_ms: 22000}
+          - {race_id: 10, driver_id: 1, stop_number: 2, lap_number: 6, stop_duration_ms: 23000}
+          - {race_id: 10, driver_id: 9, stop_number: 1, lap_number: 5, stop_duration_ms: 21000}
+      - input: ref('stg_f1__lap_times')
+        rows:
+          - {race_id: 10, driver_id: 1, lap_number: 1, lap_time_ms: 100000}
+          - {race_id: 10, driver_id: 1, lap_number: 2, lap_time_ms: 100000}
+          - {race_id: 10, driver_id: 1, lap_number: 3, lap_time_ms: 100000}
+          - {race_id: 10, driver_id: 1, lap_number: 4, lap_time_ms: 200000}
+          - {race_id: 10, driver_id: 1, lap_number: 5, lap_time_ms: 200000}
+          - {race_id: 10, driver_id: 1, lap_number: 6, lap_time_ms: 200000}
+          - {race_id: 10, driver_id: 1, lap_number: 7, lap_time_ms: 300000}
+          - {race_id: 10, driver_id: 1, lap_number: 8, lap_time_ms: 300000}
+          - {race_id: 10, driver_id: 9, lap_number: 1, lap_time_ms: 90000}
+          - {race_id: 10, driver_id: 9, lap_number: 2, lap_time_ms: 90000}
+          - {race_id: 10, driver_id: 9, lap_number: 3, lap_time_ms: 90000}
+          - {race_id: 10, driver_id: 9, lap_number: 4, lap_time_ms: 90000}
+          - {race_id: 10, driver_id: 9, lap_number: 5, lap_time_ms: 90000}
+    expect:
+      rows:
+        - {race_id: 10, driver_id: 1, stint_number: 1, start_lap: 1, end_lap: 3, stint_laps: 3, avg_lap_time_ms: 100000}
+        - {race_id: 10, driver_id: 1, stint_number: 2, start_lap: 4, end_lap: 6, stint_laps: 3, avg_lap_time_ms: 200000}
+        - {race_id: 10, driver_id: 1, stint_number: 3, start_lap: 7, end_lap: 8, stint_laps: 2, avg_lap_time_ms: 300000}
+        - {race_id: 10, driver_id: 9, stint_number: 1, start_lap: 1, end_lap: 5, stint_laps: 5, avg_lap_time_ms: 90000}
+
+  - name: mart_alt_points_standings_scores_and_ranks_with_countback
+    description: >
+      Points come from classified positions 1 to 10 only. Driver 2 ties driver 1 on points (25+8 = 18+15 = 33) and
+      wins countback with one win. Drivers 3 and 4 tie on everything, so the lower driver_id ranks first. Drivers 5
+      and 6 score nothing: 5 did not finish (position_order 20) and 6 finished 11th. The lower driver_id ranks first.
+    model: mart_alt_points_standings
+    given:
+      - input: ref('fct_results')
+        rows:
+          - {season: 2000, driver_id: 1, position_order: 2, finish_position: 2}
+          - {season: 2000, driver_id: 1, position_order: 3, finish_position: 3}
+          - {season: 2000, driver_id: 2, position_order: 1, finish_position: 1}
+          - {season: 2000, driver_id: 2, position_order: 6, finish_position: 6}
+          - {season: 2000, driver_id: 3, position_order: 4, finish_position: 4}
+          - {season: 2000, driver_id: 3, position_order: 10, finish_position: 10}
+          - {season: 2000, driver_id: 4, position_order: 4, finish_position: 4}
+          - {season: 2000, driver_id: 4, position_order: 10, finish_position: 10}
+          - {season: 2000, driver_id: 5, position_order: 20, finish_position: null}
+          - {season: 2000, driver_id: 6, position_order: 11, finish_position: 11}
+      - input: ref('points_systems')
+        rows:
+          - {system_name: 'f1_current', position: 1, points: 25}
+          - {system_name: 'f1_current', position: 2, points: 18}
+          - {system_name: 'f1_current', position: 3, points: 15}
+          - {system_name: 'f1_current', position: 4, points: 12}
+          - {system_name: 'f1_current', position: 5, points: 10}
+          - {system_name: 'f1_current', position: 6, points: 8}
+          - {system_name: 'f1_current', position: 7, points: 6}
+          - {system_name: 'f1_current', position: 8, points: 4}
+          - {system_name: 'f1_current', position: 9, points: 2}
+          - {system_name: 'f1_current', position: 10, points: 1}
+    expect:
+      rows:
+        - {season: 2000, driver_id: 2, alt_points: 33, alt_position: 1}
+        - {season: 2000, driver_id: 1, alt_points: 33, alt_position: 2}
+        - {season: 2000, driver_id: 3, alt_points: 13, alt_position: 3}
+        - {season: 2000, driver_id: 4, alt_points: 13, alt_position: 4}
+        - {season: 2000, driver_id: 5, alt_points: 0, alt_position: 5}
+        - {season: 2000, driver_id: 6, alt_points: 0, alt_position: 6}
+
+  - name: dim_drivers_v2_splits_names_and_keeps_placeholders
+    description: >
+      Version 2 exposes first_name and last_name. A placeholder row from int_drivers_resolved keeps its
+      'Unknown' first name and 'Driver <id>' last name.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('int_drivers_resolved')
+        rows:
+          - {driver_id: 1, driver_ref: 'hamilton', current_number: 44, forename: 'Lewis', surname: 'Hamilton', nationality: 'British', date_of_birth: '1985-01-07', career_starts: 2, career_wins: 1, career_podiums: 2, career_sprint_wins: 1, world_championships: 1, is_placeholder: false}
+          - {driver_id: 999, driver_ref: 'unknown_driver_999', current_number: null, forename: 'Unknown', surname: 'Driver 999', nationality: null, date_of_birth: null, career_starts: 2, career_wins: 1, career_podiums: 1, career_sprint_wins: 0, world_championships: 0, is_placeholder: true}
+    expect:
+      rows:
+        - {driver_id: 1, first_name: 'Lewis', last_name: 'Hamilton', current_number: 44, world_championships: 1, is_placeholder: false}
+        - {driver_id: 999, first_name: 'Unknown', last_name: 'Driver 999', current_number: null, career_starts: 2, career_wins: 1, career_podiums: 1, world_championships: 0, is_placeholder: true}
+
+  - name: dim_drivers_v1_keeps_full_name_and_placeholders
+    description: >
+      Version 1 still exposes full_name for the consumers that have not moved. A placeholder row shows 'Unknown Driver 999'.
+    model: dim_drivers
+    versions:
+      include: [1]
+    given:
+      - input: ref('int_drivers_resolved')
+        rows:
+          - {driver_id: 1, driver_ref: 'hamilton', current_number: 44, forename: 'Lewis', surname: 'Hamilton', nationality: 'British', date_of_birth: '1985-01-07', career_starts: 2, career_wins: 1, career_podiums: 2, career_sprint_wins: 1, world_championships: 1, is_placeholder: false}
+          - {driver_id: 999, driver_ref: 'unknown_driver_999', current_number: null, forename: 'Unknown', surname: 'Driver 999', nationality: null, date_of_birth: null, career_starts: 2, career_wins: 1, career_podiums: 1, career_sprint_wins: 0, world_championships: 0, is_placeholder: true}
+    expect:
+      rows:
+        - {driver_id: 1, full_name: 'Lewis Hamilton', current_number: 44, world_championships: 1, is_placeholder: false}
+        - {driver_id: 999, full_name: 'Unknown Driver 999', current_number: null, career_starts: 2, career_wins: 1, career_podiums: 1, world_championships: 0, is_placeholder: true}

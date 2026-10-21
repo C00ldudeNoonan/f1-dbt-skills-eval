@@ -1,0 +1,7 @@
+version: 2
+
+groups:
+  - name: f1_analytics
+    owner:
+      name: F1 Analytics
+      email: you@example.com

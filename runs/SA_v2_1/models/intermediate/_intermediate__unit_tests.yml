@@ -1,0 +1,71 @@
+version: 2
+
+unit_tests:
+  - name: test_season_complete_only_when_every_race_has_results
+    description: >
+      Season 2000 has both races with results (complete, last round 2); season 2001 has a race
+      without results (incomplete, last completed round 1).
+    model: int_season_status
+    given:
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 1, season: 2000, round: 1}
+          - {race_id: 2, season: 2000, round: 2}
+          - {race_id: 3, season: 2001, round: 1}
+          - {race_id: 4, season: 2001, round: 2}
+      - input: ref('stg_ergast__results')
+        rows:
+          - {result_id: 1, race_id: 1}
+          - {result_id: 2, race_id: 2}
+          - {result_id: 3, race_id: 3}
+    expect:
+      rows:
+        - {season: 2000, races_on_calendar: 2, races_with_results: 2, is_season_complete: true, last_completed_round: 2, last_completed_race_id: 2}
+        - {season: 2001, races_on_calendar: 2, races_with_results: 1, is_season_complete: false, last_completed_round: 1, last_completed_race_id: 3}
+
+  - name: test_world_championships_count_only_complete_seasons
+    description: >
+      Driver 1 is champion of a complete season and of an incomplete one: only the complete title counts.
+      Driver 2 is runner-up and has none. A driver referenced only by a fact gets a placeholder row.
+    model: int_drivers
+    given:
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: one, forename: Ann, surname: Able, nationality: British, driver_number: 7}
+          - {driver_id: 2, driver_ref: two, forename: Bob, surname: Baker, nationality: Dutch, driver_number: null}
+      - input: ref('fct_results')
+        rows:
+          - {race_id: 1, driver_id: 1, is_win: true, is_podium: true}
+          - {race_id: 2, driver_id: 2, is_win: false, is_podium: true}
+          - {race_id: 3, driver_id: 9, is_win: false, is_podium: false}
+      - input: ref('fct_session_results')
+        rows:
+          - {session_type: race, race_id: 1, driver_id: 1, is_win: true}
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2000, driver_id: 1, championship_position: 1, is_season_complete: true}
+          - {season: 2000, driver_id: 2, championship_position: 2, is_season_complete: true}
+          - {season: 2001, driver_id: 1, championship_position: 1, is_season_complete: false}
+      - input: ref('stg_ergast__results')
+        rows:
+          - {driver_id: 9}
+      - input: ref('stg_ergast__sprint_results')
+        rows:
+          - {driver_id: 1}
+      - input: ref('stg_ergast__qualifying')
+        rows:
+          - {driver_id: 1}
+      - input: ref('stg_ergast__lap_times')
+        rows:
+          - {driver_id: 1}
+      - input: ref('stg_ergast__pit_stops')
+        rows:
+          - {driver_id: 1}
+      - input: ref('stg_ergast__driver_standings')
+        rows:
+          - {driver_id: 1}
+    expect:
+      rows:
+        - {driver_id: 1, first_name: Ann, last_name: Able, current_number: 7, is_placeholder: false, career_starts: 1, career_wins: 1, career_podiums: 1, world_championships: 1}
+        - {driver_id: 2, first_name: Bob, last_name: Baker, current_number: null, is_placeholder: false, career_starts: 1, career_wins: 0, career_podiums: 1, world_championships: 0}
+        - {driver_id: 9, driver_ref: unknown_9, first_name: null, last_name: 'Unknown driver (9)', is_placeholder: true, career_starts: 1, career_wins: 0, career_podiums: 0, world_championships: 0}

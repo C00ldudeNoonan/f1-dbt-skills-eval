@@ -1,0 +1,23 @@
+version: 2
+
+snapshots:
+  - name: snp_drivers
+    description: >
+      Type 2 history of drivers. One row per driver per version. dbt_valid_from and dbt_valid_to bound
+      each version, and dbt_valid_to is null for the current version. History starts with the first
+      run, because the raw source only holds current values.
+    columns:
+      - name: driver_id
+        description: Driver key.
+        data_tests:
+          - not_null
+      - name: driver_number
+        description: Permanent car number (null for drivers without one).
+      - name: driver_code
+        description: Three-letter timing code, which can change over a driver's career.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - driver_id
+              - dbt_valid_from

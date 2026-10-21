@@ -1,0 +1,52 @@
+version: 2
+
+models:
+  - name: fct_telemetry
+    description: >
+      One row per car telemetry sample. Incremental by load time (_loaded_at), so routine runs read
+      only raw rows that landed since the last run, including late samples recorded weeks earlier. Merged
+      on sample_id, so reread rows never duplicate. Clustered by race, driver and lap.
+    columns:
+      - name: sample_id
+        tests: [unique, not_null]
+      - name: race_id
+        tests: [not_null]
+      - name: driver_id
+        tests: [not_null]
+      - name: lap
+        tests: [not_null]
+      - name: sample_index
+        tests: [not_null]
+      - name: recorded_at
+        tests: [not_null]
+      - name: speed_kph
+        tests:
+          - in_range:
+              arguments:
+                min_value: 0
+                max_value: 500
+      - name: throttle_pct
+        tests:
+          - in_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+
+  - name: mart_lap_telemetry_summary
+    description: >
+      One row per driver per lap. Incremental: each run recomputes only laps touched by recent loads,
+      so a late sample updates its lap and nothing else is re-read. full_throttle_pct is the share of
+      samples at 99% throttle or above.
+    columns:
+      - name: samples
+        tests: [not_null]
+      - name: full_throttle_pct
+        tests:
+          - in_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+    tests:
+      - unique_together:
+          arguments:
+            columns: [race_id, driver_id, lap]

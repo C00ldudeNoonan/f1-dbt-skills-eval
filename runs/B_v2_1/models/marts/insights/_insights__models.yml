@@ -1,0 +1,77 @@
+models:
+  - name: mart_driver_vs_teammate_seasons
+    description: >
+      One row per driver, season, constructor and teammate: same-session
+      qualifying comparisons (median gap over representative ones) and
+      race-finish head-to-heads (both classified). The building block for
+      mart_driver_car_overperformance.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, constructor_id, driver_id, teammate_id]
+    columns:
+      - name: median_qualifying_gap_pct
+        description: Median same-session qualifying gap to this teammate, % of lap time. Negative = faster.
+      - name: qualifying_ahead
+        description: Representative comparisons where the driver was faster.
+      - name: races_finished_ahead
+        description: Races (both classified) where the driver finished ahead.
+
+  - name: mart_driver_car_overperformance
+    description: >
+      Answers "which drivers overperform their car?" as "who is faster than
+      their teammates in the same car, adjusted for how good those teammates
+      were". One row per driver with qualifying teammate comparisons from
+      var overperformance_min_season (2006). See docs/leadership_answers.md for
+      the method, assumptions and limitations.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: raw_qualifying_gap_pct
+        description: Comparison-weighted average of the driver's median qualifying gap to each teammate, by season. Negative = faster.
+      - name: adjusted_qualifying_gap_pct
+        description: >
+          raw gap plus each teammate's own gap against their other teammates, so a
+          narrow loss to a great teammate scores better than a narrow win over a
+          weak one. Negative = faster than an average teammate.
+      - name: adjusted_gap_ci_low
+        description: Lower bound of a 95% interval across teammate-seasons.
+      - name: adjusted_gap_ci_high
+        description: Upper bound of a 95% interval across teammate-seasons.
+      - name: pct_comparisons_strength_adjusted
+        description: Share of the driver's comparisons where the teammate had other teammates to measure them against.
+      - name: qualifying_h2h_pct
+        description: Representative same-session qualifying comparisons the driver won (%).
+      - name: race_h2h_pct
+        description: Races (both classified) the driver finished ahead of the teammate (%). Context only; reliability and team orders affect it.
+      - name: is_rankable
+        description: At least 50 representative comparisons, 3 distinct teammates and 4 teammate-seasons.
+      - name: overperformance_rank
+        description: Rank by adjusted gap among rankable drivers (1 = fastest relative to teammates).
+      - name: verdict
+        description: "'faster than teammates' / 'slower than teammates' when the 95% interval excludes 0; otherwise 'not distinguishable' or 'insufficient evidence'."
+        data_tests:
+          - accepted_values:
+              arguments: {values: ['faster than teammates', 'slower than teammates', 'not distinguishable', 'insufficient evidence']}
+
+  - name: mart_pit_stop_trends
+    description: >
+      Answers "are pit stops getting faster?" One row per season (2011+) of
+      service-stop pit-lane times, raw and relative to each circuit's norm,
+      plus a fixed set of core circuits and the best crew's median. See
+      docs/leadership_answers.md.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: raw_median_s
+        description: Median service-stop pit-lane time. Distorted by calendar changes; don't compare across seasons.
+      - name: median_vs_circuit_s
+        description: Median of (stop - its circuit's all-season median). Negative = faster than usual.
+      - name: p10_vs_circuit_s
+        description: 10th percentile of the same (the quickest stops). Noisy.
+      - name: core_median_vs_circuit_s
+        description: As median_vs_circuit_s, restricted to circuits with pit data in at least 10 seasons.
+      - name: best_crew_median_vs_circuit_s
+        description: The fastest constructor's median vs circuit that season (constructors with >= 20 stops).
+      - name: avg_stops_per_car_race
+        description: Average service stops per car per race (strategy context).

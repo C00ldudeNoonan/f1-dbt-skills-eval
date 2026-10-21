@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: fct_lap_times
+    description: >
+      One row per driver per lap per race (lap timing exists from 1996).
+      Incremental: each run loads races not yet present and re-loads the two
+      most recent loaded races (by race date) in full, so corrected lap times
+      reissued by the timing provider flow through without a full refresh.
+      History older than that is not reprocessed.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_date
+        description: Used to identify the most recent races for the correction window.
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        description: Constructor the driver raced for in this Grand Prix (from results).
+      - name: lap
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "lap >= 1"
+      - name: position
+        description: Running position at the end of the lap.
+        data_tests: [not_null]
+      - name: lap_time_ms
+        description: Lap time in integer milliseconds (authoritative; laps behind a red flag can exceed an hour).
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "lap_time_ms > 0"
+      - name: _loaded_at
+        description: When this race's rows were last (re)written by dbt.

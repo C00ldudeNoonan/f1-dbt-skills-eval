@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: fct_qualifying
+    description: One row per qualifying entry, with gap to the race's pole time.
+    columns:
+      - name: qualify_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__races'), field: race_id}}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: qualifying_position
+        description: Official qualifying classification (1 = pole).
+      - name: q1_ms
+      - name: q2_ms
+      - name: q3_ms
+      - name: best_time_ms
+        description: Fastest of q1/q2/q3; null if the driver set no time.
+      - name: gap_to_pole_ms
+        description: best_time_ms minus the fastest best_time_ms in the race.
+      - name: gap_to_pole_pct
+        description: Gap as a percentage of the pole time (0.512 means 0.512%).
+
+  - name: fct_session_results
+    description: One row per entry across Grand Prix ('race') and 'sprint' sessions.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [session_type, source_result_id]
+    columns:
+      - name: session_type
+        data_tests:
+          - not_null
+          - accepted_values: {arguments: {values: [race, sprint]}}
+      - name: source_result_id
+        description: result_id in the source table for the session type (ids overlap between the two tables).
+        data_tests: [not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: finish_position
+        description: Classified place; null if not classified.
+      - name: points
+        data_tests: [not_null]

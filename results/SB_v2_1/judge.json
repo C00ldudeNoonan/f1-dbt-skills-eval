@@ -1,0 +1,26 @@
+{
+  "scores": {
+    "layering": 3,
+    "naming": 4,
+    "testing": 4,
+    "quirks": 5,
+    "incremental_snapshot": 4,
+    "change_hygiene": 4,
+    "docs": 5,
+    "interfaces": 4,
+    "open_ended": 5
+  },
+  "justifications": {
+    "layering": "Source \u2192 staging \u2192 marts runs cleanly through refs, and raw parsing lives only in macros/clean_raw.sql, but the layers are inverted in places: int_driver_profiles.sql refs fct_results, fct_session_results and mart_driver_season_standings, and int_driver_teammate_ratings.sql refs mart_driver_teammate_pairs; logic is also repeated, with the 60 s pit-stop cutoff in both int_pit_stops_routine.sql and mart_constructor_season_pit_stops.sql and the classification rule copied from fct_results.sql into fct_session_results.sql.",
+    "naming": "Naming is consistent throughout: stg_f1__*, int_*, fct_/dim_/mart_ prefixes, _ms/_pct suffixes, and per-layer YAML files (_f1__sources.yml, _stg_f1__models.yml, _marts__models.yml, _marts__unit_tests.yml); the weak spots are that crosswalks, the audit view and time_spine_daily all sit in the flat marts/ folder, and one 761-line marts YAML is hard to navigate.",
+    "testing": "Tests sit at sensible layers: source matches_format and conflicting_duplicates tests in _f1__sources.yml, key and contract tests on marts, and reconciliation tests aimed at the ticket 5/6 bugs (assert_constructor_totals_reconcile.sql, assert_fct_results_row_count_matches_staging.sql, assert_lap_time_text_matches_milliseconds.sql, assert_champions_match_official_history.sql); the gaps are that source unique tests are only warn-level and the lap-ms check is a warn rather than a hard gate.",
+    "quirks": "Every listed quirk is handled on purpose and documented: \\N and empty strings via clean_raw, m:ss.mmm and h:mm:ss.mmm in lap_time_to_ms, red-flag stops over 60 s excluded, sprints split out in fct_session_results plus career_sprint_wins, pre-1991 drop scores avoided by using the official standings snapshot, shared drives counted with count(distinct race_id), incomplete seasons in int_season_status (no 2024 champion), and late drivers as placeholders in int_driver_profiles plus audit_results_missing_driver.",
+    "incremental_snapshot": "fct_lap_times.sql and fct_stints.sql use delete+insert on race_id with a two-race lookback ordered by (season, round), and fct_telemetry.sql merges on the natural key with an ingestion-time watermark, a lookback, and in-batch dedupe that keeps the newest load, so reruns are idempotent; snp_drivers uses the check strategy, which suits a table with no updated_at; the limits are that corrections to races older than the last two need a manual full refresh, and the telemetry_cutoff macro runs run_query against {{ this }} at compile time.",
+    "change_hygiene": "Later tickets were folded in cleanly: the vendor rename is absorbed in staging through source identifier plus check_source_schema.sql, dim_drivers versions share int_driver_profiles, and there is no commented-out or TODO code; a little drift remains, as the README layout table still lists only 'seven contracted marts' and its intermediate-layer description is stale, and the staging dedupes use an arbitrary order (qualify row_number() ... order by <key>) that only a test makes safe.",
+    "docs": "Docs explain why as well as what: SQL header comments state grain and reasoning (stg_f1__lap_times.sql on trusting the time text over the ms column, stg_f1__car_telemetry.sql on why it deliberately has no window function), the README has quirk, defect and runbook tables, and public-model YAML descriptions are thorough; column descriptions on non-public marts are thinner.",
+    "interfaces": "fct_results and dim_drivers are public in group f1_analytics with enforced contracts, dim_drivers is versioned with deprecation_date 2027-01-01 and a latest-version pointer, and _marts__unit_tests.yml has targeted unit tests (late-arriving placeholder, countback tiebreaks, complete-season championships, v1/v2 columns); one weakness is that the other marts with contracts are protected but still fed by intermediates that depend on marts.",
+    "open_ended": "docs/analysis_leadership_questions.md and mart_driver_overperformance.sql define 'overperform' relative to the teammate, with shrinkage, standard-error verdicts and a teammate-quality-adjusted rating (int_driver_teammate_ratings.sql), and mart_pit_stop_season_trend.sql adjusts for circuit mix; both state their confounders (pit-lane time vs stationary time, team orders, data coverage) and push back on how each question is framed."
+  },
+  "biggest_strength": "Data quirks are handled deliberately and the handling is documented: every quirk and defect has a named fix (clean_raw macros, int_season_status, placeholder drivers, the time-vs-ms decision) plus a test or README entry explaining why, and the analysis write-up backs each conclusion with statistical evidence and names its limits.",
+  "biggest_weakness": "The layering is inverted: intermediate models (int_driver_profiles, int_driver_teammate_ratings) depend on marts, and small pieces of business logic (the 60 s pit cutoff, the classification rule) are copied rather than defined once, which blurs the DAG and invites drift."
+}

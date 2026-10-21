@@ -1,0 +1,320 @@
+version: 2
+
+models:
+  - name: fct_results
+    description: >
+      One row per Grand Prix result entry (sprint races excluded). Grain is
+      result_id. In the 1950s cars were shared, so a driver can appear twice in
+      the same race — aggregate with count(distinct race_id) when counting races.
+      PUBLIC, CONTRACTED interface consumed by other dbt projects: column names
+      and types are enforced; breaking changes ship as a new version.
+    config:
+      access: public
+      contract:
+        enforced: true
+    columns:
+      - name: result_id
+        data_type: number(38,0)
+        description: Ergast result identifier.
+        constraints:
+          - type: not_null
+          - type: primary_key
+            warn_unenforced: false
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_type: number(38,0)
+        constraints: [{type: not_null}]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: season
+        data_type: number(38,0)
+        description: Championship year.
+        data_tests: [not_null]
+      - name: round
+        data_type: number(38,0)
+        description: Round number within the season.
+        data_tests: [not_null]
+      - name: race_date
+        data_type: date
+        data_tests: [not_null]
+      - name: race_name
+        data_type: varchar
+      - name: circuit_id
+        data_type: number(38,0)
+      - name: driver_id
+        data_type: number(38,0)
+        constraints: [{type: not_null}]
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        data_type: number(38,0)
+        data_tests: [not_null]
+      - name: constructor_name
+        data_type: varchar
+        data_tests: [not_null]
+      - name: car_number
+        data_type: number(38,0)
+      - name: grid
+        data_type: number(38,0)
+        description: Starting grid position. 0 means started from the pit lane or no grid position recorded.
+      - name: finish_position
+        data_type: number(38,0)
+        description: Classified finishing position. Null when the driver was not classified (retired, DSQ, DNQ, etc.).
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "finish_position is null or finish_position >= 1"
+      - name: position_text
+        data_type: varchar
+        description: "Raw Ergast position text: a number when classified, otherwise R/D/E/W/F/N."
+      - name: position_order
+        data_type: number(38,0)
+        description: Ergast's total ordering of all entries in the race (1..N), defined for every row.
+        data_tests: [not_null]
+      - name: points
+        data_type: number(10,2)
+        description: Championship points scored in this Grand Prix (gross — before any era's dropped-score rules).
+        data_tests: [not_null]
+      - name: laps
+        data_type: number(38,0)
+      - name: status
+        data_type: varchar
+        description: Finishing status, e.g. Finished, +1 Lap, Engine, Did not qualify.
+        data_tests: [not_null]
+      - name: status_id
+        data_type: number(38,0)
+      - name: is_classified
+        data_type: boolean
+      - name: is_win
+        data_type: boolean
+        description: Classified first. Shared-drive wins (1951 French, 1956 Argentine, 1957 British GPs) count for both drivers, as in the official records.
+        data_tests: [not_null]
+      - name: is_podium
+        data_type: boolean
+        description: Classified in the top three.
+        data_tests: [not_null]
+      - name: race_time_ms
+        data_type: number(38,0)
+        description: Total race time in milliseconds (classified finishers on the lead lap).
+      - name: fastest_lap_number
+        data_type: number(38,0)
+      - name: fastest_lap_rank
+        data_type: number(38,0)
+      - name: fastest_lap_time_ms
+        data_type: number(38,0)
+        description: The driver's fastest lap in this race as integer milliseconds. Available from 2004; null before.
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "fastest_lap_time_ms is null or fastest_lap_time_ms between 30000 and 600000"
+      - name: fastest_lap_speed_kph
+        data_type: float
+
+  - name: dim_drivers
+    description: >
+      One row per driver, with career aggregates over Grand Prix results.
+      PUBLIC, CONTRACTED and VERSIONED. v2 (latest) has first_name/last_name;
+      v1 (deprecated 2027-01-01) has full_name/forename/surname. Pin with
+      ref('dim_drivers', v=1) until you migrate.
+    latest_version: 2
+    config:
+      access: public
+      contract:
+        enforced: true
+    versions:
+      - v: 2
+        columns:
+          - name: driver_id
+            data_type: number(38,0)
+            constraints:
+              - type: not_null
+              - type: primary_key
+                warn_unenforced: false
+            data_tests: [unique, not_null]
+          - name: driver_ref
+            data_type: varchar
+            data_tests: [unique, not_null]
+          - name: first_name
+            data_type: varchar
+            description: Given name, e.g. Lewis.
+            data_tests: [not_null]
+          - name: last_name
+            data_type: varchar
+            description: Family name, e.g. Hamilton.
+            data_tests: [not_null]
+          - name: driver_code
+            data_type: varchar
+            description: Three-letter timing code (e.g. HAM); mostly null before 2000s.
+          - name: current_number
+            data_type: number(38,0)
+            description: >
+              The driver's current permanent car number; null if they don't have
+              one. History of past numbers and codes lives in the snp_drivers snapshot.
+          - name: nationality
+            data_type: varchar
+          - name: date_of_birth
+            data_type: date
+          - name: career_starts
+            data_type: number(38,0)
+            description: Distinct Grands Prix entered (any result row, including DNQ). Shared drives count once.
+            data_tests: [not_null]
+          - name: career_wins
+            data_type: number(38,0)
+            description: Distinct Grands Prix won. Grand Prix only — sprint wins are in career_sprint_wins.
+            data_tests: [not_null]
+          - name: career_podiums
+            data_type: number(38,0)
+            description: Distinct Grands Prix finished in the top three.
+            data_tests:
+              - not_null
+              - expression_is_true:
+                  arguments:
+                    expression: "career_podiums >= career_wins and career_starts >= career_podiums"
+          - name: world_championships
+            data_type: number(38,0)
+            description: Drivers' titles. A title counts only once that season is complete (every scheduled round has results).
+            data_tests: [not_null]
+          - name: career_points_scored
+            data_type: number(12,2)
+            description: Gross Grand Prix points (excludes sprint points; before dropped-score rules).
+          - name: first_season
+            data_type: number(38,0)
+          - name: last_season
+            data_type: number(38,0)
+          - name: career_sprint_wins
+            data_type: number(38,0)
+            description: Distinct sprint races won (2021+).
+            data_tests: [not_null]
+
+      - v: 1
+        deprecation_date: 2027-01-01
+        config:
+          alias: dim_drivers
+        columns:
+          - name: driver_id
+            data_type: number(38,0)
+            constraints:
+              - type: not_null
+              - type: primary_key
+                warn_unenforced: false
+            data_tests: [unique, not_null]
+          - name: driver_ref
+            data_type: varchar
+            data_tests: [unique, not_null]
+          - name: full_name
+            data_type: varchar
+            description: "DEPRECATED (v1 only): forename and surname separated by a space. Use first_name / last_name in v2."
+            data_tests: [not_null]
+          - name: forename
+            data_type: varchar
+            description: "DEPRECATED (v1 only): given name. Renamed first_name in v2."
+          - name: surname
+            data_type: varchar
+            description: "DEPRECATED (v1 only): family name. Renamed last_name in v2."
+          - name: driver_code
+            data_type: varchar
+            description: Three-letter timing code (e.g. HAM); mostly null before 2000s.
+          - name: current_number
+            data_type: number(38,0)
+            description: >
+              The driver's current permanent car number; null if they don't have
+              one. History of past numbers and codes lives in the snp_drivers snapshot.
+          - name: nationality
+            data_type: varchar
+          - name: date_of_birth
+            data_type: date
+          - name: career_starts
+            data_type: number(38,0)
+            description: Distinct Grands Prix entered (any result row, including DNQ). Shared drives count once.
+            data_tests: [not_null]
+          - name: career_wins
+            data_type: number(38,0)
+            description: Distinct Grands Prix won. Grand Prix only — sprint wins are in career_sprint_wins.
+            data_tests: [not_null]
+          - name: career_podiums
+            data_type: number(38,0)
+            description: Distinct Grands Prix finished in the top three.
+            data_tests:
+              - not_null
+              - expression_is_true:
+                  arguments:
+                    expression: "career_podiums >= career_wins and career_starts >= career_podiums"
+          - name: world_championships
+            data_type: number(38,0)
+            description: Drivers' titles. A title counts only once that season is complete (every scheduled round has results).
+            data_tests: [not_null]
+          - name: career_points_scored
+            data_type: number(12,2)
+            description: Gross Grand Prix points (excludes sprint points; before dropped-score rules).
+          - name: first_season
+            data_type: number(38,0)
+          - name: last_season
+            data_type: number(38,0)
+          - name: career_sprint_wins
+            data_type: number(38,0)
+            description: Distinct sprint races won (2021+).
+            data_tests: [not_null]
+
+  - name: fct_session_results
+    description: >
+      One row per entry in a Grand Prix ('race') or sprint ('sprint') session,
+      classified or not. Source result ids overlap between the two source
+      tables, so the grain is (session_type, source_result_id), exposed as the
+      surrogate key session_result_id. For Grand Prix-only analysis with
+      fastest-lap detail use fct_results.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [session_type, source_result_id]
+    columns:
+      - name: session_result_id
+        description: Surrogate key, session_type || '-' || source_result_id.
+        data_tests: [unique, not_null]
+      - name: session_type
+        description: "'race' for a Grand Prix, 'sprint' for a sprint."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: source_result_id
+        description: resultId from the source table (results or sprint_results).
+        data_tests: [not_null]
+      - name: race_id
+        description: The race weekend (a sprint shares its Grand Prix's race_id).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: session_date
+        description: Date of the session (sprint date for sprints).
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: finish_position
+        description: Classified finishing position; null when not classified.
+      - name: points
+        description: Points scored in this session.
+        data_tests: [not_null]
+      - name: is_win
+        data_tests: [not_null]

@@ -1,0 +1,27 @@
+version: 2
+
+unit_tests:
+  - name: int_orphan_drivers_finds_results_with_no_driver_record
+    description: >
+      Driver 1 has a record, so it is not an orphan. Driver 999 has two results and one qualifying entry
+      but no record, so it is an orphan with those counts. Driver 999 is also in standings. It is an orphan
+      only through its results and qualifying.
+    model: int_orphan_drivers
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1}
+      - input: ref('stg_f1__results')
+        rows:
+          - {result_id: 1, driver_id: 1}
+          - {result_id: 2, driver_id: 999}
+          - {result_id: 3, driver_id: 999}
+      - input: ref('stg_f1__qualifying')
+        rows:
+          - {qualify_id: 1, driver_id: 999}
+      - input: ref('stg_f1__driver_standings')
+        rows:
+          - {driver_standings_id: 1, driver_id: 999}
+    expect:
+      rows:
+        - {driver_id: 999, orphan_result_count: 2, orphan_qualifying_count: 1, orphan_standings_count: 1}

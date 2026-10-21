@@ -1,0 +1,126 @@
+version: 2
+
+seeds:
+  - name: world_drivers_champions
+    description: >
+      Hand-maintained reference list of every Drivers' World Champion and their
+      official final points total, taken from published FIA records. Used only to
+      reconcile `mart_driver_season_standings` against real history. Add a row when
+      a season finishes.
+    config:
+      column_types:
+        season: integer
+        driver_ref: varchar
+        points: number(8, 2)
+    columns:
+      - name: season
+        description: Championship year.
+        data_tests:
+          - unique
+          - not_null
+      - name: driver_ref
+        description: Ergast driver reference of the champion (joins to `dim_drivers.driver_ref`).
+        data_tests:
+          - not_null
+      - name: points
+        description: Official final championship points, after dropped scores and including sprint points.
+
+  - name: points_systems
+    description: >
+      Points awarded per finishing position under each points system, one row
+      per system and position. Drives the what-if marts
+      (`mart_alt_points_standings_by_system`, `mart_alt_points_standings`). To
+      add a system, add its rows here and run `dbt build`. No SQL changes are
+      needed. Positions not listed score 0. Only Grand Prix results score, with
+      no sprint or fastest-lap points.
+      `fia_2010` is the current system (2010 onwards, without the fastest-lap point).
+      `fia_1991` is the 1991-2002 system.
+    config:
+      column_types:
+        points_system: varchar
+        position_order: integer
+        points: number(8, 2)
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, position_order]
+    columns:
+      - name: points_system
+        description: Short id of the points system, used to select it in the marts.
+        data_tests: [not_null]
+      - name: position_order
+        description: Finishing position (matched to `fct_results.position_order` of classified finishers).
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "position_order >= 1"
+      - name: points
+        description: Points for that position.
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments:
+                expression: "points >= 0"
+
+  - name: vendor_b_driver_overrides
+    description: >
+      Manual Vendor B driver matches, only for drivers the automatic matcher in
+      `dim_driver_crosswalk` can't resolve with confidence (for example two
+      candidates with identical evidence). A row here always wins over the
+      automatic match. Keep it small: it is not a list of every driver. Empty
+      today because all 41 drivers match automatically.
+    config:
+      column_types:
+        driver_key: varchar
+        driver_id: integer
+        reason: varchar
+    columns:
+      - name: driver_key
+        description: Vendor B driver key.
+        data_tests: [unique, not_null]
+      - name: driver_id
+        description: Our driver_id the key maps to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__drivers')
+                field: driver_id
+      - name: reason
+        description: Why the override is needed (required, so the decision is documented).
+        data_tests: [not_null]
+
+  - name: vendor_b_session_overrides
+    description: >
+      Manual Vendor B session matches, for sessions `dim_session_crosswalk`
+      can't match automatically (for example a circuit location spelled
+      differently from ours). A row here always wins. Empty today.
+    config:
+      column_types:
+        session_key: integer
+        race_id: integer
+        session_type: varchar
+        reason: varchar
+    columns:
+      - name: session_key
+        description: Vendor B session key.
+        data_tests: [unique, not_null]
+      - name: race_id
+        description: Our race_id the session belongs to.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_f1__races')
+                field: race_id
+      - name: session_type
+        description: "'race' or 'sprint'."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: reason
+        description: Why the override is needed.
+        data_tests: [not_null]

@@ -1,0 +1,111 @@
+version: 2
+
+models:
+  - name: mart_driver_season_standings
+    description: >
+      Official driver championship standings: one row per driver per season, as of the latest
+      completed round. Points, positions and wins come from the official standings snapshot, which
+      includes sprint points from 2021 and the drop-score rules used before 1991, so the totals
+      match the published championship. For 2024 the source has no results for rounds 23 and 24,
+      so the standings are as of round 22 and no champion is counted.
+    columns:
+      - name: season
+        description: Championship season.
+        data_tests:
+          - not_null
+      - name: driver_id
+        description: Driver the standings row belongs to. Joins to `dim_drivers`.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: championship_position
+        description: Driver's championship position at the latest completed round.
+        data_tests:
+          - not_null
+      - name: points
+        description: Official championship points at the latest completed round.
+        data_tests:
+          - not_null
+      - name: wins
+        description: Race wins this season at the latest completed round.
+        data_tests:
+          - not_null
+      - name: latest_completed_round
+        description: Round the standings are as of.
+        data_tests:
+          - not_null
+      - name: is_season_complete
+        description: True when every calendar race has results.
+        data_tests:
+          - not_null
+      - name: is_champion
+        description: True for the champion of a complete season.
+        data_tests:
+          - not_null
+
+  - name: mart_driver_standings_by_round
+    description: >
+      Official championship standings after every round a driver appears in the standings, from
+      1950 onwards. Use it to chart how the championship evolved. The season standings mart is
+      derived from it, as of each season's latest completed round.
+    columns:
+      - name: season
+        description: Championship season.
+        data_tests:
+          - not_null
+      - name: round
+        description: Round after which these standings were taken.
+        data_tests:
+          - not_null
+      - name: race_id
+        description: Race after which these standings were taken.
+        data_tests:
+          - not_null
+      - name: driver_id
+        description: Driver the standings row belongs to. Joins to `dim_drivers`.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: championship_position
+        description: Driver's championship position after this round.
+        data_tests:
+          - not_null
+      - name: points
+        description: Official championship points after this round.
+        data_tests:
+          - not_null
+      - name: wins
+        description: Race wins this season after this round.
+        data_tests:
+          - not_null
+
+unit_tests:
+  - name: title_counts_only_once_the_season_is_complete
+    description: >
+      A driver at position 1 is champion only when every calendar race has results. In an incomplete
+      season the same standing is not a title. The season standings are taken at the latest completed round.
+    model: mart_driver_season_standings
+    given:
+      - input: ref('mart_driver_standings_by_round')
+        rows:
+          - {season: 2019, round: 20, race_id: 900, driver_id: 1, championship_position: 1, points: 400, wins: 8}
+          - {season: 2019, round: 21, race_id: 901, driver_id: 1, championship_position: 1, points: 413, wins: 11}
+          - {season: 2019, round: 21, race_id: 901, driver_id: 2, championship_position: 2, points: 300, wins: 2}
+          - {season: 2024, round: 22, race_id: 1142, driver_id: 1, championship_position: 1, points: 403, wins: 8}
+          - {season: 2024, round: 22, race_id: 1142, driver_id: 2, championship_position: 2, points: 340, wins: 3}
+      - input: ref('int_season_completeness')
+        rows:
+          - {season: 2019, races_on_calendar: 21, races_with_results: 21, is_season_complete: true, latest_completed_round: 21}
+          - {season: 2024, races_on_calendar: 24, races_with_results: 22, is_season_complete: false, latest_completed_round: 22}
+    expect:
+      rows:
+        - {season: 2019, driver_id: 1, championship_position: 1, is_season_complete: true, is_champion: true}
+        - {season: 2019, driver_id: 2, championship_position: 2, is_season_complete: true, is_champion: false}
+        - {season: 2024, driver_id: 1, championship_position: 1, is_season_complete: false, is_champion: false}
+        - {season: 2024, driver_id: 2, championship_position: 2, is_season_complete: false, is_champion: false}

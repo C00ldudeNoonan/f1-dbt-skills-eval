@@ -1,0 +1,170 @@
+version: 2
+
+models:
+  - name: mart_driver_season_standings
+    description: >
+      One row per driver per season, as of the latest completed round. Matches the
+      official championship (position, points incl. sprint points, wins). Drivers who
+      entered but are absent from the official standings (e.g. never started) have no row.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, driver_id]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: championship_position
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null]
+      - name: wins
+        data_tests: [not_null]
+      - name: is_season_complete
+        description: False when some race on the calendar has no results (standings are then provisional).
+      - name: last_completed_round
+        description: The round the standings are as of.
+
+  - name: mart_constructor_season_pit_stops
+    description: >
+      One row per constructor per season with pit stop data (2011 onwards). Stops over
+      60 seconds (red-flag stoppages) are excluded from both count and median.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, constructor_id]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: pit_stop_count
+        data_tests: [not_null]
+      - name: median_pit_stop_seconds
+        data_tests: [not_null]
+
+  - name: mart_teammate_head_to_head
+    description: >
+      One row per season, constructor, driver and teammate (both orderings) for pairs
+      that both had a result for the same constructor in at least one Grand Prix.
+      "Ahead" compares best position_order (race) and qualifying position; ties are not ahead.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, constructor_id, driver_id, teammate_id]
+    columns:
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: teammate_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: races_together
+        data_tests: [not_null]
+      - name: races_ahead
+        data_tests: [not_null]
+      - name: qualifying_together
+        data_tests: [not_null]
+      - name: qualifying_ahead
+        data_tests: [not_null]
+
+  - name: fct_driver_race_pace
+    description: >
+      One row per driver per race with lap data and at least one green-flag lap.
+      Green = not lap 1, not a pit-stop lap, not the lap after a stop, and not slower
+      than 130% of the race's fastest lap.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__races'), field: race_id}}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: green_laps
+        data_tests: [not_null]
+      - name: median_green_lap_ms
+        data_tests: [not_null]
+
+  - name: mart_driver_standings_by_round
+    description: >
+      Official driver standings after every round in which a driver appears in the published
+      standings. mart_driver_season_standings is the last completed round of this model.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: championship_position
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null]
+      - name: wins
+        data_tests: [not_null]
+
+  - name: mart_alt_points_standings_all_systems
+    description: >
+      Every Grand Prix season re-scored under each system in the points_systems seed.
+      Classified finishers only, per result entry, by position_order; no sprint or fastest-lap points.
+      Ranked by points, then countback through 10th place, then lowest driver_id.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, season, driver_id]
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, season, alt_position]
+    columns:
+      - name: points_system
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('points_systems'), field: points_system}}
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: alt_points
+        data_tests: [not_null]
+      - name: alt_position
+        data_tests: [not_null]
+
+  - name: mart_alt_points_standings
+    description: >
+      One row per driver per season (every driver with a Grand Prix result) scored under the
+      default points system (var default_points_system, currently the 2010+ 25-18-15-... system).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, driver_id]
+    columns:
+      - name: points_system
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: alt_points
+        data_tests: [not_null]
+      - name: alt_position
+        data_tests: [not_null]

@@ -1,0 +1,43 @@
+unit_tests:
+  - name: stg_f1__results_parses_nulls_and_lap_times
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', constructorid: '1', statusid: '1', grid: '1', position: '1', position_order: '1', points: '10', laps: '58', fastestlaptime: '1:28.020'}
+          - {resultid: '2', raceid: '1', driverid: '2', constructorid: '1', statusid: '5', grid: '0', position: '\N', position_order: '2', points: '0', laps: '3', fastestlaptime: '\N'}
+    expect:
+      rows:
+        - {result_id: 1, finish_position: 1, fastest_lap_time_ms: 88020}
+        - {result_id: 2, finish_position: null, fastest_lap_time_ms: null}
+
+  - name: stg_f1__results_lap_time_to_ms_edge_cases
+    description: Fastest lap strings of the form m:ss.mmm become integer milliseconds, including sub-minute, exactly one minute and double-digit minutes.
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', constructorid: '1', statusid: '1', grid: '1', position: '1', position_order: '1', points: '10', laps: '58', fastestlaptime: '1:28.020'}
+          - {resultid: '2', raceid: '1', driverid: '2', constructorid: '1', statusid: '1', grid: '2', position: '2', position_order: '2', points: '8', laps: '58', fastestlaptime: '0:59.999'}
+          - {resultid: '3', raceid: '1', driverid: '3', constructorid: '1', statusid: '1', grid: '3', position: '3', position_order: '3', points: '6', laps: '58', fastestlaptime: '1:00.000'}
+          - {resultid: '4', raceid: '1', driverid: '4', constructorid: '1', statusid: '1', grid: '4', position: '4', position_order: '4', points: '5', laps: '58', fastestlaptime: '10:03.005'}
+          - {resultid: '5', raceid: '1', driverid: '5', constructorid: '1', statusid: '1', grid: '5', position: '5', position_order: '5', points: '4', laps: '58', fastestlaptime: '1:07.050'}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 88020}
+        - {result_id: 2, fastest_lap_time_ms: 59999}
+        - {result_id: 3, fastest_lap_time_ms: 60000}
+        - {result_id: 4, fastest_lap_time_ms: 603005}
+        - {result_id: 5, fastest_lap_time_ms: 67050}
+
+  - name: stg_f1__sprint_results_lap_time_to_ms
+    model: stg_f1__sprint_results
+    given:
+      - input: source('f1_raw', 'sprint_results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', constructorid: '1', statusid: '1', grid: '1', position: '1', position_order: '1', points: '8', laps: '19', fastestlaptime: '1:30.500'}
+          - {resultid: '2', raceid: '1', driverid: '2', constructorid: '1', statusid: '5', grid: '2', position: '\N', position_order: '2', points: '0', laps: '2', fastestlaptime: '\N'}
+    expect:
+      rows:
+        - {result_id: 1, finish_position: 1, fastest_lap_time_ms: 90500}
+        - {result_id: 2, finish_position: null, fastest_lap_time_ms: null}

@@ -1,0 +1,30 @@
+unit_tests:
+  - name: fct_lap_times_incremental_reprocesses_last_two_races_only
+    description: >
+      Given races 1 to 3 already loaded, the run reprocesses races 2 and 3, which are
+      the last two loaded. Corrected laps for them flow through. A correction to
+      race 1 is not reprocessed.
+    model: fct_lap_times
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        rows:
+          - {race_id: 1, season: 2024, round: 1, race_date: '2024-03-01', driver_id: 1, lap: 1, position: 1, lap_time_ms: 90000}
+          - {race_id: 2, season: 2024, round: 2, race_date: '2024-03-08', driver_id: 1, lap: 1, position: 1, lap_time_ms: 90000}
+          - {race_id: 3, season: 2024, round: 3, race_date: '2024-03-15', driver_id: 1, lap: 1, position: 1, lap_time_ms: 90000}
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 1, season: 2024, round: 1, race_date: '2024-03-01'}
+          - {race_id: 2, season: 2024, round: 2, race_date: '2024-03-08'}
+          - {race_id: 3, season: 2024, round: 3, race_date: '2024-03-15'}
+      - input: ref('stg_f1__lap_times')
+        rows:
+          - {race_id: 1, driver_id: 1, lap_number: 1, position: 1, lap_ms: 1}
+          - {race_id: 2, driver_id: 1, lap_number: 1, position: 1, lap_ms: 91000}
+          - {race_id: 3, driver_id: 1, lap_number: 1, position: 1, lap_ms: 89000}
+    expect:
+      rows:
+        - {race_id: 2, driver_id: 1, lap: 1, lap_time_ms: 91000}
+        - {race_id: 3, driver_id: 1, lap: 1, lap_time_ms: 89000}

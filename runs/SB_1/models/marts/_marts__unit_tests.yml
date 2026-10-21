@@ -1,0 +1,57 @@
+unit_tests:
+  - name: test_dim_drivers_championship_counts_only_complete_seasons
+    description: >
+      A P1 finish in the standings is a world championship only when the season is complete
+      (every calendar race has results). Driver 1 wins 2000 (complete) and 2001 (incomplete);
+      driver 2 is P2 in 2000 and wins the incomplete 2001 title too.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: a, forename: Ann, surname: Able, nationality: X, date_of_birth: '1970-01-01', permanent_number: 7}
+          - {driver_id: 2, driver_ref: b, forename: Bob, surname: Baker, nationality: Y, date_of_birth: '1971-01-01', permanent_number: null}
+      - input: ref('fct_results')
+        rows:
+          - {race_id: 10, driver_id: 1, is_win: true, is_podium: true}
+          - {race_id: 10, driver_id: 2, is_win: false, is_podium: true}
+      - input: ref('fct_session_results')
+        rows: []
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2000, driver_id: 1, championship_position: 1}
+          - {season: 2000, driver_id: 2, championship_position: 2}
+          - {season: 2001, driver_id: 1, championship_position: 1}
+          - {season: 2001, driver_id: 2, championship_position: 2}
+      - input: ref('int_season_completeness')
+        rows:
+          - {season: 2000, is_complete: true}
+          - {season: 2001, is_complete: false}
+    expect:
+      rows:
+        - {driver_id: 1, first_name: Ann, last_name: Able, current_number: 7, career_starts: 1, career_wins: 1, career_podiums: 1, career_sprint_wins: 0, world_championships: 1}
+        - {driver_id: 2, first_name: Bob, last_name: Baker, current_number: null, career_starts: 1, career_wins: 0, career_podiums: 1, career_sprint_wins: 0, world_championships: 0}
+
+  - name: test_dim_drivers_career_counts_are_per_race_not_per_result_row
+    description: A shared drive gives one driver two result rows in one race; it is one start and one win.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: a, forename: Ann, surname: Able}
+      - input: ref('fct_results')
+        rows:
+          - {race_id: 10, driver_id: 1, is_win: true, is_podium: true}
+          - {race_id: 10, driver_id: 1, is_win: true, is_podium: true}
+      - input: ref('fct_session_results')
+        rows: []
+      - input: ref('mart_driver_season_standings')
+        rows: []
+      - input: ref('int_season_completeness')
+        rows: []
+    expect:
+      rows:
+        - {driver_id: 1, career_starts: 1, career_wins: 1, career_podiums: 1, world_championships: 0}

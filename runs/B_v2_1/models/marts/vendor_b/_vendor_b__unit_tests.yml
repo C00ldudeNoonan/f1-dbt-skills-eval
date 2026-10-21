@@ -1,0 +1,127 @@
+unit_tests:
+  - name: session_crosswalk_matches_on_season_type_and_date
+    description: >
+      The Grand Prix matches on race_date and the sprint on sprint_date of the
+      same weekend. A session on a date with no race is left unmatched. An
+      override beats the automatic match.
+    model: dim_session_crosswalk
+    given:
+      - input: ref('stg_vendor_b__sessions')
+        rows:
+          - {session_key: 1, session_type: race, meeting_name: Spielberg, season: 2020, session_date: '2020-07-05'}
+          - {session_key: 2, session_type: race, meeting_name: Spielberg, season: 2020, session_date: '2020-07-12'}
+          - {session_key: 3, session_type: sprint, meeting_name: Silverstone, season: 2021, session_date: '2021-07-17'}
+          - {session_key: 4, session_type: race, meeting_name: Nowhere, season: 2021, session_date: '2021-01-01'}
+          - {session_key: 5, session_type: race, meeting_name: Silverstone, season: 2021, session_date: '2021-07-18'}
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 101, season: 2020, circuit_id: 70, race_date: '2020-07-05', sprint_date: null}
+          - {race_id: 102, season: 2020, circuit_id: 70, race_date: '2020-07-12', sprint_date: null}
+          - {race_id: 201, season: 2021, circuit_id: 9, race_date: '2021-07-18', sprint_date: '2021-07-17'}
+      - input: ref('stg_ergast__circuits')
+        rows:
+          - {circuit_id: 70, location: Spielberg}
+          - {circuit_id: 9, location: Silverstone}
+      - input: ref('vendor_b_session_overrides')
+        rows:
+          - {session_key: 5, race_id: 999, session_type: race, reason: test}
+    expect:
+      rows:
+        - {session_key: 1, race_id: 101, session_type: race, match_method: date}
+        - {session_key: 2, race_id: 102, session_type: race, match_method: date}
+        - {session_key: 3, race_id: 201, session_type: sprint, match_method: date}
+        - {session_key: 4, race_id: null, session_type: race, match_method: unmatched}
+        - {session_key: 5, race_id: 999, session_type: race, match_method: override}
+
+  - name: driver_crosswalk_requires_a_unique_strong_match
+    description: >
+      A (Pérez) matches despite the accent. B shares a code and number with
+      two of our drivers but only Mick's surname and forename match, so Mick
+      wins. C has two candidates with equal scores (a tie): unmatched. D's
+      only co-participant has a different surname: unmatched. E is resolved
+      by an override.
+    model: dim_driver_crosswalk
+    given:
+      - input: ref('stg_vendor_b__drivers')
+        rows:
+          - {driver_key: A, full_name: PEREZ Sergio, surname: PEREZ, forename: Sergio, driver_code: PER, racing_number: 11}
+          - {driver_key: B, full_name: SCHUMACHER Mick, surname: SCHUMACHER, forename: Mick, driver_code: MSC, racing_number: 47}
+          - {driver_key: C, full_name: SMITH John, surname: SMITH, forename: John, driver_code: SMI, racing_number: 5}
+          - {driver_key: D, full_name: NOBODY Ann, surname: NOBODY, forename: Ann, driver_code: NOB, racing_number: 9}
+          - {driver_key: E, full_name: ODD Case, surname: ODD, forename: Case, driver_code: ODD, racing_number: 1}
+      - input: ref('stg_vendor_b__results')
+        rows:
+          - {session_key: 1, driver_key: A}
+          - {session_key: 1, driver_key: B}
+          - {session_key: 1, driver_key: C}
+          - {session_key: 1, driver_key: D}
+          - {session_key: 1, driver_key: E}
+      - input: ref('dim_session_crosswalk')
+        rows:
+          - {session_key: 1, race_id: 10, session_type: race}
+      - input: ref('fct_session_results')
+        rows:
+          - {race_id: 10, session_type: race, driver_id: 815}
+          - {race_id: 10, session_type: race, driver_id: 30}
+          - {race_id: 10, session_type: race, driver_id: 854}
+          - {race_id: 10, session_type: race, driver_id: 501}
+          - {race_id: 10, session_type: race, driver_id: 502}
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 815, forename: Sergio, surname: Pérez, driver_code: PER, permanent_number: 11}
+          - {driver_id: 30, forename: Michael, surname: Schumacher, driver_code: MSC, permanent_number: 47}
+          - {driver_id: 854, forename: Mick, surname: Schumacher, driver_code: MSC, permanent_number: 47}
+          - {driver_id: 501, forename: John, surname: Smith, driver_code: SMI, permanent_number: 5}
+          - {driver_id: 502, forename: John, surname: Smith, driver_code: SMI, permanent_number: 5}
+      - input: ref('vendor_b_driver_overrides')
+        rows:
+          - {driver_key: E, driver_id: 777, reason: test}
+    expect:
+      rows:
+        - {driver_key: A, driver_id: 815, match_method: scored, match_score: 7}
+        - {driver_key: B, driver_id: 854, match_method: scored, match_score: 7}
+        - {driver_key: C, driver_id: null, match_method: unmatched}
+        - {driver_key: D, driver_id: null, match_method: unmatched}
+        - {driver_key: E, driver_id: 777, match_method: override}
+
+  - name: discrepancies_cover_every_type
+    description: >
+      Driver 1 agrees in both feeds (no rows). Driver 2's position and points
+      differ. Driver 3 is unclassified in both (no position row) but points
+      differ. Driver 4 is missing from Vendor B, driver 5 from our feed.
+      Driver 6 is classified by us but DNF in Vendor B (position row).
+    model: mart_vendor_result_discrepancies
+    given:
+      - input: ref('dim_session_crosswalk')
+        rows:
+          - {session_key: 1, race_id: 10, session_type: race, season: 2024}
+      - input: ref('dim_driver_crosswalk')
+        rows:
+          - {driver_key: d1, driver_id: 1}
+          - {driver_key: d2, driver_id: 2}
+          - {driver_key: d3, driver_id: 3}
+          - {driver_key: d5, driver_id: 5}
+          - {driver_key: d6, driver_id: 6}
+      - input: ref('fct_session_results')
+        rows:
+          - {race_id: 10, season: 2024, session_type: race, driver_id: 1, finish_position: 1, position_text: '1', points: 25}
+          - {race_id: 10, season: 2024, session_type: race, driver_id: 2, finish_position: 2, position_text: '2', points: 18}
+          - {race_id: 10, season: 2024, session_type: race, driver_id: 3, finish_position: null, position_text: R, points: 0}
+          - {race_id: 10, season: 2024, session_type: race, driver_id: 4, finish_position: 3, position_text: '3', points: 15}
+          - {race_id: 10, season: 2024, session_type: race, driver_id: 6, finish_position: 18, position_text: '18', points: 0}
+          - {race_id: 9, season: 2017, session_type: race, driver_id: 1, finish_position: 1, position_text: '1', points: 25}
+      - input: ref('stg_vendor_b__results')
+        rows:
+          - {session_key: 1, driver_key: d1, finish_position: 1, position_text: '1', points: 25}
+          - {session_key: 1, driver_key: d2, finish_position: 3, position_text: '3', points: 15}
+          - {session_key: 1, driver_key: d3, finish_position: null, position_text: DNF, points: 1}
+          - {session_key: 1, driver_key: d5, finish_position: 9, position_text: '9', points: 2}
+          - {session_key: 1, driver_key: d6, finish_position: null, position_text: DNF, points: 0}
+    expect:
+      rows:
+        - {race_id: 10, session_type: race, driver_id: 2, discrepancy_type: position, vendor_a_value: '2', vendor_b_value: '3'}
+        - {race_id: 10, session_type: race, driver_id: 2, discrepancy_type: points, vendor_a_value: '18.00', vendor_b_value: '15.00'}
+        - {race_id: 10, session_type: race, driver_id: 3, discrepancy_type: points, vendor_a_value: '0.00', vendor_b_value: '1.00'}
+        - {race_id: 10, session_type: race, driver_id: 4, discrepancy_type: missing_in_vendor_b, vendor_a_value: '3', vendor_b_value: null}
+        - {race_id: 10, session_type: race, driver_id: 5, discrepancy_type: missing_in_vendor_a, vendor_a_value: null, vendor_b_value: '9'}
+        - {race_id: 10, session_type: race, driver_id: 6, discrepancy_type: position, vendor_a_value: '18', vendor_b_value: DNF}

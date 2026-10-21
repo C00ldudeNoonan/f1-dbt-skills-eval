@@ -1,0 +1,11 @@
+snapshots:
+  - name: snp_drivers
+    description: >
+      Type-2 history of the raw drivers table, which only holds current values. Detects changes to
+      car number, code, name, nationality and date of birth.
+    relation: ref('stg_f1__drivers')
+    config:
+      schema: snapshots
+      unique_key: driver_id
+      strategy: check
+      check_cols: [driver_ref, permanent_number, driver_code, forename, surname, nationality, date_of_birth]

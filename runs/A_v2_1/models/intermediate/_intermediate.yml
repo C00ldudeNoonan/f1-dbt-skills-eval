@@ -1,0 +1,150 @@
+version: 2
+
+models:
+  - name: int_seasons__completion
+    description: >
+      One row per season with calendar progress. A season is complete only when
+      every race on its calendar has results. Downstream "as of" logic uses
+      latest_completed_round.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: scheduled_races
+        description: Races on the season calendar.
+      - name: completed_races
+        description: Races on the calendar that have at least one result.
+      - name: is_season_complete
+        description: True when every scheduled race has results.
+        data_tests: [not_null]
+      - name: latest_completed_round
+        description: Highest round number that has results.
+        data_tests: [not_null]
+      - name: latest_completed_race_id
+        description: race_id of latest_completed_round.
+        data_tests: [not_null, unique]
+
+  - name: int_drivers__spine
+    description: >
+      All known driver_ids: real DRIVERS records plus ids seen in results,
+      sprint results, qualifying or standings before their driver record
+      arrived (is_placeholder = true).
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: is_placeholder
+        data_tests: [not_null]
+
+  - name: int_drivers__profile
+    description: >
+      Shared logic behind every version of dim_drivers: one row per known driver
+      (real records plus late-arriving placeholders) with career totals.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+
+  - name: int_teammate_qualifying_gaps
+    description: >
+      Driver vs teammate qualifying gap per race (both orderings), measured in
+      the last session both set a time in. gap_pct = 100*ln(driver/teammate).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, teammate_id]
+      - expression_is_true:
+          name: teammate_quali_gap_in_session_both_ran
+          arguments:
+            expression: "session_compared in ('q1', 'q2', 'q3')"
+
+  - name: int_teammate_race_pace_gaps
+    description: >
+      Driver vs teammate gap in median green-flag lap time per race (both
+      orderings), when both logged enough green laps.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, teammate_id]
+
+  - name: int_pit_stops__circuit_adjusted
+    description: >
+      Pit stops with pit-lane time compared with the same circuit's all-season
+      median (duration is pit-lane time, not stationary time).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+
+  - name: int_driver_teammate_pairs
+    description: Per signal and teammate pair (both orderings), the count, mean and spread of representative same-car gaps.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [signal, driver_id, teammate_id]
+
+  - name: int_driver_network_ratings
+    description: >
+      Python (Snowpark) model. Weighted least-squares driver ratings from
+      teammate gaps, centred per connected teammate network, with standard
+      errors. One row per signal per driver.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [signal, driver_id]
+      - expression_is_true:
+          name: network_ratings_have_finite_errors
+          arguments:
+            expression: "rating_se_pct >= 0 and rating_se_pct < 10"
+
+unit_tests:
+  - name: int_seasons__completion_requires_every_race
+    description: >
+      A season is complete only when every race on its calendar has results;
+      latest_completed_round is the highest round with results.
+    model: int_seasons__completion
+    given:
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 1, season: 2023, round: 1}
+          - {race_id: 2, season: 2023, round: 2}
+          - {race_id: 3, season: 2024, round: 1}
+          - {race_id: 4, season: 2024, round: 2}
+          - {race_id: 5, season: 2024, round: 3}
+      - input: ref('stg_ergast__results')
+        rows:
+          - {race_id: 1}
+          - {race_id: 2}
+          - {race_id: 2}
+          - {race_id: 3}
+          - {race_id: 4}
+    expect:
+      rows:
+        - {season: 2023, scheduled_races: 2, completed_races: 2, is_season_complete: true, latest_completed_round: 2, latest_completed_race_id: 2}
+        - {season: 2024, scheduled_races: 3, completed_races: 2, is_season_complete: false, latest_completed_round: 2, latest_completed_race_id: 4}
+
+  - name: int_drivers__profile_titles_only_for_complete_seasons
+    description: >
+      Leading the standings of an incomplete season is not a championship;
+      leading a complete season is.
+    model: int_drivers__profile
+    given:
+      - input: ref('int_drivers__spine')
+        rows:
+          - {driver_id: 1, is_placeholder: false}
+          - {driver_id: 2, is_placeholder: false}
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: a, full_name: Driver A}
+          - {driver_id: 2, driver_ref: b, full_name: Driver B}
+      - input: ref('fct_results')
+        rows: []
+      - input: ref('fct_session_results')
+        rows: []
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2023, driver_id: 1, championship_position: 1, is_season_complete: true}
+          - {season: 2023, driver_id: 2, championship_position: 2, is_season_complete: true}
+          - {season: 2024, driver_id: 1, championship_position: 2, is_season_complete: false}
+          - {season: 2024, driver_id: 2, championship_position: 1, is_season_complete: false}
+    expect:
+      rows:
+        - {driver_id: 1, world_championships: 1}
+        - {driver_id: 2, world_championships: 0}

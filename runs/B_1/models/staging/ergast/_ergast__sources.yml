@@ -1,0 +1,471 @@
+version: 2
+
+# Contract with the data vendor. Every raw column is declared, with its type.
+# The declared_columns_exist / no_undeclared_columns tests (tests/generic/
+# source_schema_drift.sql) compare this list with the live tables on every
+# build. If the vendor renames, drops, retypes or adds a column, the source
+# test fails (or warns, for additions) before any model runs. When the vendor
+# changes something, update this file and the matching staging model together.
+#
+# Primary-key unique tests here only *warn*: a repeated vendor load (exact
+# duplicate rows) is removed by `select distinct` in staging, so the build stays
+# correct and current, and the warning still makes it visible. Duplicate keys
+# with conflicting values fail the staging unique tests and block the marts.
+
+sources:
+  - name: ergast
+    description: >
+      Raw Formula 1 data from the Ergast / Kaggle "Formula 1 World Championship"
+      CSVs, loaded by the data vendor into Snowflake. Every column is TEXT and
+      missing values are the literal string '\N'. Read-only: never write here.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_B_1
+    tables:
+      - name: circuits
+        description: >
+          One row per circuit.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: circuits}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: circuits}
+        columns:
+          - name: circuitid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: circuitref
+            data_type: text
+          - name: name
+            data_type: text
+          - name: location
+            data_type: text
+          - name: country
+            data_type: text
+          - name: lat
+            data_type: text
+          - name: lng
+            data_type: text
+          - name: alt
+            data_type: text
+          - name: url
+            data_type: text
+      - name: constructor_results
+        description: >
+          Constructor points per race.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: constructor_results}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: constructor_results}
+        columns:
+          - name: constructorresultsid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: raceid
+            data_type: text
+          - name: constructorid
+            data_type: text
+          - name: points
+            data_type: text
+          - name: status
+            data_type: text
+      - name: constructor_standings
+        description: >
+          Constructors' championship standings after each race.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: constructor_standings}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: constructor_standings}
+        columns:
+          - name: constructorstandingsid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: raceid
+            data_type: text
+          - name: constructorid
+            data_type: text
+          - name: points
+            data_type: text
+          - name: position
+            data_type: text
+          - name: positiontext
+            data_type: text
+          - name: wins
+            data_type: text
+      - name: constructors
+        description: >
+          One row per constructor (team).
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: constructors}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: constructors}
+        columns:
+          - name: constructorid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: constructorref
+            data_type: text
+          - name: name
+            data_type: text
+          - name: nationality
+            data_type: text
+          - name: url
+            data_type: text
+      - name: driver_standings
+        description: >
+          Drivers' championship standings after each race. These are the official standings: they already apply historical dropped-score rules and the 1997 exclusion of Michael Schumacher.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: driver_standings}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: driver_standings}
+        columns:
+          - name: driverstandingsid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: raceid
+            data_type: text
+          - name: driverid
+            data_type: text
+          - name: points
+            data_type: text
+          - name: position
+            data_type: text
+          - name: positiontext
+            data_type: text
+          - name: wins
+            data_type: text
+      - name: drivers
+        description: >
+          One row per driver. Holds current values only; history is in the snp_drivers snapshot.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: drivers}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: drivers}
+        columns:
+          - name: driverid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: driverref
+            data_type: text
+          - name: number
+            data_type: text
+          - name: code
+            data_type: text
+          - name: forename
+            data_type: text
+          - name: surname
+            data_type: text
+          - name: dob
+            data_type: text
+          - name: nationality
+            data_type: text
+          - name: url
+            data_type: text
+      - name: lap_times
+        description: >
+          One row per driver per lap (1996 onwards).
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: lap_times}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: lap_times}
+        columns:
+          - name: raceid
+            data_type: text
+          - name: driverid
+            data_type: text
+          - name: lap
+            data_type: text
+          - name: position
+            data_type: text
+          - name: time
+            data_type: text
+          - name: milliseconds
+            data_type: text
+      - name: pit_stops
+        description: >
+          One row per pit stop (2011 onwards). The vendor dropped the redundant text `duration` column in the 2026-10 migration; use `milliseconds`.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: pit_stops}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: pit_stops}
+        columns:
+          - name: raceid
+            data_type: text
+          - name: driverid
+            data_type: text
+          - name: stop
+            data_type: text
+          - name: lap
+            data_type: text
+          - name: time
+            data_type: text
+          - name: milliseconds
+            data_type: text
+      - name: qualifying
+        description: >
+          Qualifying results (1994 onwards).
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: qualifying}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: qualifying}
+        columns:
+          - name: qualifyid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: raceid
+            data_type: text
+          - name: driverid
+            data_type: text
+          - name: constructorid
+            data_type: text
+          - name: number
+            data_type: text
+          - name: position
+            data_type: text
+          - name: q1
+            data_type: text
+          - name: q2
+            data_type: text
+          - name: q3
+            data_type: text
+      - name: races
+        description: >
+          One row per Grand Prix on the calendar, including scheduled races without results yet.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: races}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: races}
+        columns:
+          - name: raceid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: year
+            data_type: text
+          - name: round
+            data_type: text
+          - name: circuitid
+            data_type: text
+          - name: name
+            data_type: text
+          - name: date
+            data_type: text
+          - name: time
+            data_type: text
+          - name: url
+            data_type: text
+          - name: fp1_date
+            data_type: text
+          - name: fp1_time
+            data_type: text
+          - name: fp2_date
+            data_type: text
+          - name: fp2_time
+            data_type: text
+          - name: fp3_date
+            data_type: text
+          - name: fp3_time
+            data_type: text
+          - name: quali_date
+            data_type: text
+          - name: quali_time
+            data_type: text
+          - name: sprint_date
+            data_type: text
+          - name: sprint_time
+            data_type: text
+      - name: results
+        description: >
+          Grand Prix race results, one row per car entry. `positionorder` was renamed to `position_order` in the 2026-10 vendor migration.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: results}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: results}
+        columns:
+          - name: resultid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: raceid
+            data_type: text
+          - name: driverid
+            data_type: text
+          - name: constructorid
+            data_type: text
+          - name: number
+            data_type: text
+          - name: grid
+            data_type: text
+          - name: position
+            data_type: text
+          - name: positiontext
+            data_type: text
+          - name: position_order
+            data_type: text
+          - name: points
+            data_type: text
+          - name: laps
+            data_type: text
+          - name: time
+            data_type: text
+          - name: milliseconds
+            data_type: text
+          - name: fastestlap
+            data_type: text
+          - name: rank
+            data_type: text
+          - name: fastestlaptime
+            data_type: text
+          - name: fastestlapspeed
+            data_type: text
+          - name: statusid
+            data_type: text
+      - name: seasons
+        description: >
+          One row per championship season.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: seasons}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: seasons}
+        columns:
+          - name: year
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: url
+            data_type: text
+      - name: sprint_results
+        description: >
+          Sprint race results (2021 onwards). `positionorder` was renamed to `position_order` in the 2026-10 vendor migration.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: sprint_results}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: sprint_results}
+        columns:
+          - name: resultid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: raceid
+            data_type: text
+          - name: driverid
+            data_type: text
+          - name: constructorid
+            data_type: text
+          - name: number
+            data_type: text
+          - name: grid
+            data_type: text
+          - name: position
+            data_type: text
+          - name: positiontext
+            data_type: text
+          - name: position_order
+            data_type: text
+          - name: points
+            data_type: text
+          - name: laps
+            data_type: text
+          - name: time
+            data_type: text
+          - name: milliseconds
+            data_type: text
+          - name: fastestlap
+            data_type: text
+          - name: fastestlaptime
+            data_type: text
+          - name: statusid
+            data_type: text
+      - name: status
+        description: >
+          Lookup of finishing status codes.
+        data_tests:
+          - declared_columns_exist:
+              arguments: {source_name: ergast, table_name: status}
+          - no_undeclared_columns:
+              arguments: {source_name: ergast, table_name: status}
+        columns:
+          - name: statusid
+            data_type: text
+            data_tests:
+              - not_null
+              # warn, not error: staging removes exact duplicate rows, and the
+              # staging-level unique test (error) still blocks conflicting ones.
+              - unique:
+                  config:
+                    severity: warn
+          - name: status
+            data_type: text

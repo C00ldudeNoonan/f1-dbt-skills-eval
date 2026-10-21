@@ -1,0 +1,38 @@
+name: f1_analytics
+version: "1.0.0"
+profile: f1
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+
+clean-targets: ["target", "dbt_packages", "logs"]
+
+# Everything builds into F1_DBT_A_1 (the target schema) with a per-layer suffix,
+# e.g. F1_DBT_A_1_STAGING, F1_DBT_A_1_MARTS.
+models:
+  f1_analytics:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
+
+snapshots:
+  f1_analytics:
+    +schema: snapshots
+
+seeds:
+  f1_analytics:
+    +schema: seeds
+
+data_tests:
+  f1_analytics:
+    +severity: error

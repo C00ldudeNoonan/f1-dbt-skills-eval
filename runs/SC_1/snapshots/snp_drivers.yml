@@ -1,0 +1,19 @@
+snapshots:
+  - name: snp_drivers
+    description: >
+      Type 2 history of the raw drivers table. Raw only holds each driver's current number, code and
+      name, so changes are lost unless captured here. Snapshots the raw rows as loaded (text, `\N` nulls);
+      current rows have dbt_valid_to null. Run `dbt snapshot` (or `dbt build`) on every load, because
+      a change is only captured if a run sees it. Not rebuildable: do not drop this table.
+    relation: source('f1_raw', 'drivers')
+    config:
+      unique_key: driverid
+      strategy: check
+      check_cols: all
+    columns:
+      - name: driverid
+        data_tests: [not_null]
+      - name: dbt_scd_id
+        data_tests: [unique, not_null]
+      - name: dbt_valid_from
+        data_tests: [not_null]

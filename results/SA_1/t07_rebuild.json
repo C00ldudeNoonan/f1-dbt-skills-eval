@@ -1,0 +1,134 @@
+{
+  "run_id": "SA_1",
+  "task": 7,
+  "phase": "rebuild",
+  "suite": "v1",
+  "harness_build": {
+    "exit_code": 0,
+    "seconds": 53.6,
+    "log": "~/dbt-skill-eval/results/SA_1/grades/t07_rebuild_build.log"
+  },
+  "structural": {
+    "sources_point_at_raw_schema": true,
+    "counts": {
+      "models": 19,
+      "data_tests": 114,
+      "unit_tests": 3,
+      "snapshots": 1,
+      "seeds": 0,
+      "macros_in_project": 3,
+      "documented_models": 12
+    },
+    "fct_lap_times_incremental": true,
+    "fct_lap_times_unique_key": "race_id",
+    "snapshot_exists": true,
+    "snapshot_verstappen_versions": 2,
+    "snapshot_verstappen_current": 1,
+    "season_standings_derived_from_by_round": true,
+    "upstream_constructor_uniqueness_test": true,
+    "fct_results_contract": true,
+    "dim_drivers_versions": [
+      "1",
+      "2"
+    ],
+    "dim_drivers_latest_version": 2,
+    "dim_drivers_contracts": true,
+    "dim_drivers_v1_deprecation": "2027-01-01T00:00:00+00:00",
+    "unit_tests": [
+      "int_driver_career_counts_only_completed_seasons_as_championships",
+      "int_season_status_flags_season_incomplete_when_a_race_has_no_results",
+      "stg_results_parses_fastest_lap_to_ms"
+    ]
+  },
+  "data_checks": {
+    "fct_results": {
+      "relation": "ANALYTICS_DEV.F1_DBT_SA_1.fct_results",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 26759,
+      "actual_rows": 26759,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "dim_drivers": {
+      "relation": "ANALYTICS_DEV.F1_DBT_SA_1.dim_drivers_v2",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 861,
+      "actual_rows": 861,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_driver_season_standings": {
+      "relation": "ANALYTICS_DEV.F1_DBT_SA_1.mart_driver_season_standings",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 3192,
+      "actual_rows": 3192,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_constructor_season_pit_stops": {
+      "relation": "ANALYTICS_DEV.F1_DBT_SA_1.mart_constructor_season_pit_stops",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 147,
+      "actual_rows": 147,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_lap_times": {
+      "relation": "ANALYTICS_DEV.F1_DBT_SA_1.fct_lap_times",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 589081,
+      "actual_rows": 589081,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_session_results": {
+      "relation": "ANALYTICS_DEV.F1_DBT_SA_1.fct_session_results",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 27119,
+      "actual_rows": 27119,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_driver_standings_by_round": {
+      "relation": "ANALYTICS_DEV.F1_DBT_SA_1.mart_driver_standings_by_round",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 34863,
+      "actual_rows": 34863,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "dim_drivers_v1": {
+      "relation": "ANALYTICS_DEV.F1_DBT_SA_1.dim_drivers_v1",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 861,
+      "actual_rows": 861,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    }
+  },
+  "data_score": "8/8"
+}

@@ -1,0 +1,117 @@
+models:
+  - name: stg_ergast__circuits
+    description: One row per circuit.
+    columns:
+      - name: circuit_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__constructors
+    description: One row per constructor (team).
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__constructor_results
+    description: Constructor points per race.
+    columns:
+      - name: constructor_result_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__constructor_standings
+    description: Cumulative constructor standings after each race.
+    columns:
+      - name: constructor_standing_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__drivers
+    description: One row per driver.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__driver_standings
+    description: >
+      Cumulative driver championship standings after each race, as published
+      (drop-score rules before 1991 and sprint points from 2021 are already applied).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: driver_standing_id
+        data_tests: [unique, not_null]
+      - name: is_excluded
+        description: True when the driver was excluded from the championship (POSITIONTEXT 'D').
+
+  - name: stg_ergast__lap_times
+    description: One row per driver per lap per race (lap data exists from 1996).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: lap_time_ms
+        data_tests: [not_null]
+
+  - name: stg_ergast__pit_stops
+    description: One row per pit stop (2011 onward).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: duration_ms
+        description: Time in the pit lane in milliseconds. Includes red-flag stoppages, which can run to many minutes.
+        data_tests: [not_null]
+
+  - name: stg_ergast__qualifying
+    description: One row per qualifying entry. Times are integer milliseconds, null when no time was set.
+    columns:
+      - name: qualify_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__races
+    description: One row per race on the calendar, whether or not it has been run.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round]
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__results
+    description: One row per Grand Prix result entry. Before 1979 a driver can have two entries in one race (shared cars).
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: finish_position
+        description: Classified finishing position; null when the entry was not classified.
+      - name: position_order
+        description: Ergast's total ordering of every entry in the race, classified or not.
+        data_tests: [not_null]
+
+  - name: stg_ergast__seasons
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__sprint_results
+    description: One row per sprint race result entry (2021 onward).
+    columns:
+      - name: sprint_result_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__status
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]

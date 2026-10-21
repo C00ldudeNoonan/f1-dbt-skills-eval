@@ -1,0 +1,146 @@
+version: 2
+
+models:
+  - name: fct_lap_times
+    description: >
+      One row per driver per lap per race (lap data exists from 1996). Incremental:
+      each run loads new races and reloads the two most recent races already
+      loaded (var lap_correction_window_races) so the timing provider's corrected
+      lap times flow through without a full refresh. Corrections to older races
+      need `dbt build --full-refresh -s fct_lap_times+`.
+    config:
+      tags: [laps]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_date
+        description: Race date; orders races for the correction window.
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: lap
+        description: Lap number, starting at 1.
+        data_tests: [not_null]
+      - name: position
+        description: Running position at the end of the lap.
+      - name: lap_time_ms
+        description: Lap time in integer milliseconds.
+        data_tests: [not_null]
+      - name: dbt_updated_at
+        description: When this race's laps were last (re)loaded. Drives fct_stints rebuilds.
+        data_tests: [not_null]
+
+  - name: fct_stints
+    description: >
+      One row per driver per stint, for races with pit stop data (2011 onwards).
+      Stint 1 starts on lap 1; a pit stop on lap L ends the stint at lap L and the
+      next starts at L + 1; the final stint ends on the driver's last recorded lap.
+      Stints with no laps are dropped, so stint_number can skip only after the
+      driver's last lap is gone (it is 1 + pit stops made before the stint).
+      Incremental: rebuilds every race fct_lap_times reloaded since the last run,
+      plus races whose pit stop data arrived after their laps.
+    config:
+      tags: [laps]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stint_number]
+      - expression_is_true:
+          arguments:
+            expression: "start_lap <= end_lap and stint_laps >= 1"
+      - expression_is_true:
+          arguments:
+            expression: "stint_laps = end_lap - start_lap + 1"
+          config:
+            severity: warn
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: stint_number
+        description: 1 + the driver's pit stops before this stint.
+        data_tests: [not_null]
+      - name: start_lap
+        data_tests: [not_null]
+      - name: end_lap
+        data_tests: [not_null]
+      - name: stint_laps
+        description: Recorded laps in the stint.
+        data_tests: [not_null]
+      - name: avg_lap_time_ms
+        description: Mean of every lap time in the stint, in milliseconds (in- and out-laps included).
+        data_tests: [not_null]
+      - name: source_updated_at
+        description: Latest fct_lap_times.dbt_updated_at the stint was built from.
+
+unit_tests:
+  - name: fct_stints_splits_on_pit_laps
+    description: >
+      Pit on lap 2 ends stint 1 at lap 2; pit on the last lap leaves an empty
+      final stint, which is dropped. A driver without stops has one stint.
+    model: fct_stints
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ergast__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 2}
+          - {race_id: 1, driver_id: 1, lap: 4}
+      - input: ref('fct_lap_times')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, lap_time_ms: 100}
+          - {race_id: 1, driver_id: 1, lap: 2, lap_time_ms: 120}
+          - {race_id: 1, driver_id: 1, lap: 3, lap_time_ms: 90}
+          - {race_id: 1, driver_id: 1, lap: 4, lap_time_ms: 96}
+          - {race_id: 1, driver_id: 2, lap: 1, lap_time_ms: 100}
+          - {race_id: 1, driver_id: 2, lap: 2, lap_time_ms: 101}
+          - {race_id: 2, driver_id: 1, lap: 1, lap_time_ms: 100}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, stint_number: 1, start_lap: 1, end_lap: 2, stint_laps: 2, avg_lap_time_ms: 110}
+        - {race_id: 1, driver_id: 1, stint_number: 2, start_lap: 3, end_lap: 4, stint_laps: 2, avg_lap_time_ms: 93}
+        - {race_id: 1, driver_id: 2, stint_number: 1, start_lap: 1, end_lap: 2, stint_laps: 2, avg_lap_time_ms: 100.5}
+
+  - name: fct_stints_boundaries_with_back_to_back_stops
+    description: >
+      Pits on laps 2 and 3 give stints 1-2 and 3-3; the next stint starts on
+      lap 4 and runs to the last recorded lap; a stop on the last lap leaves an
+      empty stint, which is dropped. Laps are averaged per stint.
+    model: fct_stints
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ergast__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 2}
+          - {race_id: 1, driver_id: 1, lap: 3}
+          - {race_id: 1, driver_id: 1, lap: 6}
+      - input: ref('fct_lap_times')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, lap_time_ms: 100}
+          - {race_id: 1, driver_id: 1, lap: 2, lap_time_ms: 110}
+          - {race_id: 1, driver_id: 1, lap: 3, lap_time_ms: 130}
+          - {race_id: 1, driver_id: 1, lap: 4, lap_time_ms: 90}
+          - {race_id: 1, driver_id: 1, lap: 5, lap_time_ms: 92}
+          - {race_id: 1, driver_id: 1, lap: 6, lap_time_ms: 94}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, stint_number: 1, start_lap: 1, end_lap: 2, stint_laps: 2, avg_lap_time_ms: 105}
+        - {race_id: 1, driver_id: 1, stint_number: 2, start_lap: 3, end_lap: 3, stint_laps: 1, avg_lap_time_ms: 130}
+        - {race_id: 1, driver_id: 1, stint_number: 3, start_lap: 4, end_lap: 6, stint_laps: 3, avg_lap_time_ms: 92}

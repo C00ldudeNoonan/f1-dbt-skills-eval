@@ -1,0 +1,150 @@
+version: 2
+
+# Public interfaces consumed by other teams' dbt projects. Contracts are enforced: a build fails
+# (and the table is not replaced) if the shape drifts. Breaking changes ship as a new model version.
+models:
+  - name: fct_results
+    description: >
+      One row per Grand Prix result entry (sprints excluded; see fct_session_results). Includes non-starters
+      (DNQ/DNPQ/withdrew), identifiable via `status`. In 1950-1978 a car shared by two drivers yields a row
+      per driver, so (race_id, driver_id) is not unique in those seasons. Public, contract enforced.
+    config:
+      access: public
+      contract:
+        enforced: true
+    columns:
+      - name: result_id
+        description: Primary key.
+        data_type: number(38,0)
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_type: number(38,0)
+        data_tests: [not_null]
+      - name: season
+        data_type: number(38,0)
+        data_tests: [not_null]
+      - name: round
+        description: Round number within the season (integer).
+        data_type: number(38,0)
+      - name: race_date
+        data_type: date
+      - name: driver_id
+        data_type: number(38,0)
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_drivers'), field: driver_id}
+      - name: constructor_id
+        data_type: number(38,0)
+        data_tests: [not_null]
+      - name: constructor_name
+        description: Constructor name as entered in this race.
+        data_type: varchar
+      - name: grid
+        description: Starting grid slot; 0 = pit-lane start or no grid slot.
+        data_type: number(38,0)
+      - name: finish_position
+        description: Classified finishing position, null when not classified.
+        data_type: number(38,0)
+      - name: position_order
+        description: Order of all entries including unclassified.
+        data_type: number(38,0)
+      - name: points
+        data_type: number(10,2)
+      - name: laps
+        description: Laps completed.
+        data_type: number(38,0)
+      - name: status
+        description: Finishing status text.
+        data_type: varchar
+        data_tests: [not_null]
+      - name: is_win
+        description: finish_position = 1. Shared-drive wins count for both drivers, as in official records.
+        data_type: boolean
+        data_tests: [not_null]
+      - name: is_podium
+        description: finish_position between 1 and 3.
+        data_type: boolean
+        data_tests: [not_null]
+      - name: fastest_lap_time_ms
+        description: Fastest lap in milliseconds; null when not recorded.
+        data_type: number(38,0)
+
+  - name: dim_drivers
+    description: >
+      One row per driver with career aggregates derived from fct_results and standings. Public, contract
+      enforced, versioned. v2 (latest) replaces full_name with first_name and last_name; v1 is deprecated
+      and removed after 2027-01-01.
+    latest_version: 2
+    config:
+      access: public
+      contract:
+        enforced: true
+      # No unsuffixed "latest" view: v1 keeps the table name dim_drivers so anyone querying the
+      # warehouse directly keeps the v1 shape; v2 is dim_drivers_v2.
+      latest_version_pointer:
+        enabled: false
+    columns:
+      - name: driver_id
+        data_type: number(38,0)
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_type: varchar
+        data_tests: [unique, not_null]
+      - name: current_number
+        description: >
+          The driver's current permanent car number from raw; null if they never had one. Not unique
+          across drivers: numbers of retired drivers are reused. Past numbers live in snp_drivers.
+        data_type: number(38,0)
+      - name: full_name
+        description: First and last name combined. v1 only; replaced by first_name and last_name in v2.
+        data_type: varchar
+        data_tests: [not_null]
+      - name: nationality
+        data_type: varchar
+      - name: date_of_birth
+        data_type: date
+      - name: career_starts
+        description: >
+          Distinct Grands Prix with a result entry. Includes entries that did not start
+          (DNQ/DNPQ/withdrew); see career_race_entries_excl_dnq for a stricter figure.
+        data_type: number(18,0)
+        data_tests: [not_null]
+      - name: career_race_entries_excl_dnq
+        description: Distinct Grands Prix excluding 'Did not qualify' and 'Did not prequalify' entries.
+        data_type: number(18,0)
+      - name: career_wins
+        description: Distinct Grands Prix won. Grand Prix only; sprint wins are in career_sprint_wins.
+        data_type: number(18,0)
+      - name: career_podiums
+        description: Distinct Grands Prix finished 1st-3rd.
+        data_type: number(18,0)
+      - name: career_sprint_wins
+        description: Sprint sessions won (2021 onward). Not included in career_wins.
+        data_type: number(18,0)
+        data_tests: [not_null]
+      - name: world_championships
+        description: >
+          Seasons finishing 1st in the official standings, counted only for seasons whose
+          calendar is fully resulted.
+        data_type: number(18,0)
+        data_tests: [not_null]
+    versions:
+      - v: 1
+        defined_in: dim_drivers
+        deprecation_date: 2027-01-01
+        config:
+          alias: dim_drivers
+      - v: 2
+        defined_in: dim_drivers_v2
+        columns:
+          - include: all
+            exclude: [full_name]
+          - name: first_name
+            description: Given name(s).
+            data_type: varchar
+            data_tests: [not_null]
+          - name: last_name
+            description: Family name.
+            data_type: varchar
+            data_tests: [not_null]

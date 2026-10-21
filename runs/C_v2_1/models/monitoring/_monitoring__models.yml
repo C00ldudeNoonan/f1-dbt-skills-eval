@@ -1,0 +1,72 @@
+version: 2
+
+models:
+  - name: mon_late_arriving_drivers
+    description: >
+      One row per driver_id that the results, qualifying, standings, lap or
+      pit stop data references but raw `drivers` doesn't contain yet. It's a
+      live view, so querying it shows the current number of orphan results at
+      any time (`select sum(orphan_result_count) from ...`). `dim_drivers` adds a
+      placeholder row for each driver listed here. The row goes away on the
+      first run after the real record arrives. A warn-level test reports
+      orphans in every `dbt build` without failing it.
+    config:
+      materialized: view
+      group: f1_analytics
+      access: protected
+    data_tests:
+      - expression_is_true:
+          name: late_arriving_drivers_have_orphan_results
+          arguments:
+            expression: "false"
+          config:
+            severity: warn
+    columns:
+      - name: driver_id
+        description: Driver id referenced by fact data with no matching row in raw drivers.
+        data_tests: [unique, not_null]
+      - name: orphan_result_count
+        description: Grand Prix result rows for this driver (rows in fct_results that point to a placeholder driver).
+      - name: orphan_sprint_result_count
+        description: Sprint result rows for this driver.
+      - name: orphan_qualifying_count
+        description: Qualifying rows for this driver.
+      - name: orphan_standing_count
+        description: Championship standings rows for this driver.
+      - name: orphan_pit_stop_count
+        description: Pit stop rows for this driver.
+      - name: orphan_lap_count
+        description: Lap time rows for this driver.
+      - name: first_race_date
+        description: Date of the earliest race that references the driver.
+      - name: last_race_date
+        description: Date of the latest race that references the driver.
+      - name: checked_at
+        description: When the view was queried.
+
+  - name: mon_source_duplicates
+    description: >
+      Live view with one row per raw vendor table: how many natural keys are
+      duplicated and how many extra rows that adds. Staging keeps one copy of
+      each key, so duplicates never reach the marts. This view shows when the vendor
+      resends data (for example `select * from ... where extra_rows > 0`).
+      Duplicates whose copies disagree fail the build through
+      `source_conflicting_duplicates_<table>`.
+    config:
+      materialized: view
+      group: f1_analytics
+      access: protected
+    columns:
+      - name: source_table
+        description: Raw table name.
+        data_tests: [unique, not_null]
+      - name: natural_key
+        description: Columns that identify one real-world row in that table.
+      - name: raw_rows
+        description: Rows currently in the raw table.
+      - name: duplicated_keys
+        description: Natural keys that appear more than once.
+      - name: extra_rows
+        description: Rows staging drops as duplicates.
+      - name: checked_at
+        description: When the view was queried.

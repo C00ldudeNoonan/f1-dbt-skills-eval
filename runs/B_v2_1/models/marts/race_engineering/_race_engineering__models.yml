@@ -1,0 +1,88 @@
+models:
+  - name: fct_lap_times
+    description: >
+      One row per driver per lap per race (lap data exists from 1996).
+      Incremental, replaced a race at a time. Each run loads races not yet in
+      the table and reloads the two most recent races already loaded (var
+      `lap_correction_window_races`), so corrected laps reissued by the timing
+      provider flow through without a full refresh. Corrections to older races
+      need `--full-refresh`; `assert_lap_times_match_source` warns if that happens.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_races'), field: race_id}
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: round
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: lap
+        data_type: integer
+        data_tests: [not_null]
+      - name: position
+        data_type: integer
+        description: Running position at the end of the lap.
+      - name: lap_time_ms
+        data_type: integer
+        description: Lap time in integer milliseconds.
+        data_tests: [not_null, not_negative]
+      - name: loaded_at
+        data_type: timestamp_ntz
+        description: When this race was last (re)loaded. Downstream incremental models use it to find races to recompute.
+
+  - name: fct_stints
+    description: >
+      One row per driver per stint, for races that have pit stop data (2011 on).
+      Stint 1 starts on lap 1. A pit stop on lap L ends the stint at lap L and
+      the next starts at L + 1. Several stops on one lap end a single stint. The
+      final stint ends on the driver's last recorded lap. Stints with no recorded
+      laps (e.g. a stop logged after the driver's last lap) are dropped.
+      Incremental, replaced a race at a time. A race is recomputed when it is new
+      here, when fct_lap_times reloaded it since the last build (new or corrected
+      laps), or when it is one of the two most recent races (corrected pit stops).
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stint_number]
+    columns:
+      - name: race_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: stint_number
+        data_type: integer
+        data_tests: [not_null]
+      - name: start_lap
+        data_type: integer
+        data_tests: [not_null]
+      - name: end_lap
+        data_type: integer
+        data_tests: [not_null]
+      - name: stint_laps
+        data_type: integer
+        description: Recorded laps in the stint (always at least 1).
+        data_tests: [not_null]
+      - name: avg_lap_time_ms
+        data_type: number(12, 3)
+        description: Mean of every recorded lap time in the stint, including in-laps, out-laps and laps under safety car.
+        data_tests: [not_null]
+      - name: laps_loaded_at
+        data_type: timestamp_ntz
+        description: fct_lap_times.loaded_at of the laps this stint was computed from.

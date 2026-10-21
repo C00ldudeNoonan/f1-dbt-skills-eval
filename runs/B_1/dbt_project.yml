@@ -1,0 +1,40 @@
+name: f1_analytics
+version: "1.0.0"
+profile: f1
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+
+clean-targets: ["target", "dbt_packages"]
+
+# Everything builds into the profile's schema (F1_DBT_B_1) plus a layer suffix,
+# e.g. F1_DBT_B_1_STAGING. See macros/generate_schema_name.sql.
+models:
+  f1_analytics:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
+
+seeds:
+  f1_analytics:
+    +schema: reference
+
+data_tests:
+  f1_analytics:
+    +severity: error
+
+vars:
+  # Pit lane times above this are red-flag stoppages, not real pit stops.
+  max_pit_stop_seconds: 60
+  # fct_lap_times re-loads this many of its most recently loaded races on every
+  # incremental run, to pick up the timing provider's corrections.
+  lap_times_reprocess_recent_races: 2

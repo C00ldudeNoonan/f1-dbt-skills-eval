@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: int_season_completion
+    description: >
+      One row per season. A season is complete only when every race on its
+      calendar has results. The latest completed round is the last round before the
+      first round with no results.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: is_season_complete
+        data_tests: [not_null]
+      - name: latest_completed_race_id
+        description: Null only if no race in the season has results.
+
+  - name: int_lap_flags
+    description: >
+      One row per lap with lap data, flagged for green-flag eligibility. A lap is
+      green when it is not lap 1, not a pit lap, not the lap after a pit stop, and not
+      slower than slow_lap_multiplier times the fastest lap in that race.
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: lap_number
+        data_tests: [not_null]
+      - name: is_green_lap
+        data_tests: [not_null]
+
+  - name: int_driver_references
+    description: Every driver_id that appears in the fact data, with its race and source table.
+    columns:
+      - name: driver_id
+        data_tests: [not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: source_table
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [results, qualifying, pit_stops, lap_times, driver_standings]
+
+  - name: int_orphan_driver_ids
+    description: Driver ids referenced by race data that have no record in stg_f1__drivers yet. Each gets a placeholder in dim_drivers.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]

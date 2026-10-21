@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: int_f1__season_completion
+    description: >
+      One row per season. Shows how many calendar races have results, whether the season
+      is complete, and the latest round with results. Championships only count for complete seasons.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: is_season_complete
+        description: True when every race on the season calendar has at least one result row.
+        data_tests: [not_null]
+      - name: latest_completed_round
+        description: Highest round number that has results. Null if no race has results yet.

@@ -1,0 +1,761 @@
+version: 2
+
+models:
+  - name: fct_results
+    description: >
+      PUBLIC INTERFACE. One row per Grand Prix result entry (sprints excluded). `finish_position` is null for
+      unclassified entries (retirements, disqualifications, DNS/DNQ). Shared drives mean a race
+      can have two winners in the 1950s.
+    config:
+      access: public
+      group: f1_analytics
+      contract: {enforced: true}
+    semantic_model:
+      enabled: true
+      name: race_results
+    agg_time_dimension: race_date
+    columns:
+      - name: result_id
+        data_type: integer
+        entity: {type: primary, name: race_result}
+        constraints: [{type: not_null}]
+        description: Source result id; the grain of the model.
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_f1__races'), field: race_id}}
+      - name: season
+        data_type: integer
+        dimension: {type: categorical, label: Season}
+        data_tests: [not_null]
+      - name: round
+        data_type: integer
+        dimension: {type: categorical, label: Round}
+        data_tests: [not_null]
+      - name: race_date
+        data_type: date
+        granularity: day
+        dimension: {type: time, label: Race date}
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        entity: {type: foreign, name: driver}
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: constructor_id
+        data_type: integer
+        dimension: {type: categorical, label: Constructor id}
+        data_tests: [not_null]
+      - name: constructor_name
+        data_type: varchar
+        dimension: {type: categorical, label: Constructor}
+        data_tests: [not_null]
+      - name: grid
+        data_type: integer
+        description: Starting grid slot; 0 means pit-lane start or did not qualify.
+      - name: finish_position
+        data_type: integer
+        description: Classified finishing position (post-penalty), null when not classified.
+      - name: position_order
+        data_type: integer
+        description: Order of all entries in the race, including unclassified ones.
+        data_tests: [not_null]
+      - name: points
+        data_type: number(12,2)
+        data_tests: [not_null]
+      - name: laps
+        data_type: integer
+      - name: status
+        data_type: varchar
+      - name: is_win
+        data_type: boolean
+        data_tests: [not_null]
+      - name: is_podium
+        data_type: boolean
+        data_tests: [not_null]
+      - name: fastest_lap_time_ms
+        data_type: integer
+        description: Driver's fastest race lap in integer milliseconds (null before the 2004 data or when not recorded).
+    metrics:
+      - name: race_starts
+        label: Race starts
+        description: Count of Grand Prix result entries (sprints excluded; a driver with two entries in one race counts twice).
+        type: simple
+        agg: count
+        expr: result_id
+      - name: wins
+        label: Wins
+        description: Grand Prix wins.
+        type: simple
+        agg: sum_boolean
+        expr: is_win
+      - name: podiums
+        label: Podiums
+        description: Grand Prix podium finishes (classified 1st to 3rd).
+        type: simple
+        agg: sum_boolean
+        expr: is_podium
+      - name: championship_points
+        label: Championship points
+        description: Sum of Grand Prix points as awarded in the race (sprint points excluded).
+        type: simple
+        agg: sum
+        expr: points
+      - name: podium_rate
+        label: Podium rate
+        description: Podiums divided by race starts.
+        type: ratio
+        numerator: podiums
+        denominator: race_starts
+      - name: points_per_start
+        label: Points per start
+        description: Championship points divided by race starts.
+        type: ratio
+        numerator: championship_points
+        denominator: race_starts
+
+  - name: dim_drivers
+    description: >
+      PUBLIC INTERFACE. One row per driver. Career counts are over distinct Grands Prix (sprints excluded).
+      `world_championships` only counts seasons that are complete (every calendar race has results).
+      Late-arriving drivers appear as placeholder rows (`is_placeholder`) until their real record lands.
+      v1 carries `full_name` (deprecated 2027-01-01); v2 replaces it with `first_name` and `last_name`.
+      Always true: full_name = first_name || ' ' || last_name.
+    latest_version: 2
+    config:
+      access: public
+      group: f1_analytics
+      contract: {enforced: true}
+      # unsuffixed `dim_drivers` view always resolves to the latest version (v2); pin `dim_drivers_v1` to stay on v1
+      latest_version_pointer: {enabled: true}
+    semantic_model:
+      enabled: true
+      name: drivers
+    columns:
+      - name: driver_id
+        data_type: integer
+        entity: {type: primary, name: driver}
+        constraints: [{type: not_null}]
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_type: varchar
+        dimension: {type: categorical, label: Driver ref}
+        data_tests: [unique, not_null]
+      - name: full_name
+        data_type: varchar
+        description: "v1 only. first_name || ' ' || last_name."
+        data_tests: [not_null]
+      - name: first_name
+        data_type: varchar
+        dimension: {type: categorical, label: First name}
+        description: "v2 only. Forename; 'Unknown' for placeholder drivers."
+        data_tests: [not_null]
+      - name: last_name
+        data_type: varchar
+        dimension: {type: categorical, label: Last name}
+        description: "v2 only. Surname; 'driver <id>' for placeholder drivers."
+        data_tests: [not_null]
+      - name: nationality
+        data_type: varchar
+        dimension: {type: categorical, label: Driver nationality}
+      - name: date_of_birth
+        data_type: date
+      - name: current_number
+        data_type: integer
+        description: Driver's permanent car number from the drivers table; null if none.
+      - name: is_placeholder
+        data_type: boolean
+        dimension: {type: categorical, label: Is placeholder driver}
+        description: True while the driver_id appears in feeds but has no record in the raw drivers table (late-arriving driver). Names are synthetic until the real record arrives.
+        data_tests: [not_null]
+      - name: career_starts
+        data_type: integer
+        description: Distinct Grands Prix with a result row for the driver (includes DNS, excludes sprints).
+        data_tests: [not_null]
+      - name: career_wins
+        data_type: integer
+        description: Distinct Grands Prix won (shared wins count for each driver).
+        data_tests: [not_null]
+      - name: career_podiums
+        data_type: integer
+        data_tests: [not_null]
+      - name: career_sprint_wins
+        data_type: integer
+        description: Distinct sprint sessions won. career_wins stays Grand Prix wins only.
+        data_tests: [not_null]
+      - name: world_championships
+        data_type: integer
+        data_tests: [not_null]
+    versions:
+      - v: 1
+        deprecation_date: 2027-01-01
+        columns:
+          - include: all
+            exclude: [first_name, last_name]
+      - v: 2
+        columns:
+          - include: all
+            exclude: [full_name]
+
+  - name: audit_results_missing_driver
+    description: >
+      Grand Prix results whose driver has no record in the raw drivers table yet (late-arriving
+      drivers). Row count = number of orphan results. Warns in tests while non-empty.
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+    config:
+      materialized: view
+
+  - name: mart_driver_season_standings
+    description: >
+      Official driver championship table per season as of the latest round with results. Drivers
+      who scored nothing and are not listed in the official table are absent.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: championship_position
+        data_type: integer
+        data_tests: [not_null]
+      - name: points
+        data_type: number(12,2)
+        data_tests: [not_null]
+      - name: wins
+        data_type: integer
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "season || '-' || driver_id"}
+      - unique:
+          arguments: {column_name: "season || '-' || championship_position"}
+
+  - name: mart_constructor_season_pit_stops
+    description: Pit stop count and median stop duration per constructor-season; stops over 60 s are excluded.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: constructor_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: pit_stop_count
+        data_type: integer
+        data_tests: [not_null]
+      - name: median_pit_stop_seconds
+        data_type: number(10,4)
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "season || '-' || constructor_id"}
+
+  - name: fct_qualifying
+    description: >
+      One row per qualifying entry. `best_time_ms` is the fastest of Q1-Q3; gaps are relative to the
+      fastest `best_time_ms` in the race. Times are null when none was set.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: qualify_id
+        data_type: integer
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_f1__races'), field: race_id}}
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: constructor_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: q1_ms
+        data_type: integer
+      - name: q2_ms
+        data_type: integer
+      - name: q3_ms
+        data_type: integer
+      - name: best_time_ms
+        data_type: integer
+      - name: gap_to_pole_ms
+        data_type: integer
+      - name: gap_to_pole_pct
+        data_type: number(12,6)
+        description: Gap as a percentage of the pole time (0.512 means 0.512%).
+
+  - name: mart_teammate_head_to_head
+    description: >
+      One row per season, constructor, driver and teammate (both orderings) for drivers who shared
+      a constructor in at least one Grand Prix. "Ahead" compares each driver's best position_order
+      (race) or qualifying position for that constructor.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: constructor_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: teammate_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: races_together
+        data_type: integer
+        data_tests: [not_null]
+      - name: races_ahead
+        data_type: integer
+        data_tests: [not_null]
+      - name: qualifying_together
+        data_type: integer
+        data_tests: [not_null]
+      - name: qualifying_ahead
+        data_type: integer
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "season || '-' || constructor_id || '-' || driver_id || '-' || teammate_id"}
+
+  - name: fct_driver_race_pace
+    description: >
+      Median green-flag lap time per driver per race. Excludes lap 1, pit laps, the lap after a pit
+      stop and laps slower than 130% of the race's fastest lap.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: race_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: green_laps
+        data_type: integer
+        data_tests: [not_null]
+      - name: median_green_lap_ms
+        data_type: number(12,1)
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "race_id || '-' || driver_id"}
+
+  - name: fct_lap_times
+    description: >
+      One row per driver per lap per race. Incremental by race: new races load automatically and the
+      two most recent loaded races are reprocessed on every run so corrected lap times flow through.
+      Older races change only with a full refresh.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: race_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_f1__races'), field: race_id}}
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: round
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: lap
+        data_type: integer
+        data_tests: [not_null]
+      - name: position
+        data_type: integer
+      - name: lap_time_ms
+        data_type: integer
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "race_id || '-' || driver_id || '-' || lap"}
+
+  - name: fct_stints
+    description: >
+      One row per driver per stint for races with pit stop data. A stop on lap L ends the stint at L;
+      the next starts at L + 1; the last stint ends on the driver's last recorded lap. Incremental by
+      race, reprocessing new races and the two latest races of fct_lap_times.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: race_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: stint_number
+        data_type: integer
+        data_tests: [not_null]
+      - name: start_lap
+        data_type: integer
+        data_tests: [not_null]
+      - name: end_lap
+        data_type: integer
+        data_tests: [not_null]
+      - name: stint_laps
+        data_type: integer
+        data_tests: [not_null]
+      - name: avg_lap_time_ms
+        data_type: number(14,3)
+        description: Mean of every lap time in the stint, including in/out laps.
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "race_id || '-' || driver_id || '-' || stint_number"}
+
+  - name: fct_session_results
+    description: >
+      One row per entry across Grand Prix ("race") and sprint sessions. Key is
+      (session_type, source_result_id) because result ids overlap between the two source tables.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: session_type
+        data_type: varchar
+        data_tests:
+          - not_null
+          - accepted_values: {arguments: {values: ['race', 'sprint']}}
+      - name: source_result_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: race_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: round
+        data_type: integer
+      - name: race_date
+        data_type: date
+      - name: driver_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: constructor_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: grid
+        data_type: integer
+      - name: finish_position
+        data_type: integer
+        description: Classified finishing position, null when not classified.
+      - name: position_order
+        data_type: integer
+      - name: points
+        data_type: number(12,2)
+      - name: laps
+        data_type: integer
+      - name: is_win
+        data_type: boolean
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "session_type || '-' || source_result_id"}
+
+  - name: mart_driver_standings_by_round
+    description: Official driver championship standings after each round, one row per driver per round in the snapshot.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: round
+        data_type: integer
+        data_tests: [not_null]
+      - name: race_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: championship_position
+        data_type: integer
+        data_tests: [not_null]
+      - name: points
+        data_type: number(12,2)
+        data_tests: [not_null]
+      - name: wins
+        data_type: integer
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "race_id || '-' || driver_id"}
+
+  - name: mart_alt_points_standings
+    description: >
+      What-if season standings per points system (see seed `alt_points_systems`). One row per system,
+      season and driver with at least one Grand Prix result. Only classified finishers score; sprints
+      and fastest-lap points are ignored. Rank by points, then countback (1st..10th finishes), then
+      lowest driver_id. Downstream consumers wanting only the current system must filter
+      `points_system = 'current'`: adding a system adds rows.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: season
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: points_system
+        data_type: varchar
+        data_tests: [not_null]
+      - name: alt_points
+        data_type: number(12,2)
+        data_tests: [not_null]
+      - name: alt_position
+        data_type: integer
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "points_system || '-' || season || '-' || driver_id"}
+      - unique:
+          arguments: {column_name: "points_system || '-' || season || '-' || alt_position"}
+
+  - name: time_spine_daily
+    description: Daily time spine (1950-01-01 to 2035-12-31) for Semantic Layer `metric_time`.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        granularity: day
+        data_tests: [unique, not_null]
+
+  - name: dim_driver_crosswalk
+    description: >
+      One row per Vendor B driver mapping `driver_key` to our `driver_id`. Matched automatically (manual
+      override seed, then normalized name, then abbreviation = driver code) among our drivers active in
+      Vendor B's seasons. `driver_id` is null for drivers that cannot be matched safely, which fails the
+      not_null test and therefore the build.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: driver_key
+        data_type: varchar
+        data_tests: [unique, not_null]
+      - name: driver_id
+        data_type: integer
+        description: "Our driver id. Unique, so two Vendor B drivers can never map to the same driver."
+        data_tests:
+          - not_null
+          - unique
+          - relationships: {arguments: {to: ref('dim_drivers'), field: driver_id}}
+      - name: match_method
+        data_type: varchar
+        description: override, name, abbreviation, or (failing) ambiguous / unmatched.
+        data_tests:
+          - accepted_values: {arguments: {values: ['override', 'name', 'abbreviation']}}
+
+  - name: dim_session_crosswalk
+    description: >
+      One row per Vendor B session mapping `session_key` to our `race_id` and the session type. Matched by
+      override seed, then by date (UTC start date within one day of our race or sprint date, nearest wins,
+      ties broken by circuit location). `race_id` is null for sessions that cannot be matched, which fails
+      the not_null test and therefore the build.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: session_key
+        data_type: varchar
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_type: integer
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_f1__races'), field: race_id}}
+      - name: session_type
+        data_type: varchar
+        data_tests:
+          - accepted_values: {arguments: {values: ['race', 'sprint']}}
+      - name: match_method
+        data_type: varchar
+        data_tests:
+          - accepted_values: {arguments: {values: ['override', 'date']}}
+    data_tests:
+      - unique:
+          arguments: {column_name: "race_id || '-' || session_type"}
+
+  - name: mart_vendor_result_discrepancies
+    description: >
+      Where Vendor B disagrees with our primary feed (the system of record) on Grand Prix and sprint results
+      in the seasons Vendor B covers. One row per entry per discrepancy. For `missing_in_*` rows the side
+      that has the entry shows its points and the other side is null.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: race_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: session_type
+        data_type: varchar
+        data_tests:
+          - accepted_values: {arguments: {values: ['race', 'sprint']}}
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: discrepancy_type
+        data_type: varchar
+        data_tests:
+          - accepted_values: {arguments: {values: ['points', 'position', 'missing_in_vendor_b', 'missing_in_vendor_a']}}
+      - name: vendor_a_value
+        data_type: number(12,2)
+      - name: vendor_b_value
+        data_type: number(12,2)
+    data_tests:
+      - unique:
+          arguments: {column_name: "race_id || '-' || session_type || '-' || driver_id || '-' || discrepancy_type"}
+
+  - name: fct_telemetry
+    description: >
+      One row per car telemetry sample. Incremental on ingestion time (`loaded_at`): routine runs read only
+      newly loaded raw rows (plus a 15 minute lookback) and merge them by key, so late samples for old races are
+      picked up and re-sent samples replace earlier ones (newest load wins). Its tests are singular and scoped to
+      recently loaded rows (see `assert_fct_telemetry_recent_rows_valid`) so routine builds do not rescan 20M rows.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: race_id
+        data_type: integer
+      - name: driver_id
+        data_type: integer
+      - name: lap
+        data_type: integer
+      - name: sample_index
+        data_type: integer
+      - name: recorded_at
+        data_type: timestamp_ntz
+      - name: speed_kph
+        data_type: number(6,1)
+      - name: throttle_pct
+        data_type: integer
+        description: Throttle application, 0 to 100.
+      - name: brake
+        data_type: boolean
+      - name: gear
+        data_type: integer
+      - name: drs
+        data_type: integer
+      - name: loaded_at
+        data_type: timestamp_ntz
+        description: When the sample landed in the warehouse (raw `_loaded_at`); the incremental high-water mark.
+
+  - name: mart_lap_telemetry_summary
+    description: >
+      One row per driver per lap. Incremental: laps that received new or corrected samples are re-aggregated in
+      full from fct_telemetry and merged, so the table stays correct without full refreshes.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: race_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: driver_id
+        data_type: integer
+        data_tests: [not_null]
+      - name: lap
+        data_type: integer
+        data_tests: [not_null]
+      - name: samples
+        data_type: integer
+        data_tests: [not_null]
+      - name: max_speed_kph
+        data_type: number(6,1)
+      - name: avg_throttle_pct
+        data_type: number(8,3)
+      - name: full_throttle_pct
+        data_type: number(8,3)
+        description: Percentage (0-100) of the lap's samples with throttle at 99 or above.
+      - name: brake_samples
+        data_type: integer
+        description: Samples with the brake applied.
+      - name: last_loaded_at
+        data_type: timestamp_ntz
+        description: Latest load time among the lap's samples; the incremental high-water mark.
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "race_id || '-' || driver_id || '-' || lap"}
+
+  - name: mart_driver_teammate_pairs
+    description: >
+      One row per driver and teammate (all shared seasons): how much faster (negative) or slower (positive) the driver
+      was than that teammate in the same car, as a percent of lap time, in qualifying (latest session both reached) and
+      in median green-flag race pace. Transparent building block behind `mart_driver_overperformance`.
+    columns:
+      - name: driver_id
+        data_tests: [not_null]
+      - name: teammate_id
+        data_tests: [not_null]
+      - name: qualifying_comparisons
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "driver_id || '-' || teammate_id"}
+
+  - name: mart_driver_overperformance
+    description: >
+      One row per driver. Does the driver beat teammates in the same car? `edge_pct` is the mean qualifying
+      advantage over teammates in percent of lap time (positive = faster than teammates); `edge_pct_shrunk` shrinks it
+      by its noise and is what the ranking uses; `verdict` is only 'overperforms' when the edge exceeds two standard
+      errors and race pace does not contradict it. Drivers below the minimum evidence (30 comparisons, 2 teammates,
+      3 seasons) are 'insufficient_data'. See docs/analysis_leadership_questions.md for definitions and limits.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: verdict
+        data_tests:
+          - not_null
+          - accepted_values: {arguments: {values: ['overperforms', 'underperforms', 'indistinguishable', 'insufficient_data']}}
+      - name: se_pct
+        description: Standard error of `edge_pct` (sd of per-weekend deltas / sqrt(n)); null when fewer than two comparisons.
+
+  - name: mart_pit_stop_circuit_season
+    description: >
+      One row per circuit per season: median routine pit lane time and its ratio to the circuit's all-season median.
+      Pit lanes differ by seconds between circuits, so trends must be read within a circuit.
+    columns:
+      - name: circuit_id
+        data_tests: [not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: relative_to_circuit
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "circuit_id || '-' || season"}
+
+  - name: mart_pit_stop_season_trend
+    description: >
+      One row per season (2011+): raw median pit lane time and a circuit-adjusted index (1.000 = typical for the
+      circuits visited). Use the adjusted index, not the raw median, to judge whether stops are getting faster.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: circuit_adjusted_index
+        data_tests: [not_null]
+

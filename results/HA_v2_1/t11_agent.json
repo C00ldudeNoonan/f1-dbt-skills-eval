@@ -1,0 +1,337 @@
+{
+  "run_id": "HA_v2_1",
+  "task": 11,
+  "phase": "agent",
+  "suite": "v2",
+  "structural": {
+    "sources_point_at_raw_schema": true,
+    "counts": {
+      "models": 42,
+      "data_tests": 217,
+      "unit_tests": 8,
+      "snapshots": 1,
+      "seeds": 2,
+      "macros_in_project": 10,
+      "documented_models": 35
+    },
+    "fct_lap_times_incremental": true,
+    "fct_lap_times_unique_key": "race_id",
+    "snapshot_exists": true,
+    "season_standings_derived_from_by_round": true,
+    "upstream_constructor_uniqueness_test": true,
+    "fct_stints_materialized": "incremental",
+    "orphan_result_in_fct_results": null,
+    "orphan_driver_in_dim_drivers": null,
+    "seeds": [
+      "known_world_champions",
+      "points_systems"
+    ],
+    "upstream_standings_uniqueness_test": true,
+    "fct_results_access": "public",
+    "fct_results_group": "f1_analytics",
+    "dim_drivers_access": "public",
+    "dim_drivers_group": "f1_analytics",
+    "other_public_models": [],
+    "groups": [
+      "group.f1.f1_analytics"
+    ],
+    "semantic_models": [],
+    "metrics": {},
+    "missing_metrics": [
+      "race_starts",
+      "wins",
+      "podiums",
+      "championship_points",
+      "podium_rate",
+      "points_per_start"
+    ],
+    "wrong_metric_types": [],
+    "time_spine": true,
+    "fct_telemetry_config": {
+      "materialized": "incremental",
+      "incremental_strategy": "merge",
+      "unique_key": "sample_id",
+      "event_time": null,
+      "lookback": 1,
+      "cluster_by": [
+        "race_id",
+        "driver_id",
+        "lap"
+      ]
+    },
+    "mart_lap_telemetry_summary_config": {
+      "materialized": "incremental",
+      "incremental_strategy": "merge",
+      "unique_key": [
+        "race_id",
+        "driver_id",
+        "lap"
+      ],
+      "event_time": null,
+      "lookback": 1,
+      "cluster_by": null
+    },
+    "fct_results_contract": true,
+    "dim_drivers_versions": [
+      "1",
+      "2"
+    ],
+    "dim_drivers_latest_version": 2,
+    "dim_drivers_contracts": true,
+    "dim_drivers_v1_deprecation": "2027-01-01T00:00:00+00:00",
+    "unit_tests": [
+      "dim_drivers_v1_keeps_full_name_and_placeholder",
+      "dim_drivers_v2_projects_names_and_keeps_placeholder",
+      "stints_boundaries_and_empty_stint_dropped",
+      "championship_counts_only_complete_seasons",
+      "int_dim_drivers_placeholder_for_orphan_driver",
+      "orphan_driver_ids_found_when_driver_record_missing",
+      "alt_points_countback_and_tie_break",
+      "fastest_lap_time_parses_to_milliseconds"
+    ]
+  },
+  "data_checks": {
+    "fct_results": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.fct_results",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "result_id",
+        "race_id",
+        "season",
+        "round",
+        "race_date",
+        "driver_id",
+        "constructor_id",
+        "constructor_name",
+        "grid",
+        "finish_position",
+        "position_order",
+        "points",
+        "laps",
+        "status",
+        "is_win",
+        "is_podium",
+        "fastest_lap_time_ms"
+      ]
+    },
+    "dim_drivers": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.dim_drivers_v2",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "driver_id",
+        "driver_ref",
+        "nationality",
+        "date_of_birth",
+        "career_starts",
+        "career_wins",
+        "career_podiums",
+        "world_championships",
+        "current_number",
+        "career_sprint_wins",
+        "first_name",
+        "last_name"
+      ]
+    },
+    "mart_driver_season_standings": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.mart_driver_season_standings",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "season",
+        "driver_id",
+        "championship_position",
+        "points",
+        "wins"
+      ]
+    },
+    "mart_constructor_season_pit_stops": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.mart_constructor_season_pit_stops",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "season",
+        "constructor_id",
+        "pit_stop_count",
+        "median_pit_stop_seconds"
+      ]
+    },
+    "fct_qualifying": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.fct_qualifying",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "qualify_id",
+        "race_id",
+        "driver_id",
+        "constructor_id",
+        "q1_ms",
+        "q2_ms",
+        "q3_ms",
+        "best_time_ms",
+        "gap_to_pole_ms",
+        "gap_to_pole_pct"
+      ]
+    },
+    "mart_teammate_head_to_head": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.mart_teammate_head_to_head",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "season",
+        "constructor_id",
+        "driver_id",
+        "teammate_id",
+        "races_together",
+        "races_ahead",
+        "qualifying_together",
+        "qualifying_ahead"
+      ]
+    },
+    "fct_driver_race_pace": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.fct_driver_race_pace",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "race_id",
+        "driver_id",
+        "green_laps",
+        "median_green_lap_ms"
+      ]
+    },
+    "fct_lap_times": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.fct_lap_times",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "race_id",
+        "driver_id",
+        "lap",
+        "season",
+        "round",
+        "position",
+        "lap_time_ms"
+      ]
+    },
+    "fct_stints": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.fct_stints",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "race_id",
+        "driver_id",
+        "stint_number",
+        "start_lap",
+        "end_lap",
+        "stint_laps",
+        "avg_lap_time_ms"
+      ]
+    },
+    "fct_session_results": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.fct_session_results",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "session_type",
+        "source_result_id",
+        "race_id",
+        "season",
+        "round",
+        "driver_id",
+        "constructor_id",
+        "finish_position",
+        "points"
+      ]
+    },
+    "mart_driver_standings_by_round": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.mart_driver_standings_by_round",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "season",
+        "round",
+        "driver_id",
+        "race_id",
+        "championship_position",
+        "points",
+        "wins"
+      ]
+    },
+    "mart_alt_points_standings": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.mart_alt_points_standings",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "season",
+        "driver_id",
+        "alt_points",
+        "alt_position"
+      ]
+    },
+    "dim_driver_crosswalk": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.dim_driver_crosswalk",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "driver_key",
+        "driver_id"
+      ]
+    },
+    "dim_session_crosswalk": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.dim_session_crosswalk",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "session_key",
+        "race_id",
+        "session_type"
+      ]
+    },
+    "mart_vendor_result_discrepancies": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.mart_vendor_result_discrepancies",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "race_id",
+        "session_type",
+        "driver_id",
+        "discrepancy_type"
+      ]
+    },
+    "mart_lap_telemetry_summary": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.mart_lap_telemetry_summary",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "race_id",
+        "driver_id",
+        "lap",
+        "samples",
+        "max_speed_kph",
+        "avg_throttle_pct",
+        "full_throttle_pct",
+        "brake_samples"
+      ]
+    },
+    "dim_drivers_v1": {
+      "relation": "ANALYTICS_DEV.F1_DBT_HA_v2_1_CI_marts.dim_drivers_v1",
+      "ok": false,
+      "error": "missing key columns",
+      "missing_columns": [
+        "driver_id",
+        "driver_ref",
+        "nationality",
+        "date_of_birth",
+        "career_starts",
+        "career_wins",
+        "career_podiums",
+        "world_championships",
+        "current_number",
+        "career_sprint_wins",
+        "full_name"
+      ]
+    }
+  },
+  "data_score": "0/17"
+}

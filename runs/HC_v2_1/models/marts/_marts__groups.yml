@@ -1,0 +1,6 @@
+version: 2
+
+groups:
+  - name: f1_core
+    owner:
+      name: F1 analytics team

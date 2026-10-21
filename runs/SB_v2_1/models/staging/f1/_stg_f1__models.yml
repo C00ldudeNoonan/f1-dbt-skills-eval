@@ -1,0 +1,100 @@
+version: 2
+
+models:
+  - name: stg_f1__circuits
+    description: Circuits, typed and with `\N` sentinels converted to null.
+    columns:
+      - name: circuit_id
+        data_tests: [unique, not_null]
+  - name: stg_f1__constructors
+    description: Constructors (teams), typed.
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+      - name: constructor_name
+        data_tests: [not_null]
+  - name: stg_f1__drivers
+    description: Drivers, typed, with a derived `full_name`.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+  - name: stg_f1__races
+    description: Race calendar. `season`/`round` are integers (they are text in the raw table, so sort numerically only after this model).
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "season || '-' || round"}
+  - name: stg_f1__status
+    description: Result status lookup.
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+  - name: stg_f1__results
+    description: >
+      Grand Prix results, typed. Grain is `result_id` (a driver can appear twice in one race in
+      early seasons when two drivers shared a car or one drove two cars).
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_f1__races'), field: race_id}}
+      - name: driver_id
+        data_tests:
+          - not_null
+          # late-arriving drivers are expected; see audit_results_missing_driver and dim_drivers placeholders
+          - relationships:
+              arguments: {to: ref('stg_f1__drivers'), field: driver_id}
+              config: {severity: warn}
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_f1__constructors'), field: constructor_id}}
+      - name: position_order
+        data_tests: [not_null]
+  - name: stg_f1__sprint_results
+    description: Sprint race results, typed. Not used by the seven published models (kept for future sprint analysis).
+    columns:
+      - name: sprint_result_id
+        data_tests: [unique, not_null]
+  - name: stg_f1__qualifying
+    description: Qualifying entries, typed; Q1-Q3 converted to integer milliseconds.
+    columns:
+      - name: qualify_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_f1__races'), field: race_id}}
+  - name: stg_f1__lap_times
+    description: Lap times per driver per lap.
+    columns:
+      - name: lap_time_ms
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "race_id || '-' || driver_id || '-' || lap"}
+  - name: stg_f1__pit_stops
+    description: Pit stops (2011 onward). `duration_ms` includes red-flag stoppages of over a minute.
+    columns:
+      - name: duration_ms
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: "race_id || '-' || driver_id || '-' || stop_number"}
+  - name: stg_f1__driver_standings
+    description: Driver championship snapshot after each race.
+    columns:
+      - name: driver_standings_id
+        data_tests: [unique, not_null]

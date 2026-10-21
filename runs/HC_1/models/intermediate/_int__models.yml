@@ -1,0 +1,130 @@
+version: 2
+
+models:
+  - name: int_season_completeness
+    description: >
+      One row per championship season. `is_season_complete` is true only when every race on the
+      season calendar has results; `latest_completed_round` is the last round before the first
+      round without results. Used to decide which season standings are final and which champion
+      counts. Example: 2024 has rounds 23 and 24 with no results in the source data, so it is
+      not complete and its standings are reported as of round 22.
+    columns:
+      - name: season
+        description: Championship season year. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: races_on_calendar
+        description: Number of Grands Prix on the season calendar.
+        data_tests:
+          - not_null
+      - name: races_with_results
+        description: Number of calendar races that have at least one result.
+        data_tests:
+          - not_null
+      - name: is_season_complete
+        description: True when every calendar race has results.
+        data_tests:
+          - not_null
+      - name: latest_completed_round
+        description: Last round of the unbroken run of rounds that have results.
+        data_tests:
+          - not_null
+
+  - name: int_driver_career_totals
+    description: >
+      Career totals per driver, shared by every version of dim_drivers. Starts, wins and podiums
+      come from fct_results; sprint wins from fct_session_results; titles from the season standings,
+      counting complete seasons only.
+    columns:
+      - name: driver_id
+        description: Ergast driver identifier. Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: career_starts
+        description: Distinct Grands Prix started.
+        data_tests:
+          - not_null
+      - name: career_wins
+        description: Grand Prix wins.
+        data_tests:
+          - not_null
+      - name: career_podiums
+        description: Classified top-three Grand Prix finishes.
+        data_tests:
+          - not_null
+      - name: career_sprint_wins
+        description: Sprint wins.
+        data_tests:
+          - not_null
+      - name: world_championships
+        description: Titles won in complete seasons.
+        data_tests:
+          - not_null
+
+unit_tests:
+  - name: season_with_missing_final_rounds_is_incomplete
+    description: A season whose last two rounds have no results is incomplete and ends at round 2.
+    model: int_season_completeness
+    given:
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 1, season: 2024, round: 1}
+          - {race_id: 2, season: 2024, round: 2}
+          - {race_id: 3, season: 2024, round: 3}
+          - {race_id: 4, season: 2024, round: 4}
+      - input: ref('stg_ergast__results')
+        rows:
+          - {result_id: 1, race_id: 1}
+          - {result_id: 2, race_id: 2}
+          - {result_id: 3, race_id: 2}
+          - {result_id: 4, race_id: 3}
+    expect:
+      rows:
+        - {season: 2024, races_on_calendar: 4, races_with_results: 3, is_season_complete: false, latest_completed_round: 3}
+
+  - name: fully_run_season_is_complete
+    description: A season where every calendar race has results is complete and its latest round is the final round.
+    model: int_season_completeness
+    given:
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 1, season: 2023, round: 1}
+          - {race_id: 2, season: 2023, round: 2}
+      - input: ref('stg_ergast__results')
+        rows:
+          - {result_id: 1, race_id: 1}
+          - {result_id: 2, race_id: 2}
+    expect:
+      rows:
+        - {season: 2023, races_on_calendar: 2, races_with_results: 2, is_season_complete: true, latest_completed_round: 2}
+  - name: career_totals_count_distinct_starts_and_skip_non_starters
+    description: >
+      A driver who drove two cars in one race counts that race once as a start. Non-start rows add
+      nothing. A title counts only where the standings flag marks a champion.
+    model: int_driver_career_totals
+    given:
+      - input: ref('stg_ergast__drivers')
+        rows:
+          - {driver_id: 1}
+          - {driver_id: 2}
+      - input: ref('fct_results')
+        rows:
+          - {result_id: 1, race_id: 10, driver_id: 1, is_race_start: true, is_win: true, is_podium: true}
+          - {result_id: 2, race_id: 10, driver_id: 1, is_race_start: true, is_win: false, is_podium: false}
+          - {result_id: 3, race_id: 11, driver_id: 1, is_race_start: true, is_win: false, is_podium: true}
+          - {result_id: 4, race_id: 12, driver_id: 1, is_race_start: false, is_win: false, is_podium: false}
+      - input: ref('fct_session_results')
+        rows:
+          - {session_result_id: sprint-1, session_type: sprint, source_result_id: 1, race_id: 10, season: 2021, round: 1, driver_id: 1, finish_position: 1}
+          - {session_result_id: sprint-2, session_type: sprint, source_result_id: 2, race_id: 11, season: 2021, round: 2, driver_id: 1, finish_position: 2}
+          - {session_result_id: race-1, session_type: race, source_result_id: 1, race_id: 10, season: 2021, round: 1, driver_id: 1, finish_position: 1}
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {driver_id: 1, season: 2019, is_champion: true}
+          - {driver_id: 1, season: 2020, is_champion: false}
+    expect:
+      rows:
+        - {driver_id: 1, career_starts: 2, career_wins: 1, career_podiums: 2, career_sprint_wins: 1, world_championships: 1}
+        - {driver_id: 2, career_starts: 0, career_wins: 0, career_podiums: 0, career_sprint_wins: 0, world_championships: 0}

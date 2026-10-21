@@ -1,0 +1,7 @@
+groups:
+  - name: f1_core
+    description: >
+      Core Formula 1 facts and dimensions owned by the F1 analytics engineering
+      team. Public models in this group are contracts with other dbt projects.
+    owner:
+      name: F1 Analytics Engineering

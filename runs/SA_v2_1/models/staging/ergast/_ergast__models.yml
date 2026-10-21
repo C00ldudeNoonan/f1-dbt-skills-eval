@@ -1,0 +1,157 @@
+version: 2
+
+models:
+  - name: stg_ergast__races
+    description: One row per race (Grand Prix weekend). Types cast, `\N` nulls cleaned.
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round]
+
+  - name: stg_ergast__drivers
+    description: One row per driver.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+      - name: driver_number
+        description: Current permanent car number; null if the driver has none. Not unique (a few drivers share a number across eras).
+      - name: driver_code
+        description: Three-letter timing code; null for most pre-2000s drivers.
+
+  - name: stg_ergast__constructors
+    description: One row per constructor.
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__status
+    description: Finishing status lookup (Finished, +1 Lap, Accident, ...).
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__results
+    description: >
+      One row per Grand Prix result entry (sprints excluded). The grain is `result_id`:
+      before 1979 the same driver can appear twice in a race (shared drives).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, position_order]
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__races'), field: race_id}}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_ergast__drivers'), field: driver_id}
+              config: {severity: warn}  # late-arriving drivers are expected; see monitor_orphan_driver_results
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__constructors'), field: constructor_id}}
+      - name: status_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__status'), field: status_id}}
+      - name: finish_position
+        description: Classified finishing place; null when not classified.
+      - name: position_order
+        description: Order of finish including unclassified entries; always populated.
+        data_tests: [not_null]
+      - name: fastest_lap_time_ms
+        description: Fastest lap of the driver in the race, parsed from `fastestlaptime` (m:ss.mmm).
+
+  - name: stg_ergast__sprint_results
+    description: One row per sprint result entry. result_id overlaps the Grand Prix result ids.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__races'), field: race_id}}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_ergast__drivers'), field: driver_id}
+              config: {severity: warn}
+      - name: position_order
+        data_tests: [not_null]
+
+  - name: stg_ergast__qualifying
+    description: One row per qualifying entry. Blank and `\N` session times are null.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: qualify_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__races'), field: race_id}}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_ergast__drivers'), field: driver_id}
+              config: {severity: warn}  # late-arriving drivers are expected; see monitor_orphan_driver_results
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_ergast__constructors'), field: constructor_id}}
+
+  - name: stg_ergast__lap_times
+    description: One row per driver per lap with a recorded time (1996 onwards).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: lap_time_ms
+        data_tests: [not_null]
+
+  - name: stg_ergast__pit_stops
+    description: One row per pit stop (2011 onwards), including red-flag stoppages.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: duration_ms
+        data_tests: [not_null]
+      - name: lap
+        data_tests: [not_null]
+
+  - name: stg_ergast__driver_standings
+    description: Official driver championship standings snapshot after every race.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: position
+        data_tests: [not_null]

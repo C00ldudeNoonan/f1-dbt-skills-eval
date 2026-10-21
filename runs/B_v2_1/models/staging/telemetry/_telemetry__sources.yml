@@ -1,0 +1,41 @@
+sources:
+  - name: telemetry
+    description: Car telemetry, about 4 samples per second per car, 2022 onward. Typed columns. Read-only.
+    database: ANALYTICS_DEV
+    # Overridable only to test incremental behaviour against a scratch clone.
+    schema: "{{ var('telemetry_source_schema', 'F1_RAW_B_v2_1') }}"
+    quoting:
+      schema: false
+      identifier: false
+    tables:
+      - name: car_telemetry
+        description: >
+          One row per telemetry sample (~20M rows and growing). _LOADED_AT is
+          when the row landed; samples can land weeks after the race. Rows are
+          appended in load order, so the table is naturally clustered by
+          _LOADED_AT, and filtering on it prunes micro-partitions. Source tests
+          here are deliberately limited because each one scans the table.
+        columns:
+          - name: raceid
+            data_type: number
+          - name: driverid
+            data_type: number
+          - name: lap
+            data_type: number
+          - name: sample_index
+            data_type: number
+            description: Sample sequence number within the driver's lap.
+          - name: recorded_at
+            data_type: timestamp_ntz
+          - name: speed_kph
+            data_type: number
+          - name: throttle_pct
+            data_type: number
+          - name: brake
+            data_type: boolean
+          - name: gear
+            data_type: number
+          - name: drs
+            data_type: number
+          - name: _loaded_at
+            data_type: timestamp_ntz

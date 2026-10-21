@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: fct_lap_times
+    description: >
+      One row per driver per lap per Grand Prix, 1996 onwards. Incremental: each run replaces
+      whole races dated on or after the second most recent race already loaded. This picks up
+      new races and the timing provider's corrections to the two most recent races without a full
+      refresh. Older races are not reprocessed; use `dbt build --full-refresh` to rebuild all history.
+    columns:
+      - name: race_id
+        description: Race the lap belongs to. Joins to `fct_results`.
+        data_tests:
+          - not_null
+      - name: season
+        description: Championship season of the race.
+        data_tests:
+          - not_null
+      - name: round
+        description: Round number of the race within its season.
+        data_tests:
+          - not_null
+      - name: race_date
+        description: Race date. Used to pick which races each incremental run reprocesses.
+        data_tests:
+          - not_null
+      - name: driver_id
+        description: Driver who completed the lap. Joins to `dim_drivers`.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: lap
+        description: Lap number within the race, starting at 1.
+        data_tests:
+          - not_null
+      - name: position
+        description: Race position of the driver at the end of this lap.
+        data_tests:
+          - not_null
+      - name: lap_time_ms
+        description: Lap time in integer milliseconds.
+        data_tests:
+          - not_null

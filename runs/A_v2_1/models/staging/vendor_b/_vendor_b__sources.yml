@@ -1,0 +1,112 @@
+version: 2
+
+# Vendor B: a second, independently keyed feed (2018 onwards) used only to
+# cross-check the primary Ergast feed. Same guards as the primary feed.
+sources:
+  - name: vendor_b
+    description: >
+      Vendor B cross-check feed. Shares no ids with the primary feed; mapped by
+      dim_driver_crosswalk and dim_session_crosswalk. Read-only.
+    database: ANALYTICS_DEV
+    schema: "{{ var('raw_schema', 'F1_RAW_A_v2_1') }}"
+    quoting:
+      database: false
+      schema: false
+      identifier: false
+    tables:
+      - name: vb_drivers
+        description: One row per Vendor B driver. FULL_NAME is 'SURNAME Forename'.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_vb_drivers__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_vb_drivers__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_vb_drivers__no_conflicting_duplicates
+              arguments:
+                key_columns: [driver_key]
+                check: conflicting
+        columns:
+          - name: driver_key
+            data_tests: [not_null]
+      - name: vb_sessions
+        description: >
+          One row per Vendor B session ('Race' or 'Sprint'). MEETING_NAME is the
+          venue's locality; DATE_START is the UTC start (time can be \N).
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_vb_sessions__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_vb_sessions__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_vb_sessions__no_conflicting_duplicates
+              arguments:
+                key_columns: [session_key]
+                check: conflicting
+          - values_parse:
+              name: raw_vb_sessions__values_parse
+              arguments:
+                columns:
+                  "left(date_start, 10)": date
+        columns:
+          - name: session_key
+            data_tests: [not_null]
+          - name: session_type
+            data_tests:
+              - accepted_values:
+                  arguments:
+                    values: ['Race', 'Sprint']
+      - name: vb_results
+        description: >
+          One row per driver per Vendor B session. POSITION is a number, or DNF /
+          DSQ (and similar) when not classified.
+        data_tests:
+          - raw_schema_matches_contract:
+              name: raw_vb_results__no_missing_columns
+              arguments:
+                check: missing
+          - raw_schema_matches_contract:
+              name: raw_vb_results__no_unexpected_columns
+              arguments:
+                check: unexpected
+              config:
+                severity: warn
+          - raw_duplicate_keys:
+              name: raw_vb_results__no_conflicting_duplicates
+              arguments:
+                key_columns: [session_key, driver_key]
+                check: conflicting
+          - raw_duplicate_keys:
+              name: raw_vb_results__no_duplicate_rows
+              arguments:
+                key_columns: [session_key, driver_key]
+                check: exact
+              config:
+                severity: warn
+        columns:
+          - name: session_key
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('vendor_b', 'vb_sessions')
+                    field: session_key
+          - name: driver_key
+            data_tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('vendor_b', 'vb_drivers')
+                    field: driver_key

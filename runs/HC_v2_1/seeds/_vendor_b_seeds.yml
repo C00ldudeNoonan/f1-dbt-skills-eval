@@ -1,0 +1,26 @@
+version: 2
+
+seeds:
+  - name: vendor_b_driver_overrides
+    description: >
+      Manual answers for Vendor B drivers the name and code rules cannot decide (two equally good candidates). Leave it
+      empty unless a match is genuinely ambiguous. dim_driver_crosswalk uses an override before the automatic rules.
+      Every row needs a reason, so the decision can be reviewed later.
+    config:
+      column_types:
+        vendor_b_driver_key: varchar
+        driver_id: integer
+        reason: varchar
+    columns:
+      - name: vendor_b_driver_key
+        description: Vendor B DRIVER_KEY being overridden.
+        data_tests:
+          - unique
+      - name: driver_id
+        description: Our driver_id that the Vendor B driver corresponds to.
+        data_tests:
+          - not_null
+      - name: reason
+        description: Why the automatic rules could not decide, and what was checked.
+        data_tests:
+          - not_null

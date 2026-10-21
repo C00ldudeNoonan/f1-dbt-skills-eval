@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: int_seasons__completion
+    description: >
+      One row per season describing calendar progress. A round is completed
+      when it has Grand Prix results; a season is complete when all its
+      scheduled rounds are completed.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: scheduled_rounds
+      - name: completed_rounds
+      - name: latest_completed_round
+      - name: latest_completed_race_id
+      - name: is_complete
+        description: True only when every round on the calendar has results. Gates world championships.
+        data_tests: [not_null]
+
+  - name: int_pit_stops__with_constructor
+    description: Pit stops with season and constructor attached via the driver's race result.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: is_representative_stop
+        description: False for stops over 60 seconds (red flags / repairs).

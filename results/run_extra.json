@@ -1,0 +1,206 @@
+{
+  "A_1": {
+    "notes_read": [],
+    "first_failures": {
+      "REBUILD_FAILED": 4
+    },
+    "skills_used": []
+  },
+  "B_1": {
+    "notes_read": [],
+    "first_failures": {
+      "REBUILD_FAILED": 4
+    },
+    "skills_used": [
+      "read:running-dbt-commands"
+    ]
+  },
+  "HA_1": {
+    "notes_read": [],
+    "first_failures": {},
+    "skills_used": []
+  },
+  "HB_1": {
+    "notes_read": [],
+    "first_failures": {},
+    "skills_used": []
+  },
+  "HC_1": {
+    "notes_read": [
+      "f1_dbt_handover.md"
+    ],
+    "first_failures": {
+      "dim_drivers": 1,
+      "dim_drivers_v1": 7
+    },
+    "skills_used": [
+      "read:maintaining-dbt-documentation"
+    ]
+  },
+  "SA_1": {
+    "notes_read": [],
+    "first_failures": {},
+    "skills_used": []
+  },
+  "SB_1": {
+    "notes_read": [],
+    "first_failures": {},
+    "skills_used": [
+      "read:adding-dbt-unit-test",
+      "read:working-with-dbt-mesh"
+    ]
+  },
+  "SC_1": {
+    "notes_read": [
+      "f1_dbt_handover.md"
+    ],
+    "first_failures": {
+      "REBUILD_FAILED": 2
+    },
+    "skills_used": [
+      "read:running-dbt-commands",
+      "read:using-dbt-for-analytics-engineering",
+      "read:working-with-dbt-mesh"
+    ]
+  },
+  "A_v2_1": {
+    "notes_read": [],
+    "telemetry_cost": 1.485,
+    "ci_probe": true,
+    "first_failures": {
+      "REBUILD_FAILED": 4
+    },
+    "skills_used": []
+  },
+  "B_v2_1": {
+    "notes_read": [],
+    "telemetry_cost": 5.301,
+    "ci_probe": true,
+    "first_failures": {
+      "REBUILD_FAILED": 4
+    },
+    "skills_used": [
+      "building-dbt-semantic-layer",
+      "read:building-dbt-semantic-layer",
+      "running-dbt-commands",
+      "using-dbt-for-analytics-engineering"
+    ]
+  },
+  "C_v2_1": {
+    "notes_read": [
+      "f1_dbt_handover.md",
+      "f1_dbt_hc_1_findings.md"
+    ],
+    "telemetry_cost": 0.358,
+    "ci_probe": true,
+    "first_failures": {
+      "mart_teammate_head_to_head": 1
+    },
+    "skills_used": [
+      "read:adding-dbt-unit-test",
+      "read:building-dbt-semantic-layer",
+      "read:maintaining-dbt-documentation",
+      "read:using-dbt-for-analytics-engineering",
+      "read:using-dbt-state",
+      "read:working-with-dbt-mesh"
+    ]
+  },
+  "HA_v2_1": {
+    "notes_read": [],
+    "telemetry_cost": 1.86,
+    "ci_probe": true,
+    "first_failures": {
+      "REBUILD_FAILED": 4
+    },
+    "skills_used": []
+  },
+  "HB_v2_1": {
+    "notes_read": [
+      "f1_dbt_handover.md",
+      "f1_dbt_hc_1_findings.md"
+    ],
+    "telemetry_cost": 2.559,
+    "ci_probe": true,
+    "first_failures": {
+      "fct_stints": 2
+    },
+    "skills_used": [
+      "building-dbt-semantic-layer",
+      "read:building-dbt-semantic-layer"
+    ]
+  },
+  "HC_v2_1": {
+    "notes_read": [
+      "f1_dbt_a_v2_1_findings.md",
+      "f1_dbt_b_v2_1_findings.md",
+      "f1_dbt_ha_v2_1_findings.md",
+      "f1_dbt_handover.md",
+      "f1_dbt_hc_1_findings.md"
+    ],
+    "telemetry_cost": 5.523,
+    "ci_probe": true,
+    "first_failures": {
+      "dim_drivers": 3,
+      "REBUILD_FAILED": 3
+    },
+    "skills_used": [
+      "read:building-dbt-semantic-layer",
+      "read:maintaining-dbt-documentation"
+    ]
+  },
+  "SA_v2_1": {
+    "notes_read": [
+      "f1_dbt_handover.md",
+      "f1_dbt_hc_1_findings.md"
+    ],
+    "telemetry_cost": 12.121,
+    "ci_probe": true,
+    "first_failures": {
+      "fct_lap_times": 2,
+      "fct_stints": 2,
+      "dim_drivers_v1": 7,
+      "REBUILD_FAILED": 8,
+      "mart_lap_telemetry_summary": 10
+    },
+    "skills_used": []
+  },
+  "SB_v2_1": {
+    "notes_read": [
+      "f1_dbt_handover.md",
+      "f1_dbt_hc_1_findings.md"
+    ],
+    "telemetry_cost": 1.305,
+    "ci_probe": true,
+    "first_failures": {
+      "fct_results": 1,
+      "dim_drivers": 1,
+      "REBUILD_FAILED": 3,
+      "fct_session_results": 4,
+      "fct_driver_race_pace": 6,
+      "fct_lap_times": 6,
+      "fct_stints": 6,
+      "dim_drivers_v1": 7
+    },
+    "skills_used": [
+      "building-dbt-semantic-layer",
+      "read:building-dbt-semantic-layer",
+      "read:working-with-dbt-mesh"
+    ]
+  },
+  "SC_v2_1": {
+    "notes_read": [
+      "f1_dbt_handover.md",
+      "f1_dbt_hc_1_findings.md"
+    ],
+    "telemetry_cost": 2.927,
+    "ci_probe": true,
+    "first_failures": {
+      "REBUILD_FAILED": 4
+    },
+    "skills_used": [
+      "read:building-dbt-semantic-layer",
+      "read:using-dbt-for-analytics-engineering",
+      "read:working-with-dbt-mesh"
+    ]
+  }
+}

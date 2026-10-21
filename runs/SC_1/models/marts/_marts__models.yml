@@ -1,0 +1,158 @@
+version: 2
+
+models:
+  - name: mart_driver_season_standings
+    description: >
+      Official driver championship standings, one row per driver per season, as of the season's
+      latest round with results. For an incomplete season this is a mid-season table.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_drivers'), field: driver_id}
+      - name: championship_position
+        description: Official position. Entries excluded from the championship (e.g. Schumacher 1997) are ranked last.
+        data_tests: [not_null]
+      - name: points
+        description: Official championship points (after any dropped results).
+      - name: wins
+        description: Official wins count at that round.
+      - name: as_of_round
+        description: Round the standings are as of.
+      - name: is_season_complete
+        description: Whether every race on the season calendar has results.
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "season || '-' || driver_id"
+
+  - name: mart_constructor_season_pit_stops
+    description: >
+      Pit stop count and median stop time per constructor per season (2011 onward). Stops over 60 seconds
+      are excluded from both measures.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: pit_stop_count
+        description: Pit stops of 60 seconds or less.
+        data_tests: [not_null]
+      - name: median_pit_stop_seconds
+        description: Median pit lane time in seconds across counted stops.
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "season || '-' || constructor_id"
+
+  - name: fct_lap_times
+    description: >
+      One row per driver per lap per race (1996 onward). Incremental: each run adds new races and
+      reloads the two most recent races already in the table so reissued corrections flow through
+      without a full refresh. Older races are not reprocessed; use --full-refresh if history is
+      restated.
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__races'), field: race_id}
+      - name: season
+        data_tests: [not_null]
+      - name: round
+      - name: race_date
+        description: Drives the incremental reload window.
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_drivers'), field: driver_id}
+      - name: lap
+        description: Lap number, starting at 1.
+        data_tests: [not_null]
+      - name: position
+        description: Running race position at the end of the lap.
+      - name: lap_time_ms
+        description: Lap time in milliseconds.
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "race_id || '-' || driver_id || '-' || lap"
+
+  - name: fct_session_results
+    description: >
+      One row per result entry across Grand Prix ('race') and sprint sessions, classified or not.
+      Race rows come from fct_results. Use session_type to separate sessions; points and wins of
+      the two session types should not be mixed unintentionally.
+    columns:
+      - name: session_result_id
+        description: Surrogate key, session_type || '-' || source_result_id. Source ids alone collide across sessions.
+        data_tests: [unique, not_null]
+      - name: session_type
+        description: "'race' (Grand Prix) or 'sprint'."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments: {values: ['race', 'sprint']}
+      - name: source_result_id
+        description: Id from the source table (results or sprint_results); unique only within a session type.
+        data_tests: [not_null]
+      - name: race_id
+        description: Grand Prix weekend id; a weekend with a sprint has one race row and one sprint row per driver.
+        data_tests: [not_null]
+      - name: season
+      - name: round
+      - name: race_date
+        description: Date of the Grand Prix weekend's race (sprints carry the same value).
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_drivers'), field: driver_id}
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: constructor_name
+      - name: grid
+      - name: finish_position
+        description: Classified finishing position, null when not classified.
+      - name: position_order
+      - name: points
+      - name: laps
+      - name: status
+      - name: is_win
+      - name: is_podium
+      - name: fastest_lap_time_ms
+
+  - name: mart_driver_standings_by_round
+    description: >
+      Official driver championship table after every round, one row per driver per round they
+      appear in. Points reflect the official rules of the era (dropped results).
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__races'), field: race_id}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_drivers'), field: driver_id}
+      - name: championship_position
+        data_tests: [not_null]
+      - name: points
+      - name: wins
+    data_tests:
+      - unique:
+          arguments:
+            column_name: "race_id || '-' || driver_id"

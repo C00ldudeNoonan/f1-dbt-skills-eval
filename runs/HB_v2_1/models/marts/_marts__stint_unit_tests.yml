@@ -1,0 +1,32 @@
+unit_tests:
+  - name: fct_stints_boundaries_split_at_pit_laps_and_drop_empty_stints
+    description: >
+      Stint 1 starts on lap 1. A pit on lap L ends that stint at L, and the next starts at L+1.
+      The final stint ends on the driver's last lap. A pit on the final lap leaves no laps for
+      the stint after it, so that stint is dropped. A race with no pit data has no stints.
+    model: fct_stints
+    given:
+      - input: ref('fct_lap_times')
+        rows:
+          - {race_id: 1, race_date: '2024-03-02', season: 2024, round: 1, driver_id: 1, lap: 1, position: 1, lap_time_ms: 90000}
+          - {race_id: 1, race_date: '2024-03-02', season: 2024, round: 1, driver_id: 1, lap: 2, position: 1, lap_time_ms: 91000}
+          - {race_id: 1, race_date: '2024-03-02', season: 2024, round: 1, driver_id: 1, lap: 3, position: 1, lap_time_ms: 92000}
+          - {race_id: 1, race_date: '2024-03-02', season: 2024, round: 1, driver_id: 1, lap: 4, position: 1, lap_time_ms: 93000}
+          - {race_id: 1, race_date: '2024-03-02', season: 2024, round: 1, driver_id: 1, lap: 5, position: 1, lap_time_ms: 94000}
+          - {race_id: 1, race_date: '2024-03-02', season: 2024, round: 1, driver_id: 1, lap: 6, position: 1, lap_time_ms: 95000}
+          - {race_id: 1, race_date: '2024-03-02', season: 2024, round: 1, driver_id: 2, lap: 1, position: 2, lap_time_ms: 100000}
+          - {race_id: 1, race_date: '2024-03-02', season: 2024, round: 1, driver_id: 2, lap: 2, position: 2, lap_time_ms: 100000}
+          - {race_id: 1, race_date: '2024-03-02', season: 2024, round: 1, driver_id: 2, lap: 3, position: 2, lap_time_ms: 100000}
+          - {race_id: 2, race_date: '2024-03-09', season: 2024, round: 2, driver_id: 3, lap: 1, position: 1, lap_time_ms: 80000}
+          - {race_id: 2, race_date: '2024-03-09', season: 2024, round: 2, driver_id: 3, lap: 2, position: 1, lap_time_ms: 81000}
+      - input: ref('stg_f1__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 1, stop_number: 1, lap_number: 2, pit_stop_ms: 22000}
+          - {race_id: 1, driver_id: 1, stop_number: 2, lap_number: 4, pit_stop_ms: 23000}
+          - {race_id: 1, driver_id: 2, stop_number: 1, lap_number: 3, pit_stop_ms: 24000}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, stint_number: 1, start_lap: 1, end_lap: 2, stint_laps: 2, avg_lap_time_ms: 90500}
+        - {race_id: 1, driver_id: 1, stint_number: 2, start_lap: 3, end_lap: 4, stint_laps: 2, avg_lap_time_ms: 92500}
+        - {race_id: 1, driver_id: 1, stint_number: 3, start_lap: 5, end_lap: 6, stint_laps: 2, avg_lap_time_ms: 94500}
+        - {race_id: 1, driver_id: 2, stint_number: 1, start_lap: 1, end_lap: 3, stint_laps: 3, avg_lap_time_ms: 100000}

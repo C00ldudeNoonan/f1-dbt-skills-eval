@@ -1,0 +1,53 @@
+name: f1
+version: '1.0.0'
+config-version: 2
+
+profile: f1
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+analysis-paths: ["analyses"]
+snapshot-paths: ["snapshots"]
+clean-targets: ["target", "dbt_packages"]
+
+on-run-start:
+  - "{{ assert_raw_contract() }}"
+
+vars:
+  # Pit stops longer than this are red-flag stoppages, not pit work, and are excluded.
+  max_pit_stop_duration_ms: 60000
+  # Laps slower than this percentage of the race's fastest lap are not green-flag laps.
+  slow_lap_threshold_pct: 130
+  # Countback for alternative points standings uses finishing positions 1 to this value.
+  countback_max_position: 10
+  # Schema holding CAR_TELEMETRY. Overridable for testing against a copy.
+  telemetry_schema: F1_RAW_HA_V2_1
+  # Overperformance uses seasons from this year on: the 2014 hybrid regulations, one car spec per era.
+  overperformance_min_season: 2014
+
+snapshots:
+  f1:
+    +schema: snapshots
+
+
+models:
+  f1:
+    +materialized: view
+    +access: protected
+    staging:
+      +schema: staging
+    intermediate:
+      +schema: intermediate
+    audit:
+      +materialized: incremental
+      +schema: audit
+    marts:
+      +materialized: table
+      +schema: marts
+
+seeds:
+  f1:
+    +schema: reference
+    +quote_columns: false

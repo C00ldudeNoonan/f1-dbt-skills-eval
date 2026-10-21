@@ -1,0 +1,19 @@
+{
+  "input_tokens": 8440656,
+  "output_tokens": 101036,
+  "tool_calls": 56,
+  "tool_errors": 1,
+  "dbt_invocations": 38,
+  "skills_used": [
+    "read:maintaining-dbt-documentation",
+    "read:maintaining-dbt-documentation",
+    "read:maintaining-dbt-documentation",
+    "read:maintaining-dbt-documentation",
+    "read:maintaining-dbt-documentation",
+    "read:maintaining-dbt-documentation"
+  ],
+  "assistant_turns": 57,
+  "wallclock_s": 710,
+  "nudges": 0,
+  "session_file": "~/.claude/projects/-Users-alexnoonan-f1-eval-workspaces-HC-1-project/8d8cf94c-1a6a-457e-bb65-b1f392ad3d3f.jsonl"
+}

@@ -1,0 +1,127 @@
+version: 2
+
+models:
+  - name: fct_lap_times
+    description: >
+      One row per driver per lap per race (lap data starts in 1996).
+      Incremental, one whole race at a time: each run adds races not yet loaded
+      and reloads the most recent loaded races (2 by default, set with the
+      `lap_times_correction_window_races` var), because the timing provider
+      reissues corrected lap times for them. A reloaded race's rows are deleted
+      and inserted again, so corrections need no full refresh. A correction to
+      an older race does need `--full-refresh`.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        data_type: integer
+        description: "{{ doc('col_race_id') }}"
+        constraints:
+          - type: not_null
+      - name: season
+        data_type: integer
+        description: "{{ doc('col_season') }}"
+        constraints:
+          - type: not_null
+      - name: round
+        data_type: integer
+        description: Round number within the season.
+        constraints:
+          - type: not_null
+      - name: driver_id
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+      - name: lap
+        data_type: integer
+        description: Lap number, starting at 1.
+        constraints:
+          - type: not_null
+      - name: position
+        data_type: integer
+        description: Driver's running position at the end of the lap.
+      - name: lap_time_ms
+        data_type: integer
+        description: Lap time in integer milliseconds. Includes safety car and red-flag laps, which can run to hours.
+        constraints:
+          - type: not_null
+      - name: loaded_at
+        data_type: timestamp_ntz
+        description: >
+          UTC time this race's laps were last (re)loaded. All laps of a race
+          share one value. `fct_stints` uses it to find races it needs to rebuild.
+        constraints:
+          - type: not_null
+
+  - name: fct_stints
+    description: >
+      One row per driver per stint, for races with pit stop data (2011 onwards).
+      Stint 1 starts on lap 1. A pit stop on lap L ends the current stint at
+      lap L and the next stint starts at lap L + 1. The final stint ends on the
+      driver's last recorded lap. Stints with no laps are dropped, such as the
+      one that would follow a stop on the final lap. Every pit stop counts,
+      including red-flag stops over 60 seconds, because cars can change tyres
+      under a red flag. Drivers who never pitted have a single stint. Incremental by whole race: a
+      race is rebuilt whenever `fct_lap_times` reloads its laps, so lap-time
+      corrections and new races flow through without a full refresh.
+    config:
+      group: f1_analytics
+      access: protected
+      contract:
+        enforced: true
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stint_number]
+      - expression_is_true:
+          arguments:
+            expression: "start_lap <= end_lap and stint_laps = end_lap - start_lap + 1"
+    columns:
+      - name: race_id
+        data_type: integer
+        description: "{{ doc('col_race_id') }}"
+        constraints:
+          - type: not_null
+      - name: driver_id
+        data_type: integer
+        description: "{{ doc('col_driver_id') }}"
+        constraints:
+          - type: not_null
+      - name: stint_number
+        data_type: integer
+        description: 1 for the opening stint, then 1 more after each lap with a pit stop.
+        constraints:
+          - type: not_null
+      - name: start_lap
+        data_type: integer
+        description: First lap of the stint (1, or the lap after a pit stop).
+        constraints:
+          - type: not_null
+      - name: end_lap
+        data_type: integer
+        description: Last lap of the stint (the pit stop lap, or the driver's last recorded lap).
+        constraints:
+          - type: not_null
+      - name: stint_laps
+        data_type: integer
+        description: Laps in the stint.
+        constraints:
+          - type: not_null
+      - name: avg_lap_time_ms
+        data_type: number(14, 3)
+        description: Mean of every lap time in the stint, in milliseconds. Includes the in-lap, the out-lap, lap 1 and safety car laps.
+        constraints:
+          - type: not_null
+      - name: laps_loaded_at
+        data_type: timestamp_ntz
+        description: The `fct_lap_times.loaded_at` of the lap data this stint was built from. Used to detect races that need rebuilding.
+        constraints:
+          - type: not_null

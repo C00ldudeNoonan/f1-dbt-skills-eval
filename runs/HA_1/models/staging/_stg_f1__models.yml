@@ -1,0 +1,71 @@
+version: 2
+
+models:
+  - name: stg_f1__races
+    description: Season calendar. One row per Grand Prix weekend, with the season year and round number.
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+
+  - name: stg_f1__results
+    description: Grand Prix driver entries, cast to typed columns. Sprints are not included.
+    columns:
+      - name: result_id
+        description: Primary key of a result row.
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: finish_position
+        description: Official finishing position. Null when the driver was not classified.
+      - name: fastest_lap_time_ms
+        description: Fastest lap converted from m:ss.sss text to integer milliseconds.
+
+  - name: stg_f1__drivers
+    description: One row per driver.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__constructors
+    description: One row per constructor (team).
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__status
+    description: Finishing status lookup.
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__driver_standings
+    description: Driver championship standings after each Grand Prix (one row per race and driver).
+    columns:
+      - name: driver_standings_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+
+  - name: stg_f1__pit_stops
+    description: One row per pit stop, with the duration in milliseconds. Includes red-flag stoppages.
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: stop_number
+        data_tests: [not_null]
+      - name: pit_stop_duration_ms
+        data_tests: [not_null]

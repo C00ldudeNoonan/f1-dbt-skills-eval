@@ -1,0 +1,287 @@
+version: 2
+
+models:
+  - name: fct_results
+    description: >
+      One row per Grand Prix result entry (1950 onward). Sprint results are excluded.
+      finish_position is null when the driver was not classified. Historic shared-drive
+      entries can produce two rows for the same driver and race, so result_id is the grain.
+      Public interface: a contract is enforced, so changing a column name or type is a breaking change.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: result_id
+        data_type: number(38, 0)
+        constraints:
+          - type: not_null
+        data_tests: [unique]
+      - name: race_id
+        data_type: number(38, 0)
+        constraints:
+          - type: not_null
+      - name: season
+        data_type: number(38, 0)
+        constraints:
+          - type: not_null
+      - name: round
+        data_type: number(38, 0)
+      - name: race_date
+        data_type: date
+      - name: driver_id
+        data_type: number(38, 0)
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: constructor_id
+        data_type: number(38, 0)
+        constraints:
+          - type: not_null
+      - name: constructor_name
+        data_type: varchar
+        constraints:
+          - type: not_null
+      - name: car_number
+        data_type: number(38, 0)
+      - name: grid
+        data_type: number(38, 0)
+      - name: finish_position
+        description: Official finishing position. Null when the driver was not classified.
+        data_type: number(38, 0)
+      - name: position_text
+        data_type: varchar
+      - name: position_order
+        data_type: number(38, 0)
+      - name: points
+        data_type: number(6, 2)
+        constraints:
+          - type: not_null
+      - name: laps
+        data_type: number(38, 0)
+      - name: status
+        data_type: varchar
+      - name: is_win
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: is_podium
+        data_type: boolean
+        constraints:
+          - type: not_null
+      - name: fastest_lap_time_ms
+        description: Fastest lap converted from m:ss.sss text to integer milliseconds.
+        data_type: number(38, 0)
+
+  - name: dim_drivers
+    description: >
+      One row per driver. career_starts counts distinct Grands Prix with a result entry.
+      world_championships counts only seasons that are complete (every calendar race has results).
+      Public interface, versioned. Version 2 (latest) replaces full_name with first_name and last_name.
+      Version 1 is deprecated on 2027-01-01.
+    latest_version: 2
+    config:
+      contract:
+        enforced: true
+    versions:
+      - v: 1
+        deprecation_date: 2027-01-01 00:00:00.00+00:00
+        columns:
+          - name: driver_id
+            data_type: number(38, 0)
+            constraints:
+              - type: not_null
+            data_tests: [unique]
+          - name: driver_ref
+            data_type: varchar
+            constraints:
+              - type: not_null
+            data_tests: [unique]
+          - name: full_name
+            data_type: varchar
+            constraints:
+              - type: not_null
+          - name: nationality
+            data_type: varchar
+          - name: date_of_birth
+            data_type: date
+          - name: current_number
+            description: Permanent car number. Null for drivers without one (about 800 of 861).
+            data_type: number(38, 0)
+          - name: career_starts
+            data_type: number(18, 0)
+            constraints:
+              - type: not_null
+          - name: career_wins
+            data_type: number(18, 0)
+            constraints:
+              - type: not_null
+          - name: career_podiums
+            data_type: number(18, 0)
+            constraints:
+              - type: not_null
+          - name: career_sprint_wins
+            description: Sprint wins only. career_wins counts Grand Prix wins only.
+            data_type: number(18, 0)
+            constraints:
+              - type: not_null
+          - name: world_championships
+            data_type: number(18, 0)
+            constraints:
+              - type: not_null
+      - v: 2
+        columns:
+          - name: driver_id
+            data_type: number(38, 0)
+            constraints:
+              - type: not_null
+            data_tests: [unique]
+          - name: driver_ref
+            data_type: varchar
+            constraints:
+              - type: not_null
+            data_tests: [unique]
+          - name: first_name
+            data_type: varchar
+            constraints:
+              - type: not_null
+          - name: last_name
+            data_type: varchar
+            constraints:
+              - type: not_null
+          - name: nationality
+            data_type: varchar
+          - name: date_of_birth
+            data_type: date
+          - name: current_number
+            description: Permanent car number. Null for drivers without one (about 800 of 861).
+            data_type: number(38, 0)
+          - name: career_starts
+            data_type: number(18, 0)
+            constraints:
+              - type: not_null
+          - name: career_wins
+            data_type: number(18, 0)
+            constraints:
+              - type: not_null
+          - name: career_podiums
+            data_type: number(18, 0)
+            constraints:
+              - type: not_null
+          - name: career_sprint_wins
+            description: Sprint wins only. career_wins counts Grand Prix wins only.
+            data_type: number(18, 0)
+            constraints:
+              - type: not_null
+          - name: world_championships
+            data_type: number(18, 0)
+            constraints:
+              - type: not_null
+
+  - name: mart_driver_season_standings
+    description: >
+      One row per driver per season, taken from the official driver standings snapshot after
+      the season's latest completed round. For seasons still in progress this is the latest round
+      with results. Check is_season_complete before treating a row as the final championship.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: championship_position
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null]
+      - name: wins
+        data_tests: [not_null]
+      - name: is_season_complete
+        data_tests: [not_null]
+
+  - name: mart_constructor_season_pit_stops
+    description: >
+      One row per constructor per season with pit stop data. Stops over 60 seconds (red-flag
+      stoppages) are excluded from both the count and the median. Covers 2011 onward.
+    columns:
+      - name: season
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: pit_stop_count
+        data_tests: [not_null]
+      - name: median_pit_stop_seconds
+        data_tests: [not_null]
+
+  - name: fct_lap_times
+    description: >
+      One row per driver per lap per race (1996 onward, where lap data exists). Incremental:
+      each run rebuilds races not yet loaded plus the two most recent loaded races, so the
+      timing provider's corrections flow through. Corrections to older races need --full-refresh.
+    config:
+      materialized: incremental
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: lap
+        data_tests: [not_null]
+      - name: position
+        description: Race position at the end of this lap.
+        data_tests: [not_null]
+      - name: lap_time_ms
+        description: Lap time in integer milliseconds. Red-flag laps can be over an hour.
+        data_tests: [not_null]
+
+  - name: fct_session_results
+    description: >
+      One row per driver entry in a Grand Prix (session_type = 'race') or a sprint
+      (session_type = 'sprint'). source_result_id is only unique within its session type,
+      so use session_result_key for a unique key.
+    columns:
+      - name: session_result_key
+        data_tests: [unique, not_null]
+      - name: session_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['race', 'sprint']
+      - name: source_result_id
+        data_tests: [not_null]
+      - name: race_id
+        data_tests: [not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: constructor_id
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null]
+
+  - name: mart_driver_standings_by_round
+    description: >
+      One row per driver per round they appear in the official driver standings. Use this to chart
+      the championship over time. mart_driver_season_standings is derived from it.
+    columns:
+      - name: race_id
+        data_tests: [not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests: [not_null]
+      - name: championship_position
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null]
+      - name: wins
+        data_tests: [not_null]

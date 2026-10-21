@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: mart_constructor_season_pit_stops
+    description: >
+      One row per constructor per season with pit stop data (2011 onwards). Stops longer than 60
+      seconds are red-flag stoppages rather than real pit stops, so they are excluded from both the
+      count and the median. Durations are stationary plus pit-lane time.
+    columns:
+      - name: season
+        description: Championship season of the pit stops.
+        data_tests:
+          - not_null
+      - name: constructor_id
+        description: Constructor (team) that made the stops.
+        data_tests:
+          - not_null
+      - name: pit_stop_count
+        description: Pit stops of 60 seconds or less in the season.
+        data_tests:
+          - not_null
+      - name: median_pit_stop_seconds
+        description: Median pit stop duration in seconds, rounded to milliseconds.
+        data_tests:
+          - not_null
+
+unit_tests:
+  - name: pit_stop_median_excludes_stoppages_over_60_seconds
+    description: Stops over 60 seconds are dropped before counting and taking the median.
+    model: mart_constructor_season_pit_stops
+    given:
+      - input: ref('stg_ergast__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 1, stop_number: 1, duration_ms: 20000}
+          - {race_id: 1, driver_id: 1, stop_number: 2, duration_ms: 25000}
+          - {race_id: 1, driver_id: 1, stop_number: 3, duration_ms: 70000}
+          - {race_id: 1, driver_id: 3, stop_number: 1, duration_ms: 30000}
+          - {race_id: 1, driver_id: 2, stop_number: 1, duration_ms: 40000}
+      - input: ref('fct_results')
+        rows:
+          - {race_id: 1, driver_id: 1, constructor_id: 100, season: 2011}
+          - {race_id: 1, driver_id: 3, constructor_id: 100, season: 2011}
+          - {race_id: 1, driver_id: 2, constructor_id: 200, season: 2011}
+    expect:
+      rows:
+        - {season: 2011, constructor_id: 100, pit_stop_count: 3, median_pit_stop_seconds: 25.0}
+        - {season: 2011, constructor_id: 200, pit_stop_count: 1, median_pit_stop_seconds: 40.0}

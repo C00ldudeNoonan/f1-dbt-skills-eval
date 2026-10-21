@@ -1,0 +1,21 @@
+version: 2
+
+unit_tests:
+  - name: mart_lap_telemetry_summary_computes_throttle_and_brake_shares
+    description: >
+      Four samples on lap 3: throttle 100, 100, 99, 50 (three at or above 99%, so 75% full throttle; average 87.25),
+      two with the brake on, top speed 300 km/h. The lap's source_loaded_at is the latest load among its samples.
+    model: mart_lap_telemetry_summary
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fct_telemetry')
+        rows:
+          - {race_id: 10, driver_id: 1, lap: 3, speed_kph: 280, throttle_pct: 100, brake: false, loaded_at: '2023-03-01 10:00:00'}
+          - {race_id: 10, driver_id: 1, lap: 3, speed_kph: 300, throttle_pct: 100, brake: true, loaded_at: '2023-03-01 10:00:00'}
+          - {race_id: 10, driver_id: 1, lap: 3, speed_kph: 290, throttle_pct: 99, brake: false, loaded_at: '2023-03-01 10:05:00'}
+          - {race_id: 10, driver_id: 1, lap: 3, speed_kph: 150, throttle_pct: 50, brake: true, loaded_at: '2023-03-01 10:00:00'}
+    expect:
+      rows:
+        - {race_id: 10, driver_id: 1, lap: 3, samples: 4, max_speed_kph: 300, avg_throttle_pct: 87.25, full_throttle_pct: 75, brake_samples: 2}

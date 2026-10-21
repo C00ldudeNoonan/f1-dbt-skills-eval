@@ -1,0 +1,53 @@
+version: 2
+
+seeds:
+  - name: points_systems
+    description: >
+      Points awarded by finishing position_order under each alternative scoring system.
+      To add a system, append rows with a new `points_system` name (e.g. the 1991-2002
+      10-6-4-3-2-1 system); no SQL changes are needed. Positions without a row score 0.
+    config:
+      column_types:
+        points_system: varchar
+        position_order: integer
+        points: number(8, 2)
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, position_order]
+    columns:
+      - name: points_system
+        data_tests: [not_null]
+      - name: position_order
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null]
+
+  - name: vendor_b_session_overrides
+    description: >
+      Manual Vendor B session -> race mappings for genuinely ambiguous cases the automatic date/meeting
+      matching cannot resolve. Normally empty. An override wins over automatic matching.
+    config:
+      column_types:
+        session_key: number(38,0)
+        race_id: number(38,0)
+        session_type: varchar
+        reason: varchar
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [session_key]
+
+  - name: vendor_b_driver_overrides
+    description: >
+      Manual Vendor B driver -> primary driver_id mappings for genuinely ambiguous cases the automatic
+      matching cannot resolve. Normally empty. An override wins over automatic matching.
+    config:
+      column_types:
+        driver_key: varchar
+        driver_id: number(38,0)
+        reason: varchar
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [driver_key]

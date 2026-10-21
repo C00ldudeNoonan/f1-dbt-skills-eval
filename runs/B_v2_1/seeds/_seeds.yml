@@ -1,0 +1,64 @@
+seeds:
+  - name: reference_world_champions
+    description: >
+      Published Formula 1 World Drivers' Champions by season (1950-2024), keyed
+      by Ergast driver_ref. Hand-checked against the official FIA record. Used to
+      reconcile mart_driver_season_standings; add a row when a season completes.
+    config:
+      schema: reference
+      column_types:
+        season: integer
+        driver_ref: varchar
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+
+  - name: points_systems
+    description: >
+      Points awarded per Grand Prix finishing position (position_order) under
+      each scoring system, for what-if re-scoring. To add a system, add one row
+      per scoring position with a new points_system name. No SQL change needed;
+      positions not listed score 0. fia_2010 is the current system
+      (25-18-15-12-10-8-6-4-2-1); fia_1991 is the 1991-2002 system (10-6-4-3-2-1).
+    config:
+      schema: reference
+      column_types:
+        points_system: varchar
+        finish_position_order: integer
+        points: number(10, 2)
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [points_system, finish_position_order]
+    columns:
+      - name: points_system
+        data_tests: [not_null]
+      - name: finish_position_order
+        data_tests: [not_null]
+      - name: points
+        data_tests: [not_null, not_negative]
+
+  - name: vendor_b_driver_overrides
+    description: >
+      Manual Vendor B driver matches, only for cases the automatic matcher can't
+      resolve (it fails the build and names them). Takes precedence over the
+      automatic match. Keep it small: add a row only with a reason.
+    config:
+      schema: reference
+      column_types: {driver_key: varchar, driver_id: integer, reason: varchar}
+    columns:
+      - name: driver_key
+        data_tests: [unique, not_null]
+      - name: driver_id
+        data_tests: [not_null]
+
+  - name: vendor_b_session_overrides
+    description: >
+      Manual Vendor B session matches for sessions the automatic matcher can't
+      resolve. Takes precedence over the automatic match.
+    config:
+      schema: reference
+      column_types: {session_key: integer, race_id: integer, session_type: varchar, reason: varchar}
+    columns:
+      - name: session_key
+        data_tests: [unique, not_null]

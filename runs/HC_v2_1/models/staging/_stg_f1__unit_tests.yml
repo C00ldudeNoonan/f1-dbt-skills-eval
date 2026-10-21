@@ -1,0 +1,75 @@
+version: 2
+
+unit_tests:
+  - name: stg_f1__results_parses_lap_times_and_sentinel_nulls
+    description: >
+      The m:ss.mmm fastest lap converts to milliseconds. The \N sentinel becomes NULL, and an
+      unparseable value becomes NULL rather than failing the model.
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'RESULTS')
+        rows:
+          - {RESULTID: '1', RACEID: '18', DRIVERID: '1', CONSTRUCTORID: '1', NUMBER: '22', GRID: '1', POSITION: '1', POSITIONTEXT: '1', POSITION_ORDER: '1', POINTS: '25', LAPS: '58', MILLISECONDS: '5690616', FASTESTLAP: '39', RANK: '2', FASTESTLAPTIME: '1:29.141', STATUSID: '1'}
+          - {RESULTID: '2', RACEID: '18', DRIVERID: '2', CONSTRUCTORID: '2', NUMBER: '3', GRID: '5', POSITION: '\N', POSITIONTEXT: 'R', POSITION_ORDER: '20', POINTS: '0', LAPS: '12', MILLISECONDS: '\N', FASTESTLAP: '\N', RANK: '\N', FASTESTLAPTIME: '\N', STATUSID: '3'}
+          - {RESULTID: '3', RACEID: '18', DRIVERID: '3', CONSTRUCTORID: '3', NUMBER: '7', GRID: '7', POSITION: '3', POSITIONTEXT: '3', POSITION_ORDER: '3', POINTS: '15', LAPS: '58', MILLISECONDS: '5698779', FASTESTLAP: '41', RANK: '5', FASTESTLAPTIME: 'bad', STATUSID: '1'}
+    expect:
+      rows:
+        - {result_id: 1, race_id: 18, fastest_lap_time_ms: 89141, position: 1}
+        - {result_id: 2, race_id: 18, fastest_lap_time_ms: null, position: null}
+        - {result_id: 3, race_id: 18, fastest_lap_time_ms: null, position: 3}
+
+  - name: stg_f1__constructors_collapses_identical_duplicate_rows
+    description: >
+      The vendor loaded constructor 6 twice on 2026-10-21, once with a trailing space in the name. After trimming the rows
+      are identical, so staging keeps one row.
+    model: stg_f1__constructors
+    given:
+      - input: source('f1_raw', 'CONSTRUCTORS')
+        rows:
+          - {CONSTRUCTORID: '6', CONSTRUCTORREF: 'ferrari', NAME: 'Ferrari', NATIONALITY: 'Italian', URL: 'x'}
+          - {CONSTRUCTORID: '6', CONSTRUCTORREF: 'ferrari', NAME: 'Ferrari ', NATIONALITY: 'Italian', URL: 'x'}
+          - {CONSTRUCTORID: '7', CONSTRUCTORREF: 'mclaren', NAME: 'McLaren', NATIONALITY: 'British', URL: 'y'}
+    expect:
+      rows:
+        - {constructor_id: 6, constructor_name: 'Ferrari'}
+        - {constructor_id: 7, constructor_name: 'McLaren'}
+
+  - name: stg_f1__driver_standings_collapses_identical_snapshot_copies
+    description: >
+      Round 22 arrived twice with surrogate IDs 173207 and 73207. The copies are identical, so staging keeps the lowest ID
+      and one row per race and driver.
+    model: stg_f1__driver_standings
+    given:
+      - input: source('f1_raw', 'DRIVER_STANDINGS')
+        rows:
+          - {DRIVERSTANDINGSID: '173207', RACEID: '1142', DRIVERID: '1', POINTS: '208', POSITION: '7', POSITIONTEXT: '7', WINS: '2'}
+          - {DRIVERSTANDINGSID: '73207', RACEID: '1142', DRIVERID: '1', POINTS: '208', POSITION: '7', POSITIONTEXT: '7', WINS: '2'}
+          - {DRIVERSTANDINGSID: '73209', RACEID: '1142', DRIVERID: '4', POINTS: '62', POSITION: '9', POSITIONTEXT: '9', WINS: '0'}
+    expect:
+      rows:
+        - {driver_standings_id: 73207, race_id: 1142, driver_id: 1, points: 208}
+        - {driver_standings_id: 73209, race_id: 1142, driver_id: 4, points: 62}
+
+  - name: stg_f1__results_parses_fastest_lap_time_edge_cases
+    description: >
+      Fastest-lap parsing: a minute-and-seconds value, a sub-minute value, a value of ten minutes or more, and a
+      value that cannot be parsed. A blank or sentinel value is NULL. A seconds field with one digit is rejected
+      rather than guessed.
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'RESULTS')
+        rows:
+          - {RESULTID: '1', RACEID: '18', DRIVERID: '1', CONSTRUCTORID: '1', NUMBER: '22', GRID: '1', POSITION: '1', POSITIONTEXT: '1', POSITION_ORDER: '1', POINTS: '25', LAPS: '58', MILLISECONDS: '5690616', FASTESTLAP: '39', RANK: '2', FASTESTLAPTIME: '1:29.141', STATUSID: '1'}
+          - {RESULTID: '2', RACEID: '18', DRIVERID: '2', CONSTRUCTORID: '2', NUMBER: '3', GRID: '5', POSITION: '2', POSITIONTEXT: '2', POSITION_ORDER: '2', POINTS: '18', LAPS: '58', MILLISECONDS: '5696094', FASTESTLAP: '41', RANK: '3', FASTESTLAPTIME: '0:55.404', STATUSID: '1'}
+          - {RESULTID: '3', RACEID: '18', DRIVERID: '3', CONSTRUCTORID: '3', NUMBER: '7', GRID: '7', POSITION: '3', POSITIONTEXT: '3', POSITION_ORDER: '3', POINTS: '15', LAPS: '58', MILLISECONDS: '5698779', FASTESTLAP: '41', RANK: '5', FASTESTLAPTIME: '10:00.001', STATUSID: '1'}
+          - {RESULTID: '4', RACEID: '18', DRIVERID: '4', CONSTRUCTORID: '4', NUMBER: '9', GRID: '9', POSITION: '4', POSITIONTEXT: '4', POSITION_ORDER: '4', POINTS: '12', LAPS: '58', MILLISECONDS: '5700000', FASTESTLAP: '41', RANK: '6', FASTESTLAPTIME: '1:2.141', STATUSID: '1'}
+          - {RESULTID: '5', RACEID: '18', DRIVERID: '5', CONSTRUCTORID: '5', NUMBER: '10', GRID: '10', POSITION: '5', POSITIONTEXT: '5', POSITION_ORDER: '5', POINTS: '10', LAPS: '58', MILLISECONDS: '5701000', FASTESTLAP: '41', RANK: '7', FASTESTLAPTIME: '', STATUSID: '1'}
+          - {RESULTID: '6', RACEID: '18', DRIVERID: '6', CONSTRUCTORID: '6', NUMBER: '11', GRID: '11', POSITION: '6', POSITIONTEXT: '6', POSITION_ORDER: '6', POINTS: '8', LAPS: '58', MILLISECONDS: '5702000', FASTESTLAP: '41', RANK: '8', FASTESTLAPTIME: '\N', STATUSID: '1'}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 89141}
+        - {result_id: 2, fastest_lap_time_ms: 55404}
+        - {result_id: 3, fastest_lap_time_ms: 600001}
+        - {result_id: 4, fastest_lap_time_ms: null}
+        - {result_id: 5, fastest_lap_time_ms: null}
+        - {result_id: 6, fastest_lap_time_ms: null}

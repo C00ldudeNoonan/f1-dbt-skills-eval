@@ -1,0 +1,272 @@
+{
+  "run_id": "A_v2_1",
+  "task": 9,
+  "phase": "rebuild",
+  "suite": "v2",
+  "harness_build": {
+    "exit_code": 0,
+    "seconds": 37.3,
+    "log": "~/dbt-skill-eval/results/A_v2_1/grades/t09_rebuild_build.log"
+  },
+  "structural": {
+    "sources_point_at_raw_schema": true,
+    "counts": {
+      "models": 41,
+      "data_tests": 322,
+      "unit_tests": 17,
+      "snapshots": 1,
+      "seeds": 6,
+      "macros_in_project": 14,
+      "documented_models": 38
+    },
+    "fct_lap_times_incremental": true,
+    "fct_lap_times_unique_key": "race_id",
+    "snapshot_exists": true,
+    "snapshot_verstappen_versions": 2,
+    "snapshot_verstappen_current": 1,
+    "season_standings_derived_from_by_round": true,
+    "upstream_constructor_uniqueness_test": true,
+    "fct_stints_materialized": "incremental",
+    "orphan_result_in_fct_results": true,
+    "orphan_driver_in_dim_drivers": true,
+    "seeds": [
+      "constructor_points_exceptions",
+      "known_world_champions",
+      "points_systems",
+      "raw_schema_contract",
+      "vendor_b_driver_overrides",
+      "vendor_b_session_overrides"
+    ],
+    "upstream_standings_uniqueness_test": true,
+    "fct_results_access": "public",
+    "fct_results_group": "f1_analytics",
+    "dim_drivers_access": "public",
+    "dim_drivers_group": "f1_analytics",
+    "other_public_models": [],
+    "groups": [
+      "group.f1.f1_analytics"
+    ],
+    "semantic_models": [
+      "constructors",
+      "drivers",
+      "results"
+    ],
+    "metrics": {
+      "championship_points": "simple",
+      "podium_rate": "ratio",
+      "podiums": "simple",
+      "points_per_start": "ratio",
+      "race_starts": "simple",
+      "wins": "simple"
+    },
+    "missing_metrics": [],
+    "wrong_metric_types": [],
+    "time_spine": true,
+    "fct_results_contract": true,
+    "dim_drivers_versions": [
+      "1",
+      "2"
+    ],
+    "dim_drivers_latest_version": 2,
+    "dim_drivers_contracts": true,
+    "dim_drivers_v1_deprecation": "2027-01-01T00:00:00+00:00",
+    "unit_tests": [
+      "dim_driver_crosswalk_code_collision_and_weak_evidence",
+      "dim_drivers_v1_placeholder_names",
+      "dim_drivers_v2_placeholder_names",
+      "dim_session_crosswalk_double_header_accents_and_unmatched",
+      "fct_driver_race_pace_excludes_non_green_laps",
+      "fct_qualifying_best_time_and_gap",
+      "fct_results_classification_flags",
+      "fct_stints_boundaries_with_back_to_back_stops",
+      "fct_stints_splits_on_pit_laps",
+      "dim_drivers_placeholder_for_late_arriving_driver",
+      "int_drivers__profile_titles_only_for_complete_seasons",
+      "int_seasons__completion_requires_every_race",
+      "mart_alt_points_standings_countback_order",
+      "mart_alt_points_standings_scoring_and_countback",
+      "mart_teammate_head_to_head_counts",
+      "mart_vendor_result_discrepancies_rules",
+      "stg_ergast__results_parses_fastest_lap_time"
+    ]
+  },
+  "data_checks": {
+    "fct_results": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.fct_results",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 26760,
+      "actual_rows": 26760,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "dim_drivers": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.dim_drivers_v2",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 862,
+      "actual_rows": 862,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_driver_season_standings": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.mart_driver_season_standings",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 3192,
+      "actual_rows": 3192,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_constructor_season_pit_stops": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.mart_constructor_season_pit_stops",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 147,
+      "actual_rows": 147,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_qualifying": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.fct_qualifying",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 10494,
+      "actual_rows": 10494,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_teammate_head_to_head": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.mart_teammate_head_to_head",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 13478,
+      "actual_rows": 13478,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_driver_race_pace": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.fct_driver_race_pace",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 10868,
+      "actual_rows": 10868,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_lap_times": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.fct_lap_times",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 589081,
+      "actual_rows": 589081,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_stints": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.fct_stints",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 17106,
+      "actual_rows": 17106,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "fct_session_results": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.fct_session_results",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 27120,
+      "actual_rows": 27120,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_driver_standings_by_round": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.mart_driver_standings_by_round",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 34863,
+      "actual_rows": 34863,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_alt_points_standings": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.mart_alt_points_standings",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 3212,
+      "actual_rows": 3212,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "dim_driver_crosswalk": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.dim_driver_crosswalk",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 41,
+      "actual_rows": 41,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "dim_session_crosswalk": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.dim_session_crosswalk",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 167,
+      "actual_rows": 167,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "mart_vendor_result_discrepancies": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.mart_vendor_result_discrepancies",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 11,
+      "actual_rows": 11,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    },
+    "dim_drivers_v1": {
+      "relation": "ANALYTICS_DEV.F1_DBT_A_v2_1.dim_drivers",
+      "ok": true,
+      "missing_columns": [],
+      "expected_rows": 862,
+      "actual_rows": 862,
+      "duplicate_keys": 0,
+      "missing_rows": 0,
+      "extra_rows": 0,
+      "column_mismatches": {}
+    }
+  },
+  "data_score": "16/16"
+}

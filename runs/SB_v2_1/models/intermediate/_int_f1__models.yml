@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: int_season_status
+    description: >
+      One row per season: scheduled races, races with results, the latest completed round and
+      whether the season is complete (every race on the calendar has results). Drives both the
+      "as of latest completed round" standings and the rule that a championship only counts once
+      its season is complete.
+    columns:
+      - name: season
+        data_tests: [unique, not_null]
+      - name: last_completed_race_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_f1__races'), field: race_id}}
+  - name: int_driver_profiles
+    description: >
+      Shared logic for every version of the public `dim_drivers`: known drivers plus placeholder rows for
+      drivers referenced by feeds but missing from the drivers table, with career stats and championships.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: full_name
+        data_tests:
+          - not_null
+      - name: first_name
+        data_tests: [not_null]
+    data_tests:
+      - unique:
+          arguments: {column_name: driver_ref}
+  - name: int_driver_ids
+    description: Every driver_id referenced by any driver-keyed feed.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]

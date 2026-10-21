@@ -1,0 +1,7 @@
+config.env
+data/
+vendor/
+__pycache__/
+*.pyc
+.DS_Store
+runner/

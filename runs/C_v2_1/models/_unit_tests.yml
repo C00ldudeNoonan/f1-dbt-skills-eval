@@ -1,0 +1,880 @@
+version: 2
+
+unit_tests:
+  - name: stg_f1__qualifying_parses_session_times
+    description: >
+      Session times come as m:ss.sss, mm:ss.sss, the \N sentinel or an empty
+      string. Missing values must become null, not 0.
+    model: stg_f1__qualifying
+    given:
+      - input: source('f1_raw', 'qualifying')
+        rows:
+          - {qualifyid: '1', raceid: '1', driverid: '1', constructorid: '1', number: '44', position: '1', q1: '1:23.456', q2: '1:22.001', q3: ''}
+          - {qualifyid: '2', raceid: '1', driverid: '2', constructorid: '1', number: '\N', position: '2', q1: '16:42.640', q2: '\N', q3: ' '}
+    expect:
+      rows:
+        - {qualify_id: 1, car_number: 44, q1_ms: 83456, q2_ms: 82001, q3_ms: null}
+        - {qualify_id: 2, car_number: null, q1_ms: 1002640, q2_ms: null, q3_ms: null}
+
+  - name: stg_f1__results_classification
+    description: >
+      finish_position comes from the classification text, so classified cars
+      with a \N raw position still get a position, and retirements get null.
+      The regex-guarded cast must not turn letters like 'E' into 0.
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', position_order: '1', positiontext: '1', position: '1', fastestlaptime: '1:27.452'}
+          - {resultid: '2', raceid: '1', driverid: '2', position_order: '2', positiontext: '11', position: '\N', fastestlaptime: '\N'}
+          - {resultid: '3', raceid: '1', driverid: '3', position_order: '3', positiontext: 'E', position: '\N', fastestlaptime: '\N'}
+          - {resultid: '4', raceid: '1', driverid: '4', position_order: '4', positiontext: 'R', position: '\N', fastestlaptime: '1:05.003'}
+    expect:
+      rows:
+        - {result_id: 1, finish_position: 1, fastest_lap_time_ms: 87452}
+        - {result_id: 2, finish_position: 11, fastest_lap_time_ms: null}
+        - {result_id: 3, finish_position: null, fastest_lap_time_ms: null}
+        - {result_id: 4, finish_position: null, fastest_lap_time_ms: 65003}
+
+  - name: fct_qualifying_best_time_and_gap_to_pole
+    description: >
+      Best time is the fastest non-null session. The gap is measured to the
+      fastest best time in the race; drivers with no time get nulls.
+    model: fct_qualifying
+    given:
+      - input: ref('stg_f1__qualifying')
+        rows:
+          - {qualify_id: 1, race_id: 1, driver_id: 1, q1_ms: 81000, q2_ms: 80400, q3_ms: null}
+          - {qualify_id: 2, race_id: 1, driver_id: 2, q1_ms: 81500, q2_ms: 80900, q3_ms: 80000}
+          - {qualify_id: 3, race_id: 1, driver_id: 3, q1_ms: null, q2_ms: null, q3_ms: null}
+      - input: ref('int_f1__race_calendar')
+        rows:
+          - {race_id: 1, season: 2024, round: 1}
+    expect:
+      rows:
+        - {qualify_id: 1, best_time_ms: 80400, gap_to_pole_ms: 400, gap_to_pole_pct: 0.5}
+        - {qualify_id: 2, best_time_ms: 80000, gap_to_pole_ms: 0, gap_to_pole_pct: 0}
+        - {qualify_id: 3, best_time_ms: null, gap_to_pole_ms: null, gap_to_pole_pct: null}
+
+  - name: fct_driver_race_pace_green_lap_rules
+    description: >
+      Lap 1, the pit lap, the lap after it and laps slower than 130% of the
+      race's fastest lap are excluded; a lap at exactly 130% is kept. A driver
+      with no green laps gets no row.
+    model: fct_driver_race_pace
+    given:
+      - input: ref('stg_f1__lap_times')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, lap_time_ms: 90000}
+          - {race_id: 1, driver_id: 1, lap: 2, lap_time_ms: 80000}
+          - {race_id: 1, driver_id: 1, lap: 3, lap_time_ms: 81000}
+          - {race_id: 1, driver_id: 1, lap: 4, lap_time_ms: 82000}
+          - {race_id: 1, driver_id: 1, lap: 5, lap_time_ms: 104000}
+          - {race_id: 1, driver_id: 1, lap: 6, lap_time_ms: 104001}
+          - {race_id: 1, driver_id: 2, lap: 1, lap_time_ms: 85000}
+      - input: ref('stg_f1__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 3}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, green_laps: 2, median_green_lap_ms: 92000}
+
+  - name: mart_teammate_head_to_head_both_orderings
+    description: >
+      Uses each driver's best position_order per race (shared drives) and
+      counts both orderings. The constructor remap for qualifying is tested on
+      int_f1__qualifying_entries.
+    model: mart_teammate_head_to_head
+    given:
+      - input: ref('fct_results')
+        rows:
+          - {season: 2015, race_id: 10, constructor_id: 1, driver_id: 1, position_order: 1}
+          - {season: 2015, race_id: 10, constructor_id: 1, driver_id: 2, position_order: 3}
+          - {season: 2015, race_id: 11, constructor_id: 1, driver_id: 1, position_order: 5}
+          - {season: 2015, race_id: 11, constructor_id: 1, driver_id: 2, position_order: 2}
+          - {season: 2015, race_id: 12, constructor_id: 1, driver_id: 1, position_order: 7}
+          - {season: 2015, race_id: 12, constructor_id: 1, driver_id: 1, position_order: 4}
+          - {season: 2015, race_id: 12, constructor_id: 1, driver_id: 2, position_order: 6}
+      - input: ref('int_f1__qualifying_entries')
+        rows:
+          - {season: 2015, race_id: 10, constructor_id: 1, driver_id: 1, qualifying_position: 2}
+          - {season: 2015, race_id: 10, constructor_id: 1, driver_id: 2, qualifying_position: 1}
+          - {season: 2015, race_id: 11, constructor_id: 1, driver_id: 1, qualifying_position: 1}
+          - {season: 2015, race_id: 11, constructor_id: 1, driver_id: 2, qualifying_position: 3}
+    expect:
+      rows:
+        - {season: 2015, constructor_id: 1, driver_id: 1, teammate_id: 2, races_together: 3, races_ahead: 2, qualifying_together: 2, qualifying_ahead: 1}
+        - {season: 2015, constructor_id: 1, driver_id: 2, teammate_id: 1, races_together: 3, races_ahead: 1, qualifying_together: 2, qualifying_ahead: 1}
+
+  - name: mart_driver_standings_by_round_exclusions
+    description: >
+      Every completed round gets a row per driver in the official standings.
+      An excluded driver ('D') keeps their row with a null championship
+      position. Rounds without results are left out.
+    model: mart_driver_standings_by_round
+    given:
+      - input: ref('int_f1__race_calendar')
+        rows:
+          - {race_id: 100, season: 1997, round: 16, is_completed: true, is_latest_completed_round: false, is_season_complete: true}
+          - {race_id: 101, season: 1997, round: 17, is_completed: true, is_latest_completed_round: true, is_season_complete: true}
+          - {race_id: 102, season: 1997, round: 18, is_completed: false, is_latest_completed_round: false, is_season_complete: true}
+      - input: ref('stg_f1__driver_standings')
+        rows:
+          - {race_id: 100, driver_id: 30, position: 1, position_text: '1', points: 78, wins: 5}
+          - {race_id: 101, driver_id: 35, position: 1, position_text: '1', points: 81, wins: 7}
+          - {race_id: 101, driver_id: 30, position: 26, position_text: 'D', points: 78, wins: 5}
+          - {race_id: 102, driver_id: 35, position: 1, position_text: '1', points: 91, wins: 8}
+    expect:
+      rows:
+        - {season: 1997, round: 16, driver_id: 30, championship_position: 1, points: 78}
+        - {season: 1997, round: 17, driver_id: 35, championship_position: 1, points: 81}
+        - {season: 1997, round: 17, driver_id: 30, championship_position: null, points: 78}
+
+  - name: mart_driver_season_standings_latest_round_only
+    description: The season mart is the latest completed round of the by-round standings.
+    model: mart_driver_season_standings
+    given:
+      - input: ref('mart_driver_standings_by_round')
+        rows:
+          - {season: 1997, round: 16, race_id: 100, driver_id: 30, championship_position: 1, points: 78, is_latest_completed_round: false}
+          - {season: 1997, round: 17, race_id: 101, driver_id: 35, championship_position: 1, points: 81, is_latest_completed_round: true}
+          - {season: 1997, round: 17, race_id: 101, driver_id: 30, championship_position: null, points: 78, is_latest_completed_round: true}
+    expect:
+      rows:
+        - {season: 1997, driver_id: 35, championship_position: 1, points: 81, as_of_round: 17, as_of_race_id: 101}
+        - {season: 1997, driver_id: 30, championship_position: null, points: 78, as_of_round: 17, as_of_race_id: 101}
+
+  - name: driver_profiles_titles_only_for_complete_seasons
+    description: >
+      A championship counts only once its season is complete. Starts count
+      distinct races; podiums count every podium classification.
+    model: int_f1__driver_profiles
+    given:
+      - input: ref('fct_session_results')
+        rows: []
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1}
+      - input: ref('fct_results')
+        rows:
+          - {driver_id: 1, race_id: 1, is_win: true, is_podium: true}
+          - {driver_id: 1, race_id: 2, is_win: false, is_podium: true}
+          - {driver_id: 1, race_id: 2, is_win: false, is_podium: true}
+          - {driver_id: 1, race_id: 3, is_win: false, is_podium: false}
+      - input: ref('mon_late_arriving_drivers')
+        rows: []
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {driver_id: 1, season: 2023, championship_position: 1, is_season_complete: true}
+          - {driver_id: 1, season: 2024, championship_position: 1, is_season_complete: false}
+    expect:
+      rows:
+        - {driver_id: 1, career_starts: 3, career_wins: 1, career_podiums: 3, world_championships: 1}
+
+  - name: fct_lap_times_incremental_reloads_new_and_recent_races
+    description: >
+      On an incremental run, races not yet loaded are added and the two most
+      recent loaded races (by season and round, not race id) are reloaded to
+      pick up corrections. Older loaded races are left alone.
+    model: fct_lap_times
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      # `this` is given as typed SQL so the test doesn't need fct_lap_times to
+      # exist already (fresh prod/CI schemas).
+      - input: this
+        format: sql
+        rows: |
+          select 10::integer as race_id, 2024::integer as season, 1::integer as round, 1::integer as driver_id, 1::integer as lap, null::integer as position, 90000::integer as lap_time_ms, '2024-01-01'::timestamp_ntz as loaded_at
+          union all select 30, 2024, 2, 1, 1, null, 90000, '2024-01-01'::timestamp_ntz
+          union all select 20, 2024, 3, 1, 1, null, 90000, '2024-01-01'::timestamp_ntz
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 10, season: 2024, round: 1}
+          - {race_id: 30, season: 2024, round: 2}
+          - {race_id: 20, season: 2024, round: 3}
+          - {race_id: 40, season: 2024, round: 4}
+      - input: ref('stg_f1__lap_times')
+        rows:
+          - {race_id: 10, driver_id: 1, lap: 1, lap_time_ms: 90000}
+          - {race_id: 30, driver_id: 1, lap: 1, lap_time_ms: 89000}
+          - {race_id: 20, driver_id: 1, lap: 1, lap_time_ms: 91000}
+          - {race_id: 40, driver_id: 1, lap: 1, lap_time_ms: 92000}
+    expect:
+      rows:
+        - {race_id: 30, season: 2024, round: 2, driver_id: 1, lap: 1, lap_time_ms: 89000}
+        - {race_id: 20, season: 2024, round: 3, driver_id: 1, lap: 1, lap_time_ms: 91000}
+        - {race_id: 40, season: 2024, round: 4, driver_id: 1, lap: 1, lap_time_ms: 92000}
+
+  - name: fct_stints_boundaries
+    description: >
+      A stop on lap L ends the stint at L; the next starts at L + 1; a stop on
+      the final lap leaves no empty stint; a driver who never pits has one
+      stint; the average covers every lap in the stint.
+    model: fct_stints
+    given:
+      - input: ref('fct_lap_times')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, lap_time_ms: 100000, loaded_at: '2024-01-01 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 2, lap_time_ms: 90000, loaded_at: '2024-01-01 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 3, lap_time_ms: 95000, loaded_at: '2024-01-01 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 4, lap_time_ms: 91000, loaded_at: '2024-01-01 00:00:00'}
+          - {race_id: 1, driver_id: 1, lap: 5, lap_time_ms: 92000, loaded_at: '2024-01-01 00:00:00'}
+          - {race_id: 1, driver_id: 2, lap: 1, lap_time_ms: 101000, loaded_at: '2024-01-01 00:00:00'}
+          - {race_id: 1, driver_id: 2, lap: 2, lap_time_ms: 99000, loaded_at: '2024-01-01 00:00:00'}
+          - {race_id: 2, driver_id: 1, lap: 1, lap_time_ms: 80000, loaded_at: '2024-01-01 00:00:00'}
+      - input: ref('stg_f1__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 3}
+          - {race_id: 1, driver_id: 1, lap: 5}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 1, stint_number: 1, start_lap: 1, end_lap: 3, stint_laps: 3, avg_lap_time_ms: 95000}
+        - {race_id: 1, driver_id: 1, stint_number: 2, start_lap: 4, end_lap: 5, stint_laps: 2, avg_lap_time_ms: 91500}
+        - {race_id: 1, driver_id: 2, stint_number: 1, start_lap: 1, end_lap: 2, stint_laps: 2, avg_lap_time_ms: 100000}
+
+  - name: fct_stints_incremental_rebuilds_reloaded_races_only
+    description: >
+      On an incremental run, only races whose laps were reloaded after the
+      stints were built, or pit-stop races with no stints yet, are rebuilt.
+    model: fct_stints
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      # `this` is given as typed SQL so the test doesn't need fct_stints to
+      # exist already (fresh prod/CI schemas).
+      - input: this
+        format: sql
+        rows: |
+          select 1::integer as race_id, 1::integer as driver_id, 1::integer as stint_number, 1::integer as start_lap, 1::integer as end_lap, 1::integer as stint_laps, 80000::number(14, 3) as avg_lap_time_ms, '2024-01-01 00:00:00'::timestamp_ntz as laps_loaded_at
+          union all select 2, 1, 1, 1, 1, 1, 81000, '2024-01-01 00:00:00'::timestamp_ntz
+      - input: ref('fct_lap_times')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, lap_time_ms: 80000, loaded_at: '2024-01-01 00:00:00'}
+          - {race_id: 2, driver_id: 1, lap: 1, lap_time_ms: 81000, loaded_at: '2024-02-01 00:00:00'}
+          - {race_id: 3, driver_id: 1, lap: 1, lap_time_ms: 82000, loaded_at: '2024-02-01 00:00:00'}
+      - input: ref('stg_f1__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 9, lap: 1}
+          - {race_id: 2, driver_id: 9, lap: 1}
+          - {race_id: 3, driver_id: 9, lap: 1}
+    expect:
+      rows:
+        - {race_id: 2, driver_id: 1, stint_number: 1, avg_lap_time_ms: 81000}
+        - {race_id: 3, driver_id: 1, stint_number: 1, avg_lap_time_ms: 82000}
+
+  - name: driver_profiles_placeholder_for_late_arriving_driver
+    description: >
+      A result for a driver whose record hasn't arrived yet keeps a placeholder
+      row with career stats. A known driver shows real values and current_number.
+    model: int_f1__driver_profiles
+    given:
+      - input: ref('fct_session_results')
+        rows: []
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: max_verstappen, forename: Max, surname: Verstappen, full_name: Max Verstappen, permanent_number: 1}
+      - input: ref('mon_late_arriving_drivers')
+        rows:
+          - {driver_id: 999}
+      - input: ref('fct_results')
+        rows:
+          - {driver_id: 1, race_id: 1, is_win: true, is_podium: true}
+          - {driver_id: 999, race_id: 1, is_win: false, is_podium: true}
+      - input: ref('mart_driver_season_standings')
+        rows: []
+    expect:
+      rows:
+        - {driver_id: 1, driver_ref: max_verstappen, full_name: Max Verstappen, first_name: Max, last_name: Verstappen, current_number: 1, career_starts: 1, career_podiums: 1, is_placeholder: false}
+        - {driver_id: 999, driver_ref: unknown_driver_999, full_name: Unknown driver (id 999), first_name: Unknown, last_name: driver (id 999), current_number: null, career_starts: 1, career_podiums: 1, is_placeholder: true}
+
+  - name: mon_late_arriving_drivers_counts_orphans
+    description: >
+      Only driver_ids missing from drivers are listed, with counts per kind
+      of fact row.
+    model: mon_late_arriving_drivers
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1}
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 1, race_date: 2024-11-30}
+          - {race_id: 2, race_date: 2024-12-08}
+      - input: ref('stg_f1__results')
+        rows:
+          - {race_id: 1, driver_id: 1}
+          - {race_id: 1, driver_id: 999}
+          - {race_id: 2, driver_id: 999}
+      - input: ref('stg_f1__sprint_results')
+        rows: []
+      - input: ref('stg_f1__qualifying')
+        rows:
+          - {race_id: 2, driver_id: 999}
+      - input: ref('stg_f1__driver_standings')
+        rows: []
+      - input: ref('stg_f1__pit_stops')
+        rows: []
+      - input: ref('stg_f1__lap_times')
+        rows:
+          - {race_id: 2, driver_id: 999}
+          - {race_id: 2, driver_id: 1}
+    expect:
+      rows:
+        - {driver_id: 999, orphan_result_count: 2, orphan_qualifying_count: 1, orphan_lap_count: 1, orphan_standing_count: 0, first_race_date: 2024-11-30, last_race_date: 2024-12-08}
+
+  - name: driver_profiles_sprint_wins_kept_separate
+    description: Sprint wins go to career_sprint_wins and never into career_wins.
+    model: int_f1__driver_profiles
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1}
+      - input: ref('mon_late_arriving_drivers')
+        rows: []
+      - input: ref('fct_results')
+        rows:
+          - {driver_id: 1, race_id: 1, is_win: true, is_podium: true}
+      - input: ref('fct_session_results')
+        rows:
+          - {driver_id: 1, race_id: 1, session_type: race, is_win: true}
+          - {driver_id: 1, race_id: 1, session_type: sprint, is_win: true}
+          - {driver_id: 1, race_id: 2, session_type: sprint, is_win: true}
+          - {driver_id: 1, race_id: 3, session_type: sprint, is_win: false}
+      - input: ref('mart_driver_season_standings')
+        rows: []
+    expect:
+      rows:
+        - {driver_id: 1, career_wins: 1, career_sprint_wins: 2}
+
+  - name: mart_alt_points_scoring_and_countback
+    description: >
+      Only classified finishers score, by position_order. Each entry scores on
+      its own (shared drives). A driver with no points still gets a row. Ties
+      on points are broken by countback, then lowest driver_id. Every system
+      in the seed is scored without SQL changes.
+    model: mart_alt_points_standings_by_system
+    given:
+      - input: ref('points_systems')
+        rows:
+          - {points_system: sys_a, position_order: 1, points: 10}
+          - {points_system: sys_a, position_order: 2, points: 6}
+          - {points_system: sys_a, position_order: 3, points: 4}
+          - {points_system: sys_b, position_order: 1, points: 1}
+      - input: ref('fct_results')
+        rows:
+          # Driver 1: one win = 10 (sys_a)
+          - {season: 2000, race_id: 1, driver_id: 1, position_order: 1, finish_position: 1}
+          # Driver 2: 2nd + 3rd = 10 (sys_a), loses countback to driver 1
+          - {season: 2000, race_id: 2, driver_id: 2, position_order: 2, finish_position: 2}
+          - {season: 2000, race_id: 3, driver_id: 2, position_order: 3, finish_position: 3}
+          # Driver 3: shared drive, two classified entries in one race score separately: 6 + 4
+          - {season: 2000, race_id: 4, driver_id: 3, position_order: 2, finish_position: 2}
+          - {season: 2000, race_id: 4, driver_id: 3, position_order: 3, finish_position: 3}
+          # Driver 4: position_order 1 but not classified scores nothing
+          - {season: 2000, race_id: 5, driver_id: 4, position_order: 1, finish_position: null}
+          # Driver 5: outside the points, ties driver 4 on everything and ranks behind on driver_id
+          - {season: 2000, race_id: 1, driver_id: 5, position_order: 12, finish_position: 12}
+    expect:
+      rows:
+        - {points_system: sys_a, season: 2000, driver_id: 1, alt_points: 10, alt_position: 1, alt_wins: 1}
+        - {points_system: sys_a, season: 2000, driver_id: 2, alt_points: 10, alt_position: 2, alt_wins: 0}
+        - {points_system: sys_a, season: 2000, driver_id: 3, alt_points: 10, alt_position: 3, alt_wins: 0}
+        - {points_system: sys_a, season: 2000, driver_id: 4, alt_points: 0, alt_position: 4, alt_wins: 0}
+        - {points_system: sys_a, season: 2000, driver_id: 5, alt_points: 0, alt_position: 5, alt_wins: 0}
+        - {points_system: sys_b, season: 2000, driver_id: 1, alt_points: 1, alt_position: 1, alt_wins: 1}
+        - {points_system: sys_b, season: 2000, driver_id: 2, alt_points: 0, alt_position: 2, alt_wins: 0}
+        - {points_system: sys_b, season: 2000, driver_id: 3, alt_points: 0, alt_position: 3, alt_wins: 0}
+        - {points_system: sys_b, season: 2000, driver_id: 4, alt_points: 0, alt_position: 4, alt_wins: 0}
+        - {points_system: sys_b, season: 2000, driver_id: 5, alt_points: 0, alt_position: 5, alt_wins: 0}
+
+  - name: stg_f1__constructors_drops_resent_duplicate
+    description: >
+      Reproduces the 2026-10-21 incident: the vendor resent Ferrari
+      (constructor 6) with a trailing space in the name. Staging must keep a
+      single, cleaned row, otherwise every Ferrari result fans out in the
+      constructor join and wins and points double.
+    model: stg_f1__constructors
+    given:
+      - input: source('f1_raw', 'constructors')
+        rows:
+          - {constructorid: '6', constructorref: ferrari, name: Ferrari, nationality: Italian}
+          - {constructorid: '6', constructorref: ferrari, name: 'Ferrari ', nationality: Italian}
+          - {constructorid: '9', constructorref: red_bull, name: Red Bull, nationality: Austrian}
+    expect:
+      rows:
+        - {constructor_id: 6, constructor_name: Ferrari}
+        - {constructor_id: 9, constructor_name: Red Bull}
+
+  - name: stg_f1__driver_standings_drops_replayed_batch
+    description: >
+      Reproduces the 2026-10-21 replay: standings for a race were resent
+      under new ids (+100000). Staging keeps the original row per race and driver.
+    model: stg_f1__driver_standings
+    given:
+      - input: source('f1_raw', 'driver_standings')
+        rows:
+          - {driverstandingsid: '73201', raceid: '1142', driverid: '830', points: '403', position: '1', positiontext: '1', wins: '8'}
+          - {driverstandingsid: '173201', raceid: '1142', driverid: '830', points: '403', position: '1', positiontext: '1', wins: '8'}
+          - {driverstandingsid: '73202', raceid: '1142', driverid: '846', points: '340', position: '2', positiontext: '2', wins: '3'}
+    expect:
+      rows:
+        - {driver_standings_id: 73201, race_id: 1142, driver_id: 830, points: 403}
+        - {driver_standings_id: 73202, race_id: 1142, driver_id: 846, points: 340}
+
+  # --- dim_drivers versions -------------------------------------------------
+
+  - name: dim_drivers_v1_keeps_full_name_for_placeholders
+    description: Version 1 exposes full_name, including for placeholder rows.
+    model: dim_drivers
+    versions:
+      include: [1]
+    given:
+      - input: ref('int_f1__driver_profiles')
+        rows:
+          - {driver_id: 1, driver_ref: max_verstappen, full_name: Max Verstappen, first_name: Max, last_name: Verstappen, is_placeholder: false}
+          - {driver_id: 999, driver_ref: unknown_driver_999, full_name: Unknown driver (id 999), first_name: Unknown, last_name: driver (id 999), is_placeholder: true}
+    expect:
+      rows:
+        - {driver_id: 1, full_name: Max Verstappen, is_placeholder: false}
+        - {driver_id: 999, full_name: Unknown driver (id 999), is_placeholder: true}
+
+  - name: dim_drivers_v2_splits_names_for_placeholders
+    description: Version 2 exposes first_name and last_name, including for placeholder rows.
+    model: dim_drivers
+    versions:
+      include: [2]
+    given:
+      - input: ref('int_f1__driver_profiles')
+        rows:
+          - {driver_id: 1, driver_ref: max_verstappen, full_name: Max Verstappen, first_name: Max, last_name: Verstappen, is_placeholder: false}
+          - {driver_id: 999, driver_ref: unknown_driver_999, full_name: Unknown driver (id 999), first_name: Unknown, last_name: driver (id 999), is_placeholder: true}
+    expect:
+      rows:
+        - {driver_id: 1, first_name: Max, last_name: Verstappen, is_placeholder: false}
+        - {driver_id: 999, first_name: Unknown, last_name: driver (id 999), is_placeholder: true}
+
+  # --- (a) fastest-lap time parsing -----------------------------------------
+
+  - name: stg_f1__results_fastest_lap_time_parsing
+    description: >
+      fastest_lap_time_ms converts the vendor's lap time text to integer
+      milliseconds. m:ss.sss and mm:ss.sss both parse, including the minute
+      rollover. Missing values (\N, empty string, whitespace) and malformed
+      text become null rather than 0 or an error.
+    model: stg_f1__results
+    given:
+      - input: source('f1_raw', 'results')
+        rows:
+          - {resultid: '1', raceid: '1', driverid: '1', position_order: '1', positiontext: '1', fastestlaptime: '1:27.452'}
+          - {resultid: '2', raceid: '1', driverid: '2', position_order: '2', positiontext: '2', fastestlaptime: '0:59.999'}
+          - {resultid: '3', raceid: '1', driverid: '3', position_order: '3', positiontext: '3', fastestlaptime: '10:01.001'}
+          - {resultid: '4', raceid: '1', driverid: '4', position_order: '4', positiontext: '4', fastestlaptime: ' 1:30.000 '}
+          - {resultid: '5', raceid: '1', driverid: '5', position_order: '5', positiontext: '5', fastestlaptime: '\N'}
+          - {resultid: '6', raceid: '1', driverid: '6', position_order: '6', positiontext: '6', fastestlaptime: ''}
+          - {resultid: '7', raceid: '1', driverid: '7', position_order: '7', positiontext: 'R', fastestlaptime: 'DNF'}
+    expect:
+      rows:
+        - {result_id: 1, fastest_lap_time_ms: 87452}
+        - {result_id: 2, fastest_lap_time_ms: 59999}
+        - {result_id: 3, fastest_lap_time_ms: 601001}
+        - {result_id: 4, fastest_lap_time_ms: 90000}
+        - {result_id: 5, fastest_lap_time_ms: null}
+        - {result_id: 6, fastest_lap_time_ms: null}
+        - {result_id: 7, fastest_lap_time_ms: null}
+
+  # --- (b) a championship only counts once the season is complete ----------
+
+  - name: int_f1__race_calendar_season_complete_only_when_every_race_has_results
+    description: >
+      A season is complete only when every race on its calendar has results.
+      2024 has an unrun final round, so it's incomplete even though its earlier
+      races have results. The latest completed round is the highest round
+      with results. dim_drivers only counts titles from complete seasons
+      (see driver_profiles_titles_only_for_complete_seasons).
+    model: int_f1__race_calendar
+    given:
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 1, season: 2023, round: 1}
+          - {race_id: 2, season: 2023, round: 2}
+          - {race_id: 3, season: 2024, round: 1}
+          - {race_id: 4, season: 2024, round: 2}
+          - {race_id: 5, season: 2024, round: 3}
+      - input: ref('stg_f1__results')
+        rows:
+          - {race_id: 1}
+          - {race_id: 2}
+          - {race_id: 3}
+          - {race_id: 4}
+    expect:
+      rows:
+        - {race_id: 1, is_completed: true, is_season_complete: true, is_latest_completed_round: false}
+        - {race_id: 2, is_completed: true, is_season_complete: true, is_latest_completed_round: true}
+        - {race_id: 3, is_completed: true, is_season_complete: false, is_latest_completed_round: false}
+        - {race_id: 4, is_completed: true, is_season_complete: false, is_latest_completed_round: true}
+        - {race_id: 5, is_completed: false, is_season_complete: false, is_latest_completed_round: false}
+
+  # --- (d) alt-points countback tie-break -----------------------------------
+
+  - name: mart_alt_points_by_system_countback_deep_tie_break
+    description: >
+      Four drivers finish level on 43 points under fia_2010. Driver 20 beats
+      driver 10 on 2nd places (both have one win). Driver 40 beats driver 30 on
+      7th places (both have no wins and two 2nds, and nothing in 3rd to 6th).
+      Drivers 50 and 60 score nothing and are identical on countback, so the
+      lower driver_id ranks first. Each tie-break goes against driver_id order,
+      so the result proves countback and not the final fallback.
+    model: mart_alt_points_standings_by_system
+    given:
+      - input: ref('points_systems')
+        rows:
+          - {points_system: fia_2010, position_order: 1, points: 25}
+          - {points_system: fia_2010, position_order: 2, points: 18}
+          - {points_system: fia_2010, position_order: 3, points: 15}
+          - {points_system: fia_2010, position_order: 4, points: 12}
+          - {points_system: fia_2010, position_order: 5, points: 10}
+          - {points_system: fia_2010, position_order: 6, points: 8}
+          - {points_system: fia_2010, position_order: 7, points: 6}
+          - {points_system: fia_2010, position_order: 8, points: 4}
+          - {points_system: fia_2010, position_order: 9, points: 2}
+          - {points_system: fia_2010, position_order: 10, points: 1}
+      - input: ref('fct_results')
+        rows:
+          # driver 20: P1 + P2 = 43 (1 win, one 2nd)
+          - {season: 2000, race_id: 1, driver_id: 20, position_order: 1, finish_position: 1}
+          - {season: 2000, race_id: 2, driver_id: 20, position_order: 2, finish_position: 2}
+          # driver 10: P1 + P3 + P9 + P10 = 43 (1 win, no 2nds)
+          - {season: 2000, race_id: 3, driver_id: 10, position_order: 1, finish_position: 1}
+          - {season: 2000, race_id: 4, driver_id: 10, position_order: 3, finish_position: 3}
+          - {season: 2000, race_id: 5, driver_id: 10, position_order: 9, finish_position: 9}
+          - {season: 2000, race_id: 6, driver_id: 10, position_order: 10, finish_position: 10}
+          # driver 30: P2 + P2 + P8 + P9 + P10 = 43 (no wins, two 2nds, no 7th)
+          - {season: 2000, race_id: 1, driver_id: 30, position_order: 2, finish_position: 2}
+          - {season: 2000, race_id: 3, driver_id: 30, position_order: 2, finish_position: 2}
+          - {season: 2000, race_id: 4, driver_id: 30, position_order: 8, finish_position: 8}
+          - {season: 2000, race_id: 2, driver_id: 30, position_order: 9, finish_position: 9}
+          - {season: 2000, race_id: 5, driver_id: 30, position_order: 10, finish_position: 10}
+          # driver 40: P2 + P2 + P7 + P10 = 43 (no wins, two 2nds, one 7th)
+          - {season: 2000, race_id: 4, driver_id: 40, position_order: 2, finish_position: 2}
+          - {season: 2000, race_id: 5, driver_id: 40, position_order: 2, finish_position: 2}
+          - {season: 2000, race_id: 6, driver_id: 40, position_order: 7, finish_position: 7}
+          - {season: 2000, race_id: 1, driver_id: 40, position_order: 10, finish_position: 10}
+          # drivers 60 and 50: no points, identical countback (listed 60 first on purpose)
+          - {season: 2000, race_id: 1, driver_id: 60, position_order: 15, finish_position: 15}
+          - {season: 2000, race_id: 1, driver_id: 50, position_order: 16, finish_position: 16}
+    expect:
+      rows:
+        - {points_system: fia_2010, season: 2000, driver_id: 20, alt_points: 43, alt_position: 1}
+        - {points_system: fia_2010, season: 2000, driver_id: 10, alt_points: 43, alt_position: 2}
+        - {points_system: fia_2010, season: 2000, driver_id: 40, alt_points: 43, alt_position: 3}
+        - {points_system: fia_2010, season: 2000, driver_id: 30, alt_points: 43, alt_position: 4}
+        - {points_system: fia_2010, season: 2000, driver_id: 50, alt_points: 0, alt_position: 5}
+        - {points_system: fia_2010, season: 2000, driver_id: 60, alt_points: 0, alt_position: 6}
+
+  # --- Vendor B crosswalks and discrepancies --------------------------------
+
+  - name: dim_driver_crosswalk_matching_rules
+    description: >
+      K1: two of our drivers share the same grid slot (the Qatar 2024 case).
+      Identity signals pick driver 9001. K2: a nickname ('Alex' vs
+      'Alexander') still matches on code, surname and evidence. K3: identity
+      and evidence tie between two candidates, so it's left unmatched and the
+      build would fail. K4: the only candidate disagrees in every session,
+      so it's unmatched. K5: an override row wins over everything.
+    model: dim_driver_crosswalk
+    given:
+      - input: ref('stg_vendor_b__drivers')
+        rows:
+          - {driver_key: K1, full_name: RESERVE Sam, surname: RESERVE, forename: Sam, driver_code: RES, racing_number: 50}
+          - {driver_key: K2, full_name: ALBON Alex, surname: ALBON, forename: Alex, driver_code: ALB, racing_number: 23}
+          - {driver_key: K3, full_name: TWIN Ann, surname: TWIN, forename: Ann, driver_code: TWN, racing_number: 7}
+          - {driver_key: K4, full_name: WRONG Bob, surname: WRONG, forename: Bob, driver_code: WRO, racing_number: 8}
+          - {driver_key: K5, full_name: MANUAL Max, surname: MANUAL, forename: Max, driver_code: MAN, racing_number: 9}
+      - input: ref('vendor_b_driver_overrides')
+        rows:
+          - {driver_key: K5, driver_id: 500, reason: test}
+      - input: ref('dim_session_crosswalk')
+        rows:
+          - {session_key: 1, race_id: 100, session_type: race}
+          - {session_key: 2, race_id: 101, session_type: race}
+      - input: ref('stg_vendor_b__results')
+        rows:
+          - {session_key: 1, driver_key: K1, grid: 20, finish_position: null}
+          - {session_key: 1, driver_key: K2, grid: 5, finish_position: 4}
+          - {session_key: 2, driver_key: K2, grid: 6, finish_position: 3}
+          - {session_key: 1, driver_key: K3, grid: 9, finish_position: 9}
+          - {session_key: 1, driver_key: K4, grid: 1, finish_position: 1}
+          - {session_key: 2, driver_key: K4, grid: 2, finish_position: 2}
+      - input: ref('fct_session_results')
+        rows:
+          - {race_id: 100, session_type: race, driver_id: 839, grid: 20, finish_position: null}
+          - {race_id: 100, session_type: race, driver_id: 9001, grid: 20, finish_position: null}
+          - {race_id: 100, session_type: race, driver_id: 848, grid: 5, finish_position: 4}
+          - {race_id: 101, session_type: race, driver_id: 848, grid: 6, finish_position: 3}
+          - {race_id: 100, session_type: race, driver_id: 301, grid: 9, finish_position: 9}
+          - {race_id: 100, session_type: race, driver_id: 302, grid: 9, finish_position: 9}
+          - {race_id: 100, session_type: race, driver_id: 400, grid: 15, finish_position: 15}
+          - {race_id: 101, session_type: race, driver_id: 400, grid: 16, finish_position: 16}
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 839, driver_code: OCO, forename: Esteban, surname: Ocon, permanent_number: 31}
+          - {driver_id: 9001, driver_code: RES, forename: Sam, surname: Reserve, permanent_number: 50}
+          - {driver_id: 848, driver_code: ALB, forename: Alexander, surname: Albon, permanent_number: 23}
+          - {driver_id: 301, driver_code: TWN, forename: Ann, surname: Twin, permanent_number: 7}
+          - {driver_id: 302, driver_code: TWN, forename: Ann, surname: Twin, permanent_number: 7}
+          - {driver_id: 400, driver_code: WRO, forename: Bob, surname: Wrong, permanent_number: 8}
+    expect:
+      rows:
+        - {driver_key: K1, driver_id: 9001, match_method: automatic}
+        - {driver_key: K2, driver_id: 848, match_method: automatic}
+        - {driver_key: K3, driver_id: null, match_method: unmatched}
+        - {driver_key: K4, driver_id: null, match_method: unmatched}
+        - {driver_key: K5, driver_id: 500, match_method: override}
+
+  - name: dim_session_crosswalk_matching_rules
+    description: >
+      S1 matches on date, location and type. S2 has no start time (the 2021
+      sprint case) and matches on date. S3 is a day off in UTC and still
+      matches. S4's location matches none of our circuits, so it's unmatched.
+      S5 is resolved by an override.
+    model: dim_session_crosswalk
+    given:
+      - input: ref('stg_vendor_b__sessions')
+        rows:
+          - {session_key: 1, session_type: race, meeting_name: São Paulo, season: 2021, session_date: 2021-11-14, session_start_utc: '2021-11-14 17:00:00'}
+          - {session_key: 2, session_type: sprint, meeting_name: Sao Paulo, season: 2021, session_date: 2021-11-13, session_start_utc: null}
+          - {session_key: 3, session_type: race, meeting_name: Las Vegas, season: 2023, session_date: 2023-11-19, session_start_utc: '2023-11-19 06:00:00'}
+          - {session_key: 4, session_type: race, meeting_name: Atlantis, season: 2021, session_date: 2021-11-14, session_start_utc: '2021-11-14 17:00:00'}
+          - {session_key: 5, session_type: race, meeting_name: Atlantis, season: 2023, session_date: 2023-03-05, session_start_utc: '2023-03-05 15:00:00'}
+      - input: ref('vendor_b_session_overrides')
+        rows:
+          - {session_key: 5, race_id: 1098, session_type: race, reason: test}
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 1071, season: 2021, circuit_id: 18, race_date: 2021-11-14, race_time_utc: '17:00:00', sprint_date: 2021-11-13, sprint_time_utc: null, has_sprint: true}
+          - {race_id: 1120, season: 2023, circuit_id: 80, race_date: 2023-11-18, race_time_utc: '06:00:00', sprint_date: null, sprint_time_utc: null, has_sprint: false}
+      - input: ref('stg_f1__circuits')
+        rows:
+          - {circuit_id: 18, location: São Paulo}
+          - {circuit_id: 80, location: Las Vegas}
+    expect:
+      rows:
+        - {session_key: 1, race_id: 1071, session_type: race, match_method: automatic}
+        - {session_key: 2, race_id: 1071, session_type: sprint, match_method: automatic}
+        - {session_key: 3, race_id: 1120, session_type: race, match_method: automatic}
+        - {session_key: 4, race_id: null, session_type: null, match_method: unmatched}
+        - {session_key: 5, race_id: 1098, session_type: race, match_method: override}
+
+  - name: mart_vendor_result_discrepancies_rules
+    description: >
+      Driver 1 agrees on everything (no rows). Driver 2 has different points
+      and a different classified position. Driver 3 is unclassified in both
+      feeds with different codes ('R' vs 'DNF'), so that isn't a position
+      discrepancy. Driver 4 is classified in ours but DNF in Vendor B. Driver 5
+      is only in ours, driver 6 only in Vendor B.
+    model: mart_vendor_result_discrepancies
+    given:
+      - input: ref('dim_session_crosswalk')
+        rows:
+          - {session_key: 1, race_id: 100, session_type: race, season: 2020}
+      - input: ref('dim_driver_crosswalk')
+        rows:
+          - {driver_key: D1, driver_id: 1}
+          - {driver_key: D2, driver_id: 2}
+          - {driver_key: D3, driver_id: 3}
+          - {driver_key: D4, driver_id: 4}
+          - {driver_key: D6, driver_id: 6}
+      - input: ref('fct_session_results')
+        rows:
+          - {season: 2020, race_id: 100, session_type: race, driver_id: 1, finish_position: 1, position_text: '1', points: 25}
+          - {season: 2020, race_id: 100, session_type: race, driver_id: 2, finish_position: 2, position_text: '2', points: 18}
+          - {season: 2020, race_id: 100, session_type: race, driver_id: 3, finish_position: null, position_text: R, points: 0}
+          - {season: 2020, race_id: 100, session_type: race, driver_id: 4, finish_position: 9, position_text: '9', points: 2}
+          - {season: 2020, race_id: 100, session_type: race, driver_id: 5, finish_position: 10, position_text: '10', points: 1}
+          - {season: 2017, race_id: 50, session_type: race, driver_id: 1, finish_position: 1, position_text: '1', points: 25}
+      - input: ref('stg_vendor_b__results')
+        rows:
+          - {session_key: 1, driver_key: D1, finish_position: 1, position_text: '1', points: 25}
+          - {session_key: 1, driver_key: D2, finish_position: 3, position_text: '3', points: 15}
+          - {session_key: 1, driver_key: D3, finish_position: null, position_text: DNF, points: 0}
+          - {session_key: 1, driver_key: D4, finish_position: null, position_text: DNF, points: 2}
+          - {session_key: 1, driver_key: D6, finish_position: 11, position_text: '11', points: 0}
+    expect:
+      rows:
+        - {race_id: 100, session_type: race, driver_id: 2, discrepancy_type: points, vendor_a_value: '18.00', vendor_b_value: '15.00'}
+        - {race_id: 100, session_type: race, driver_id: 2, discrepancy_type: position, vendor_a_value: '2', vendor_b_value: '3'}
+        - {race_id: 100, session_type: race, driver_id: 4, discrepancy_type: position, vendor_a_value: '9', vendor_b_value: DNF}
+        - {race_id: 100, session_type: race, driver_id: 5, discrepancy_type: missing_in_vendor_b, vendor_a_value: '10', vendor_b_value: null}
+        - {race_id: 100, session_type: race, driver_id: 6, discrepancy_type: missing_in_vendor_a, vendor_a_value: null, vendor_b_value: '11'}
+
+  # --- telemetry -------------------------------------------------------------
+
+  - name: fct_telemetry_incremental_rebuilds_only_changed_races
+    description: >
+      On an incremental run only the races returned by
+      telemetry_races_to_process are read and rebuilt (race 10 has a late
+      sample; race 11 is untouched). A sample delivered twice keeps the latest load.
+    model: fct_telemetry
+    overrides:
+      macros:
+        is_incremental: true
+        telemetry_races_to_process: [10]
+    given:
+      - input: ref('stg_telemetry__car_samples')
+        rows:
+          - {race_id: 10, driver_id: 1, lap: 5, sample_index: 0, speed_kph: 200, source_loaded_at: '2024-01-01 10:00:00'}
+          - {race_id: 10, driver_id: 1, lap: 5, sample_index: 1, speed_kph: 210, source_loaded_at: '2024-01-01 10:00:00'}
+          - {race_id: 10, driver_id: 1, lap: 5, sample_index: 1, speed_kph: 211, source_loaded_at: '2024-02-15 08:00:00'}
+          - {race_id: 10, driver_id: 1, lap: 5, sample_index: 2, speed_kph: 220, source_loaded_at: '2024-02-15 08:00:00'}
+          - {race_id: 11, driver_id: 1, lap: 1, sample_index: 0, speed_kph: 150, source_loaded_at: '2024-01-08 10:00:00'}
+    expect:
+      rows:
+        - {race_id: 10, driver_id: 1, lap: 5, sample_index: 0, speed_kph: 200}
+        - {race_id: 10, driver_id: 1, lap: 5, sample_index: 1, speed_kph: 211}
+        - {race_id: 10, driver_id: 1, lap: 5, sample_index: 2, speed_kph: 220}
+
+  - name: fct_telemetry_incremental_no_changes_reads_nothing
+    description: When no race has new samples, the incremental run selects nothing.
+    model: fct_telemetry
+    overrides:
+      macros:
+        is_incremental: true
+        telemetry_races_to_process: []
+    given:
+      - input: ref('stg_telemetry__car_samples')
+        rows:
+          - {race_id: 10, driver_id: 1, lap: 5, sample_index: 0, speed_kph: 200, source_loaded_at: '2024-01-01 10:00:00'}
+    expect:
+      rows: []
+
+  - name: mart_lap_telemetry_summary_aggregates_rebuilt_race
+    description: >
+      Aggregates for the rebuilt race, including the late sample:
+      full_throttle_pct counts throttle >= 99 as a percentage of the lap's
+      samples, and brake_samples counts samples with the brake on.
+    model: mart_lap_telemetry_summary
+    overrides:
+      macros:
+        is_incremental: true
+        telemetry_races_to_process: [10]
+    given:
+      - input: ref('fct_telemetry')
+        rows:
+          - {race_id: 10, driver_id: 1, lap: 5, sample_index: 0, speed_kph: 200, throttle_pct: 100, brake: false, source_loaded_at: '2024-01-01 10:00:00'}
+          - {race_id: 10, driver_id: 1, lap: 5, sample_index: 1, speed_kph: 300, throttle_pct: 99, brake: false, source_loaded_at: '2024-01-01 10:00:00'}
+          - {race_id: 10, driver_id: 1, lap: 5, sample_index: 2, speed_kph: 120, throttle_pct: 0, brake: true, source_loaded_at: '2024-01-01 10:00:00'}
+          - {race_id: 10, driver_id: 1, lap: 5, sample_index: 3, speed_kph: 150, throttle_pct: 40, brake: false, source_loaded_at: '2024-02-15 08:00:00'}
+          - {race_id: 11, driver_id: 1, lap: 1, sample_index: 0, speed_kph: 150, throttle_pct: 100, brake: false, source_loaded_at: '2024-01-08 10:00:00'}
+    expect:
+      rows:
+        - {race_id: 10, driver_id: 1, lap: 5, samples: 4, max_speed_kph: 300, avg_throttle_pct: 59.75, full_throttle_pct: 50.00, brake_samples: 1, telemetry_loaded_at: '2024-02-15 08:00:00'}
+
+  - name: int_f1__qualifying_entries_uses_race_constructor
+    description: >
+      Qualifying is attributed to the constructor the driver raced for. The
+      2015 Marussia rows carry the old constructor id in qualifying. A driver
+      with no result keeps the qualifying constructor.
+    model: int_f1__qualifying_entries
+    given:
+      - input: ref('fct_qualifying')
+        rows:
+          - {qualify_id: 1, race_id: 11, driver_id: 1, constructor_id: 206}
+          - {qualify_id: 2, race_id: 11, driver_id: 2, constructor_id: 209}
+          - {qualify_id: 3, race_id: 11, driver_id: 3, constructor_id: 5}
+      - input: ref('fct_results')
+        rows:
+          - {race_id: 11, driver_id: 1, constructor_id: 209}
+          - {race_id: 11, driver_id: 2, constructor_id: 209}
+    expect:
+      rows:
+        - {qualify_id: 1, constructor_id: 209}
+        - {qualify_id: 2, constructor_id: 209}
+        - {qualify_id: 3, constructor_id: 5}
+
+  # --- leadership questions -------------------------------------------------
+
+  - name: int_f1__teammate_qualifying_comparisons_session_rules
+    description: >
+      Race 1 (2008): both drivers reached Q3, but Q3 was run on race fuel, so
+      Q2 is compared. Race 2 (2015): both in Q3, so Q3 is compared, and the
+      gap over 2% is flagged as an outlier. Race 3: constructor 2 has three
+      cars and constructor 3 only one, so neither is compared.
+    model: int_f1__teammate_qualifying_comparisons
+    given:
+      - input: ref('int_f1__qualifying_entries')
+        rows:
+          - {race_id: 1, season: 2008, round: 1, constructor_id: 1, driver_id: 10, q1_ms: 90000, q2_ms: 89000, q3_ms: 91000}
+          - {race_id: 1, season: 2008, round: 1, constructor_id: 1, driver_id: 11, q1_ms: 90500, q2_ms: 89890, q3_ms: 90000}
+          - {race_id: 2, season: 2015, round: 1, constructor_id: 1, driver_id: 10, q1_ms: 80000, q2_ms: 79000, q3_ms: 78000}
+          - {race_id: 2, season: 2015, round: 1, constructor_id: 1, driver_id: 11, q1_ms: 80000, q2_ms: 79000, q3_ms: 80000}
+          - {race_id: 3, season: 2015, round: 2, constructor_id: 2, driver_id: 20, q1_ms: 80000, q2_ms: null, q3_ms: null}
+          - {race_id: 3, season: 2015, round: 2, constructor_id: 2, driver_id: 21, q1_ms: 80100, q2_ms: null, q3_ms: null}
+          - {race_id: 3, season: 2015, round: 2, constructor_id: 2, driver_id: 22, q1_ms: 80200, q2_ms: null, q3_ms: null}
+          - {race_id: 3, season: 2015, round: 2, constructor_id: 3, driver_id: 30, q1_ms: 80300, q2_ms: null, q3_ms: null}
+    expect:
+      rows:
+        - {race_id: 1, driver_id: 10, teammate_id: 11, compared_session: Q2, driver_time_ms: 89000, teammate_time_ms: 89890, is_outlier: false}
+        - {race_id: 1, driver_id: 11, teammate_id: 10, compared_session: Q2, driver_time_ms: 89890, teammate_time_ms: 89000, is_outlier: false}
+        - {race_id: 2, driver_id: 10, teammate_id: 11, compared_session: Q3, driver_time_ms: 78000, teammate_time_ms: 80000, is_outlier: true}
+        - {race_id: 2, driver_id: 11, teammate_id: 10, compared_session: Q3, driver_time_ms: 80000, teammate_time_ms: 78000, is_outlier: true}
+
+  - name: mart_driver_vs_teammates_adjusts_for_teammate_strength
+    description: >
+      Driver 2 is 0.2% slower than driver 1 in every comparison, but driver 1
+      is 0.5% faster than his other teammate (driver 3). Against a typical
+      teammate, driver 2's adjusted advantage is -0.2 + 0.5 = +0.3%, while
+      his raw median is -0.2%. Driver 1's teammates (2 and 3) never had
+      anyone else, so none of driver 1's comparisons can be adjusted. Small
+      samples, so every tier is 'low'.
+    model: mart_driver_vs_teammates
+    given:
+      - input: ref('int_f1__teammate_qualifying_comparisons')
+        rows:
+          - {race_id: 1, season: 2020, driver_id: 2, teammate_id: 1, pace_advantage_pct: -0.2, is_outlier: false}
+          - {race_id: 1, season: 2020, driver_id: 1, teammate_id: 2, pace_advantage_pct: 0.2, is_outlier: false}
+          - {race_id: 2, season: 2020, driver_id: 2, teammate_id: 1, pace_advantage_pct: -0.2, is_outlier: false}
+          - {race_id: 2, season: 2020, driver_id: 1, teammate_id: 2, pace_advantage_pct: 0.2, is_outlier: false}
+          - {race_id: 3, season: 2021, driver_id: 1, teammate_id: 3, pace_advantage_pct: 0.5, is_outlier: false}
+          - {race_id: 3, season: 2021, driver_id: 3, teammate_id: 1, pace_advantage_pct: -0.5, is_outlier: false}
+      - input: ref('mart_driver_season_vs_teammate')
+        rows: []
+      - input: ref('dim_drivers')
+        rows:
+          - {driver_id: 1, driver_ref: a, first_name: A, last_name: One}
+          - {driver_id: 2, driver_ref: b, first_name: B, last_name: Two}
+          - {driver_id: 3, driver_ref: c, first_name: C, last_name: Three}
+    expect:
+      rows:
+        - {driver_id: 2, median_pace_advantage_pct: -0.2, adjusted_pace_advantage_pct: 0.3, adjusted_comparisons: 2, trust_tier: low, verdict: insufficient evidence}
+        - {driver_id: 1, median_pace_advantage_pct: 0.2, adjusted_pace_advantage_pct: null, adjusted_comparisons: 0, trust_tier: low, verdict: insufficient evidence}
+        - {driver_id: 3, median_pace_advantage_pct: -0.5, adjusted_pace_advantage_pct: -0.3, adjusted_comparisons: 1, trust_tier: low, verdict: insufficient evidence}
+
+  - name: mart_race_pit_lane_times_baseline_uses_current_regime
+    description: >
+      Circuit 1's baseline uses only races after the 2013 speed-limit change
+      (24s and 25s, baseline 24.5s). The 2012 race (21.5s) is kept, marked
+      as the old regime, and compared against that baseline (-3.0s).
+    model: mart_race_pit_lane_times
+    given:
+      - input: ref('stg_f1__pit_stops')
+        rows:
+          - {race_id: 1, duration_ms: 21500}
+          - {race_id: 2, duration_ms: 24000}
+          - {race_id: 3, duration_ms: 25000}
+          - {race_id: 3, duration_ms: 70000}
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 1, season: 2012, round: 1, race_date: 2012-06-01, circuit_id: 1}
+          - {race_id: 2, season: 2016, round: 1, race_date: 2016-06-01, circuit_id: 1}
+          - {race_id: 3, season: 2020, round: 1, race_date: 2020-06-01, circuit_id: 1}
+      - input: ref('stg_f1__circuits')
+        rows:
+          - {circuit_id: 1, circuit_name: Test Ring}
+    expect:
+      rows:
+        - {race_id: 1, is_current_regime: false, stops: 1, median_seconds: 21.5, circuit_baseline_median_seconds: 24.5, median_vs_circuit_seconds: -3.0}
+        - {race_id: 2, is_current_regime: true, stops: 1, median_seconds: 24.0, circuit_baseline_median_seconds: 24.5, median_vs_circuit_seconds: -0.5}
+        - {race_id: 3, is_current_regime: true, stops: 1, median_seconds: 25.0, circuit_baseline_median_seconds: 24.5, median_vs_circuit_seconds: 0.5}

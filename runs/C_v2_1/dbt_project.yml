@@ -1,0 +1,45 @@
+name: f1
+version: "1.0.0"
+profile: f1
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  f1:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    monitoring:
+      +schema: monitoring
+      +materialized: view
+    semantic:
+      +schema: semantic
+      +materialized: table
+    marts:
+      +schema: marts
+      vendor_b:
+        +schema: vendor_b
+      +materialized: table
+
+seeds:
+  f1:
+    +schema: reference
+
+data_tests:
+  f1:
+    +severity: error
+
+snapshots:
+  f1:
+    +schema: snapshots

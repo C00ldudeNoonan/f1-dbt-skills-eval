@@ -1,0 +1,61 @@
+unit_tests:
+  - name: int_f1__season_status_complete_only_when_every_race_has_results
+    description: >
+      A season is complete only when every calendar race has results; the latest completed round is
+      the highest round number with results, compared numerically (round 10 comes after round 9).
+    model: int_f1__season_status
+    given:
+      - input: ref('stg_f1__races')
+        rows:
+          - {race_id: 1, season: 2023, round: 1}
+          - {race_id: 2, season: 2023, round: 2}
+          - {race_id: 3, season: 2024, round: 9}
+          - {race_id: 4, season: 2024, round: 10}
+          - {race_id: 5, season: 2024, round: 11}
+      - input: ref('stg_f1__results')
+        rows:
+          - {race_id: 1}
+          - {race_id: 1}
+          - {race_id: 2}
+          - {race_id: 3}
+          - {race_id: 4}
+    expect:
+      rows:
+        - {season: 2023, calendar_race_count: 2, resulted_race_count: 2, is_season_complete: true, last_completed_round: 2, last_completed_race_id: 2}
+        - {season: 2024, calendar_race_count: 3, resulted_race_count: 2, is_season_complete: false, last_completed_round: 10, last_completed_race_id: 4}
+
+  - name: int_f1__driver_profiles_championship_counts_only_complete_seasons
+    description: >
+      A title is counted only for a first place in a season whose calendar is fully resulted. Driver 1 won
+      a complete season; driver 2 leads an incomplete season and has no title; driver 3 won one complete
+      season and led another incomplete one, so only one title counts.
+    model: int_f1__driver_profiles
+    given:
+      - input: ref('stg_f1__drivers')
+        rows:
+          - {driver_id: 1, driver_ref: a, driver_number: 1, forename: Ann, surname: Able, nationality: British, date_of_birth: 1990-01-01}
+          - {driver_id: 2, driver_ref: b, driver_number: null, forename: Bo, surname: Baker, nationality: French, date_of_birth: 1991-02-02}
+          - {driver_id: 3, driver_ref: c, driver_number: 3, forename: Cy, surname: Cole, nationality: Dutch, date_of_birth: 1992-03-03}
+          - {driver_id: 4, driver_ref: d, driver_number: null, forename: Di, surname: Dunn, nationality: Dutch, date_of_birth: 1993-04-04}
+      - input: ref('fct_results')
+        rows:
+          - {driver_id: 1, race_id: 10, status: Finished, is_win: true, is_podium: true}
+          - {driver_id: 1, race_id: 11, status: Finished, is_win: false, is_podium: true}
+          - {driver_id: 2, race_id: 10, status: Did not qualify, is_win: false, is_podium: false}
+      - input: ref('fct_session_results')
+        rows:
+          - {driver_id: 1, session_type: sprint, is_win: true}
+          - {driver_id: 1, session_type: race, is_win: true}
+      - input: ref('mart_driver_season_standings')
+        rows:
+          - {season: 2022, driver_id: 1, championship_position: 1, is_season_complete: true}
+          - {season: 2022, driver_id: 2, championship_position: 2, is_season_complete: true}
+          - {season: 2023, driver_id: 3, championship_position: 1, is_season_complete: true}
+          - {season: 2024, driver_id: 2, championship_position: 1, is_season_complete: false}
+          - {season: 2024, driver_id: 3, championship_position: 1, is_season_complete: false}
+    expect:
+      rows:
+        - {driver_id: 1, career_starts: 2, career_race_entries_excl_dnq: 2, career_wins: 1, career_podiums: 2, career_sprint_wins: 1, world_championships: 1}
+        - {driver_id: 2, career_starts: 1, career_race_entries_excl_dnq: 0, career_wins: 0, career_podiums: 0, career_sprint_wins: 0, world_championships: 0}
+        - {driver_id: 3, career_starts: 0, career_race_entries_excl_dnq: 0, career_wins: 0, career_podiums: 0, career_sprint_wins: 0, world_championships: 1}
+        - {driver_id: 4, career_starts: 0, career_race_entries_excl_dnq: 0, career_wins: 0, career_podiums: 0, career_sprint_wins: 0, world_championships: 0}

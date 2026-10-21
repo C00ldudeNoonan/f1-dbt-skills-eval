@@ -1,0 +1,46 @@
+with results as (
+
+    select * from {{ ref('stg_f1__results') }}
+
+),
+
+races as (
+
+    select * from {{ ref('stg_f1__races') }}
+
+),
+
+constructors as (
+
+    select * from {{ ref('stg_f1__constructors') }}
+
+),
+
+statuses as (
+
+    select * from {{ ref('stg_f1__status') }}
+
+)
+
+select
+    results.result_id,
+    results.race_id,
+    races.season,
+    races.round,
+    races.race_date,
+    results.driver_id,
+    results.constructor_id,
+    constructors.constructor_name,
+    results.grid,
+    results.finish_position,
+    results.position_order,
+    results.points,
+    results.laps,
+    statuses.status,
+    coalesce(results.finish_position = 1, false) as is_win,
+    coalesce(results.finish_position <= 3, false) as is_podium,
+    results.fastest_lap_time_ms
+from results
+inner join races on races.race_id = results.race_id
+inner join constructors on constructors.constructor_id = results.constructor_id
+inner join statuses on statuses.status_id = results.status_id

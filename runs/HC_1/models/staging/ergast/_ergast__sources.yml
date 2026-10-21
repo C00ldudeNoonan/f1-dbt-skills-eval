@@ -1,0 +1,29 @@
+version: 2
+
+sources:
+  - name: ergast
+    description: >
+      Raw Ergast/Kaggle F1 extracts (1950 onwards), loaded as text exactly as they appeared in
+      the CSV files. Missing values are the literal string `\N`. This schema is read-only;
+      all cleaning happens in the staging layer.
+    database: ANALYTICS_DEV
+    schema: F1_RAW_HC_1
+    tables:
+      - name: races
+        description: One row per Grand Prix weekend. Calendar source for season completeness.
+      - name: results
+        description: One row per Grand Prix classification entry. `result_id` is the grain; a driver can appear twice in one race in the 1950s–70s when driving two cars.
+      - name: drivers
+        description: One row per driver.
+      - name: constructors
+        description: One row per constructor (team).
+      - name: status
+        description: Lookup of finishing / retirement status codes.
+      - name: driver_standings
+        description: Official driver championship standings after every race (points, position, wins). Includes sprint points from 2021 and drop-score rules before 1991.
+      - name: pit_stops
+        description: One row per pit stop, from 2011 onwards. Duration is in milliseconds.
+      - name: lap_times
+        description: One row per driver per lap, from 1996 onwards. Lap time is in milliseconds. The timing provider can reissue corrected times for recent races.
+      - name: sprint_results
+        description: One row per sprint classification entry. Same layout as RESULTS. Sprints are separate sessions and do not count toward the Grand Prix result table.

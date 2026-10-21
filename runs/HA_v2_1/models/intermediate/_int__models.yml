@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: int_season_completeness
+    description: >
+      One row per season. A season is complete only when every calendar race has
+      results. latest_completed_round is the highest round with results.
+    columns:
+      - name: season
+        tests: [unique, not_null]
+      - name: is_season_complete
+        tests: [not_null]
+      - name: latest_completed_round
+        tests: [not_null]
+
+  - name: int_lap_flags
+    description: >
+      One row per lap with the flags that decide whether it is a green-flag lap.
+      Pit flags depend on pit data, which only exists from 2011.
+    columns:
+      - name: race_id
+        tests: [not_null]
+      - name: driver_id
+        tests: [not_null]
+      - name: lap
+        tests: [not_null]

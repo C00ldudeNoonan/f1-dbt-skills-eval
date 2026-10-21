@@ -1,0 +1,50 @@
+unit_tests:
+  - name: green_flag_laps_exclude_lap1_pit_laps_and_slow_laps
+    description: Lap 1, the pit in-lap, the out-lap and laps over 130% of the race's fastest are not green.
+    model: int_lap_times__green_flag
+    given:
+      - input: ref('stg_ergast__lap_times')
+        rows:
+          - {race_id: 1, driver_id: 1, lap: 1, position: 1, lap_time_ms: 100000}
+          - {race_id: 1, driver_id: 1, lap: 2, position: 1, lap_time_ms: 90000}
+          - {race_id: 1, driver_id: 1, lap: 3, position: 1, lap_time_ms: 110000}
+          - {race_id: 1, driver_id: 1, lap: 4, position: 1, lap_time_ms: 95000}
+          - {race_id: 1, driver_id: 1, lap: 5, position: 1, lap_time_ms: 117000}
+          - {race_id: 1, driver_id: 1, lap: 6, position: 1, lap_time_ms: 117001}
+      - input: ref('stg_ergast__pit_stops')
+        rows:
+          - {race_id: 1, driver_id: 1, stop_number: 1, lap: 3, duration_ms: 22000}
+    expect:
+      rows:
+        - {lap: 1, is_green_flag_lap: false}
+        - {lap: 2, is_green_flag_lap: true}
+        - {lap: 3, is_green_flag_lap: false}
+        - {lap: 4, is_green_flag_lap: false}
+        - {lap: 5, is_green_flag_lap: true}
+        - {lap: 6, is_green_flag_lap: false}
+
+  - name: season_is_complete_only_when_every_calendar_race_has_results
+    description: >
+      2023 has results for both calendar races, so it is complete. 2024 has
+      three calendar races but only rounds 1-2 have results: incomplete, and
+      its latest completed round is 2 (race 22).
+    model: int_seasons
+    given:
+      - input: ref('stg_ergast__races')
+        rows:
+          - {race_id: 11, season: 2023, round: 1}
+          - {race_id: 12, season: 2023, round: 2}
+          - {race_id: 21, season: 2024, round: 1}
+          - {race_id: 22, season: 2024, round: 2}
+          - {race_id: 23, season: 2024, round: 3}
+      - input: ref('stg_ergast__results')
+        rows:
+          - {result_id: 1, race_id: 11}
+          - {result_id: 2, race_id: 12}
+          - {result_id: 3, race_id: 21}
+          - {result_id: 4, race_id: 22}
+          - {result_id: 5, race_id: 22}
+    expect:
+      rows:
+        - {season: 2023, calendar_rounds: 2, completed_rounds: 2, latest_completed_round: 2, latest_completed_race_id: 12, is_complete: true}
+        - {season: 2024, calendar_rounds: 3, completed_rounds: 2, latest_completed_round: 2, latest_completed_race_id: 22, is_complete: false}

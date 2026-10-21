@@ -1,0 +1,133 @@
+version: 2
+
+models:
+  - name: stg_f1__races
+    description: One row per race on the calendar, typed. Includes races without results.
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+    data_tests:
+      - unique_combination:
+          arguments: {columns: [season, round]}
+
+  - name: stg_f1__results
+    description: >
+      One row per Grand Prix result entry. A driver can legitimately have two rows in one race
+      (shared drives in the 1950s-60s), so `(race_id, driver_id)` is not unique.
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__races'), field: race_id}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__drivers'), field: driver_id}
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__constructors'), field: constructor_id}
+      - name: status_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__status'), field: status_id}
+      - name: grid
+        description: Starting grid slot; 0 means pit-lane start / no grid slot.
+      - name: finish_position
+        description: Classified finishing position; null when not classified.
+      - name: position_order
+        description: Total ordering of the result including unclassified entries.
+        data_tests: [not_null]
+      - name: fastest_lap_time_ms
+        description: Driver's fastest race lap in integer milliseconds; null when not recorded.
+
+  - name: stg_f1__drivers
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__constructors
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__status
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+
+  - name: stg_f1__driver_standings
+    description: Official driver championship standings after every race.
+    columns:
+      - name: driver_standings_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__races'), field: race_id}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__drivers'), field: driver_id}
+
+  - name: stg_f1__pit_stops
+    description: One row per pit stop (2011 onward), duration in milliseconds.
+    columns:
+      - name: duration_ms
+        data_tests: [not_null]
+    data_tests:
+      - unique_combination:
+          arguments: {columns: [race_id, driver_id, stop_number]}
+
+  - name: stg_f1__lap_times
+    description: One row per driver per lap per race (1996 onward), time in milliseconds.
+    columns:
+      - name: lap_time_ms
+        data_tests: [not_null]
+    data_tests:
+      - unique_combination:
+          arguments: {columns: [race_id, driver_id, lap]}
+
+  - name: stg_f1__sprint_results
+    description: >
+      One row per sprint result entry (2021 onward). `result_id` has its own numbering that
+      collides with Grand Prix `result_id`s, so it is only unique within this model.
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__races'), field: race_id}
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__drivers'), field: driver_id}
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__constructors'), field: constructor_id}
+      - name: status_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('stg_f1__status'), field: status_id}

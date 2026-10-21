@@ -1,0 +1,26 @@
+{
+  "scores": {
+    "layering": 3,
+    "naming": 4,
+    "testing": 4,
+    "quirks": 3,
+    "incremental_snapshot": 4,
+    "change_hygiene": 4,
+    "docs": 4,
+    "interfaces": 4,
+    "open_ended": null
+  },
+  "justifications": {
+    "layering": "Staging is clean and everything uses source()/ref(), but the layers point the wrong way: int_f1__driver_profiles.sql reads from the marts fct_results, fct_session_results and mart_driver_season_standings. Also, fct_session_results.sql repeats fct_results' joins to races/constructors/status and its is_win/is_podium logic for sprints instead of sharing one intermediate model.",
+    "naming": "The stg_f1__ and int_f1__ prefixes and the _layer__models.yml files are consistent and easy to find, but marts mix fct_/dim_ with mart_ prefixes, and the test assert_session_and_pit_stop_marts_no_fan_out.sql only checks pit stops despite its name.",
+    "testing": "Tests sit at sensible layers: keys and relationships in staging (_f1__models.yml), grain tests on marts, and anchors to published history (assert_standings_match_official_history.sql, assert_dim_drivers_known_career_totals.sql). Both ticket bugs are guarded: the source_columns_missing contract (macros/source_column_contract.sql) catches the rename, and source_no_conflicting_duplicates plus assert_fct_results_totals_match_raw.sql catch the Ferrari fan-out. Gaps: assert_session_and_pit_stop_marts_no_fan_out duplicates assert_pit_stops_reconcile_to_raw, nothing checks the sprint side for fan-out, and nothing tests the incremental window directly.",
+    "quirks": "Several quirks are handled on purpose and explained in the README: \\N nulls via clean_null, the 60s red-flag pit-stop cutoff in mart_constructor_season_pit_stops.sql, pre-1991 dropped scores by using official driver_standings, shared drives via count(distinct race_id), incomplete seasons in int_f1__season_status, and sprints kept separate. Others are not: clean_null ignores empty strings, lap_time_to_ms.sql only parses m:ss.mmm (a value without a colon would fail the int cast), and lap_times/pit_stops columns are cast without null cleaning.",
+    "incremental_snapshot": "fct_lap_times.sql uses delete+insert on race_id with a two-race lookback by race_date and on_schema_change='fail', which is idempotent and well reasoned. However, laps that arrive late for races older than the window are silently missed (assert_fct_lap_times_matches_raw.sql would flag this only by row count). snp_drivers uses check/all on the raw source, so a duplicate driverid row of the kind seen in ticket 6 would break the snapshot merge, and whitespace-only changes create spurious versions.",
+    "change_hygiene": "Later tickets refactored rather than bolted on: standings are now derived from mart_driver_standings_by_round, dim_drivers logic moved into int_f1__driver_profiles shared by v1 and v2, and the column fix was one line per staging file. There is no commented-out code. One doc went stale: the stg_f1__results description in _f1__models.yml still says sprints 'are not staged' even though stg_f1__sprint_results exists.",
+    "docs": "The README and inline comments explain the why: text sorting of round, dropped scores, result-id collisions between GP and sprint tables, the Ferrari incident write-up, the lookback reasoning, and the snapshot warning not to drop it. Many mart columns in _marts__models.yml still have no description, e.g. points, laps and status on fct_session_results.",
+    "interfaces": "fct_results and dim_drivers are access: public with enforced contracts and data types in _marts__public_models.yml. v1/v2 versioning includes a deprecation_date and a deliberately disabled latest_version_pointer, and the README gives consumers migration guidance. The unit tests in _marts__unit_tests.yml are thin (the v2 test is a single passthrough row), and v1's not_null test on full_name conflicts with the nullif() that can return null.",
+    "open_ended": null
+  },
+  "biggest_strength": "It responds to incidents defensively and documents the response: source column contracts, conflicting-duplicate gates, totals-reconcile-to-raw tests and history anchors, each explained in the README with the reasoning behind it.",
+  "biggest_weakness": "Two weaknesses: (1) the intermediate layer depends on marts, and the sprint fact repeats the GP fact's logic instead of sharing it; (2) quirk handling is narrow. Empty-string nulls and other lap-time formats aren't handled, and nothing attempts the leadership questions on car-adjusted performance and pit-stop trends."
+}

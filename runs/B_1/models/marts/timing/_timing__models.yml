@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: fct_lap_times
+    description: >
+      One row per driver per lap per Grand Prix (1996 onwards). Incremental:
+      each run loads new races and fully replaces the two most recently loaded
+      races (var `lap_times_reprocess_recent_races`), so the timing provider's
+      corrections to those races flow through without a full refresh.
+      Corrections to anything older need `dbt build --full-refresh -s fct_lap_times`.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_id
+      - name: lap
+        description: Lap number, starting at 1.
+        data_tests:
+          - not_null
+          - accepted_range:
+              arguments:
+                min_value: 1
+      - name: position
+        description: Running position at the end of the lap.
+      - name: lap_time_ms
+        description: Lap time in integer milliseconds.
+        data_tests: [not_null]
+      - name: lap_time_text
+        description: Lap time as published (m:ss.fff).

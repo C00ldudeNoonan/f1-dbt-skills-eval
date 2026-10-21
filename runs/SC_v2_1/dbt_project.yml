@@ -1,0 +1,35 @@
+name: f1
+version: '1.0.0'
+profile: f1
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  f1:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +contract:
+        enforced: true
+
+seeds:
+  f1:
+    +schema: reference
+
+vars:
+  # Which scoring system in seeds/ref_points_systems.csv mart_alt_points_standings uses.
+  alt_points_system: current_2010
+  # Telemetry incremental overlap: re-read this many hours before the watermark (safety margin).
+  telemetry_lookback_hours: 2
+  # Set true to run the telemetry uniqueness tests over the whole table instead of the recent batch.
+  full_telemetry_tests: false

@@ -1,0 +1,159 @@
+version: 2
+
+models:
+  - name: stg_ergast__circuits
+    description: Circuits, typed and cleaned. One row per circuit.
+    columns:
+      - name: circuit_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__constructors
+    description: Constructors (teams), typed and cleaned. One row per constructor.
+    columns:
+      - name: constructor_id
+        data_tests: [unique, not_null]
+      - name: constructor_name
+        data_tests: [not_null]
+
+  - name: stg_ergast__drivers
+    description: Drivers, typed and cleaned (text trimmed — e.g. raw nationality had trailing spaces). One row per driver.
+    columns:
+      - name: driver_id
+        data_tests: [unique, not_null]
+      - name: driver_ref
+        data_tests: [unique, not_null]
+      - name: full_name
+        description: Forename and surname separated by a space.
+        data_tests: [not_null]
+      - name: date_of_birth
+        data_tests: [not_null]
+
+  - name: stg_ergast__races
+    description: The race calendar. One row per scheduled Grand Prix, including rounds not yet run.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [season, round]
+    columns:
+      - name: race_id
+        data_tests: [unique, not_null]
+      - name: season
+        data_tests: [not_null]
+      - name: round
+        data_tests: [not_null]
+      - name: race_date
+        data_tests: [not_null]
+      - name: circuit_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__circuits')
+                field: circuit_id
+
+  - name: stg_ergast__status
+    description: Finishing status lookup.
+    columns:
+      - name: status_id
+        data_tests: [unique, not_null]
+
+  - name: stg_ergast__results
+    description: >
+      Grand Prix results (no sprints), typed. One row per car entry; a driver
+      can have two rows in one race when cars were shared (1950s).
+    columns:
+      - name: result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: driver_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__drivers')
+                field: driver_id
+      - name: constructor_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__constructors')
+                field: constructor_id
+      - name: status_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__status')
+                field: status_id
+      - name: position_text
+        data_tests: [not_null]
+      - name: finish_position
+        description: Classified finishing position; null when not classified.
+      - name: points
+        data_tests: [not_null]
+      - name: fastest_lap_time_ms
+        data_tests:
+          - expression_is_true:
+              arguments:
+                expression: "fastest_lap_time_ms is not null or fastest_lap_time_text is null"
+              config:
+                description: Every non-null fastest lap string must parse.
+
+  - name: stg_ergast__sprint_results
+    description: Sprint race results (2021+). Kept separate from Grand Prix results.
+    columns:
+      - name: sprint_result_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+
+  - name: stg_ergast__driver_standings
+    description: Official driver standings after each race.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id]
+    columns:
+      - name: driver_standings_id
+        data_tests: [unique, not_null]
+      - name: race_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_ergast__races')
+                field: race_id
+      - name: championship_position
+        description: Position in the championship; null for drivers excluded from it (position_text 'D').
+      - name: position_text
+        data_tests: [not_null]
+
+  - name: stg_ergast__pit_stops
+    description: Pit stops (2011+). Duration is total pit-lane time.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, stop_number]
+    columns:
+      - name: duration_ms
+        data_tests: [not_null]
+
+  - name: stg_ergast__lap_times
+    description: Per-lap timing (1996+), typed. One row per race, driver and lap.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [race_id, driver_id, lap]
+    columns:
+      - name: lap_time_ms
+        data_tests: [not_null]

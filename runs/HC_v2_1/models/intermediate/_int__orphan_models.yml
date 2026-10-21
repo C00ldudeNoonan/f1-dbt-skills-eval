@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: int_orphan_drivers
+    description: >
+      One row per driver ID that appears in results, qualifying or standings but has no record in
+      stg_f1__drivers. Empty when every result has a driver record. The orphan_* columns say how many
+      rows each feed holds for that driver. Results stay in fct_results regardless, and dim_drivers
+      gives each orphan ID a placeholder row. Watch this model to see how many results are waiting.
+    columns:
+      - name: driver_id
+        description: Driver ID with no driver record yet.
+        data_tests:
+          - unique
+          - not_null
+      - name: orphan_result_count
+        description: Result rows for this driver. These appear in fct_results with the placeholder driver.
+        data_tests:
+          - not_null
+      - name: orphan_qualifying_count
+        description: Qualifying rows for this driver.
+        data_tests:
+          - not_null
+      - name: orphan_standings_count
+        description: Driver standings rows for this driver.
+        data_tests:
+          - not_null
