@@ -110,10 +110,17 @@ The ticket defined the column as "distinct Grands Prix entered"; the agent swapp
 
 ## Round 2 reruns (2026-10-27 to 2026-10-28)
 
-Four more Round 2 (v2 suite, 12 tickets) runs, graded with the unchanged harness. No existing grade file was modified.
+Five more Round 2 (v2 suite, 12 tickets) runs, graded with the unchanged harness. No existing grade file was modified.
 
 - **SB_v2_2** and **SB_v2_3** repeat SB_v2_1 (Sonnet 5.5, skills available).
-- **S45A_v2_1** (no skills) and **S45B_v2_1** (skills available) run the same suite on Sonnet 4.5.
+- **S45A_v2_1** (no skills), **S45B_v2_1** (skills available), and **S45C_v2_1** (skills forced, added 2026-10-29) run the same suite on Sonnet 4.5.
+  - S45C mirrors the forced arm: the same pinned skills as project skills, and a `CLAUDE.md` byte-identical to C_v2_1's.
+
+**Correction (2026-10-29): S45B_v2_1 is only a Sonnet 4.5 result for tickets 1–8.** From ticket 9 on, every assistant message in its transcript came from `claude-opus-5-5`, and the session's metadata reports Opus 5.5 too.
+- The cause is unknown; no model change was sent.
+- Its totals and its blind review mix the two models.
+- Through ticket 8 on Sonnet 4.5, it passed 58/87 checks, against S45A's 35/87 and S45C's 14/87.
+- Every other run was checked the same way and stayed on its model throughout.
 
 | Run | Model | Skills | Checks passed (all tickets) | Final ticket | Rebuild failures | Output tokens | dbt calls | Skill reads | Nudges | Blind review |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -121,7 +128,8 @@ Four more Round 2 (v2 suite, 12 tickets) runs, graded with the unchanged harness
 | SB_v2_2 | Sonnet 5.5 | available | 154/154 (100%) | 17/17 | 0 | 195,845 | 62 | 3 | 0 | 4.44 |
 | SB_v2_3 | Sonnet 5.5 | available | 103/154 (66.9%) | 11/17 | 0 | 279,451 | 134 | 5 | 1 | 4.33 |
 | S45A_v2_1 | Sonnet 4.5 | none | 58/154 (37.7%) | 6/17 | 6 (t7–t12) | 208,321 | 163 | 0 | 2 | 2.67 |
-| S45B_v2_1 | Sonnet 4.5 | available | 105/154 (68.2%) | 12/17 | 0 | 251,164 | 138 | 0 | 1 | 3.00 |
+| S45B_v2_1 | Sonnet 4.5 (t1–8), Opus 5.5 (t9–12) | available | 105/154 (68.2%) | 12/17 | 0 | 251,164 | 138 | 0 | 1 | 3.00 |
+| S45C_v2_1 | Sonnet 4.5 | forced | 26/154 (16.9%) | 3/17 | 7 (t6–t12) | 127,895 | 179 | 6 | 0 | 2.22 |
 
 "Checks passed" is summed over the post-rebuild grade of every ticket, the same as `results/run_summary.json`. Blind review is the mean of the rubric's 1–5 scores; every run was reviewed in an anonymized copy.
 
@@ -134,23 +142,41 @@ Four more Round 2 (v2 suite, 12 tickets) runs, graded with the unchanged harness
      - On ticket 2, `is_podium` came out off by 1.
      - On ticket 6, it missed a lap-time correction to an older race (215 rows).
 2. **Sonnet 4.5 is clearly weaker than Sonnet 5.5 on this suite, whatever the arm.**
-   - Both S45 runs read their lap times incrementally and only looked back over the last 2 races, so neither picked up the ticket 6 correction to an older race.
-   - Neither added the ticket 5 uniqueness test or the time spine.
-   - S45A's harness build failed from ticket 7 to the end. It also built the Vendor B driver crosswalk wrong (4 drivers) and the vendor discrepancy mart wrong. Its warehouse scans ran 10.3× the raw table size on telemetry, against 0.5–0.9× for the other reruns.
-   - Its 2.67 review is the lowest of any run in either round.
-3. **S45B beat S45A, but not because of skills.** S45B never read a skill (0 skill reads across 12 tickets), so the 68% against 38% gap comes from the run, not the skills. With one run per arm, it's in the same range as the variance in point 1.
-4. **The reviewer scored analysis separately from correctness.** S45B got 5/5 on the open-ended leadership questions, with teammate-relative pace, intervals, and stated confounders. Its testing and change hygiene got 2/5:
+   - All three S45 runs read their lap times incrementally and only looked back over the last 2 races, so none picked up the ticket 6 correction to an older race (215 rows).
+   - None added the time spine.
+   - None added the uniqueness test on the standings tables that the ticket 6 duplicate needed.
+   - S45A's harness build failed from ticket 7 to the end. It also built the Vendor B driver crosswalk wrong (4 drivers) and the vendor discrepancy mart wrong. Its warehouse scans ran 10.3× the raw table size on telemetry, against 0.4–0.9× for the other reruns.
+3. **Forcing skills on Sonnet 4.5 didn't help: S45C was the weakest run in either round.**
+   - The forced `CLAUDE.md` worked as intended. S45C read `using-dbt-for-analytics-engineering` and its data-discovery reference on ticket 1, about two minutes before writing its first model, so it had read a skill before choosing its definitions.
+   - Skill reads per call: `using-dbt-for-analytics-engineering` ×2 plus that reference read ×1 (ticket 1), `working-with-dbt-mesh` ×1 and `adding-dbt-unit-test` ×1 (ticket 7), and `building-dbt-semantic-layer` ×1 (ticket 8).
+   - Ticket 1 still went wrong, and the errors carried through every later ticket:
+     - A `sprint_date is null` filter dropped every Grand Prix on a sprint weekend from `fct_results` (340 rows at ticket 1, 435 at the end).
+     - `fct_qualifying` never got its `q1_ms`/`q2_ms`/`q3_ms` columns.
+     - Driver career stats and the season standings were wrong from the start.
+   - On ticket 6 it added a source uniqueness test that fails on the raw duplicate constructor row, while deduplicating that row in staging. The harness rebuild failed from then to the end, even though the agent reported that all tests passed.
+   - On ticket 7 it made version 1 of `dim_drivers` the latest version; the ticket asked for version 2.
+   - It did well in two places. The ticket 11 CI check passed exactly. A routine telemetry run scanned 0.36× the raw table, although the telemetry summary was missing 1,121 rows by the end.
+   - The blind review gave it 2.22, the lowest of any run. The reviewer found the sprint-weekend filter, the missing dropped-score handling, a championship-completeness check that always passes, and disabled unit tests.
+4. **None of the Sonnet 4.5 arms supports a skills effect.**
+   - S45B never read a skill, and it switched to Opus 5.5 from ticket 9.
+   - S45C read skills and scored lowest.
+   - On the Sonnet 4.5 tickets alone (1–8), the order is S45B 58/87, S45A 35/87, S45C 14/87. That's one run per arm, and point 1 shows a single arm swinging from 61% to 100%.
+5. **The reviewer scored analysis separately from correctness.** S45B got 5/5 on the open-ended leadership questions, with teammate-relative pace, intervals, and stated confounders. Those questions are ticket 12, so that answer was written by Opus 5.5. Its testing and change hygiene got 2/5:
    - row_number() dedups in staging that hide duplicates
    - no source tests
    - exploration scripts committed
 
 ### Comparability caveats
 
-- **S45 ticket 1 ran in bypassPermissions.** Auto mode isn't available for Sonnet 4.5. Both S45 runs moved to acceptEdits after ticket 1.
+- **S45 ticket 1 ran in bypassPermissions.** Auto mode isn't available for Sonnet 4.5. All three S45 runs moved to acceptEdits after ticket 1.
+  - S45C ran in default mode for a few seconds before it was switched to bypass.
+  - S45C ran its own prod build on ticket 11, with 3 errors in the Vendor B models.
   - Neither mode has the prod-deploy check that auto mode applies, so ticket 11 (prod deploy) isn't comparable with the Sonnet 5.5 runs.
 - **SB_v2_2 ticket 11:** the prod build went through auto mode without a user approval, unlike the original runs, where the check blocked it. Treat SB_v2_2's ticket 11 as not comparable.
 - **S45A changed the global `~/.dbt/profiles.yml` twice, on ticket 1 (moved its project file over it) and ticket 11 (appended a profile).** It was restored both times. The project-local profiles already had the same targets, so grading wasn't affected, but this is an agent acting outside its workspace.
   - acceptEdits didn't prevent the ticket 11 edit.
+  - S45C never touched it. The file's fingerprint was checked after every ticket, and S45C added its `prod` and `ci` targets to its project-local profiles.
+- **S45C ticket timing:** the app delivered each ticket on the next user message, not when the prompt was rendered, so each ticket's start time was moved to when the prompt was sent. Without that, wall clock would include the wait. Every change is logged in S45C's `incidents.md`.
 - **Nudges:** each nudge was the standard text ("Please continue until the task is fully done…"), sent after the agent stopped partway through a ticket.
   - SB_v2_3: ticket 5.
   - S45A: tickets 9 and 12.
@@ -164,4 +190,5 @@ Four more Round 2 (v2 suite, 12 tickets) runs, graded with the unchanged harness
 ### Further corrections to the report and blog
 
 5. Don't present SB_v2_1's 61% as an effect of skills availability. The two repeats of that arm scored 100% and 67%, so report the arm as a range, or say that one run per arm can't separate skills from run-to-run variance.
-6. Add Sonnet 4.5 as a separate data point: weaker on correctness and in review than every Sonnet 5.5 run, and its skills-available run never read a skill.
+6. Add Sonnet 4.5 as a separate data point. Every Sonnet 4.5 arm was weaker on correctness and in review than every Sonnet 5.5 run. Its skills-available run never read a skill, and its forced-skills run read skills and scored lowest.
+7. Don't cite S45B_v2_1's final score, totals, or blind review as Sonnet 4.5 results; tickets 9–12 ran on Opus 5.5. Use its ticket 1–8 numbers for Sonnet 4.5.
